@@ -1,5 +1,21 @@
 # PCVR experiment validation
 
+## Recovery follow-up and capture resource guards
+
+After a reported solid-blue physical monitor, the user restored its image after
+checking the input/reconnecting the cable. At that point no game or probe process
+remained. Graphics refresh, PC-only projection and a Virtual Desktop restart had
+not recovered it. The cause is unconfirmed. These were host troubleshooting
+actions; the experiment contains no monitor-topology or runtime-selection changes.
+
+The capture path now requires one matching Hookshot process and minimum available
+RAM/commit headroom before loading OpenXR, with once-per-second rechecks during
+capture. A non-graphical `--check-capture` mode and an Escape exit request were added.
+Three CTest checks and eight Python tests pass. The new CTest uses harmless child
+process fixtures and simulated low memory; it does not launch Hookshot or XR.
+A real no-game preflight was rejected before runtime initialization. Both compiler
+variants build. No new headset run has validated the periodic guards or Escape.
+
 ## Follow-up: external window bridge
 
 A separate 20-second Windows Graphics Capture test copied an isolated Hookshot

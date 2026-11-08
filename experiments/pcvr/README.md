@@ -63,8 +63,19 @@ and explicitly choose it (the example variable must be assigned the actual PID):
 
 ```powershell
 $gamePid = 12345 # replace with the PID of the intended running hookshot.exe
+& work/pcvr-smoke/Release/hookshot_xr_smoke.exe --check-capture --capture-pid $gamePid
 & work/pcvr-smoke/Release/hookshot_xr_smoke.exe --loader $loader --quad-seconds 20 --capture-pid $gamePid
 ```
+
+`--check-capture` inspects process identity/count and available memory only: it
+does not load OpenXR, connect a headset or start Windows Graphics Capture. Capture
+requires exactly one running `hookshot.exe`, matching the supplied PID, at least
+768 MiB available physical RAM and 1024 MiB commit headroom. It refuses capture
+before loading the XR loader if these checks fail. The memory figures are minimum
+diagnostic reserves, not estimates of the game's total needs or an OOM guarantee.
+Capture rechecks those conditions once per second between frames and stops on
+failure. It never launches or kills game processes. Windows display configuration
+is not changed by this executable. Holding Escape requests normal session exit.
 
 Capture mode requires exactly one visible, non-owned window belonging to that
 `hookshot.exe` process. It refuses a different executable, an ambiguous process,
@@ -161,3 +172,23 @@ shader-preparation process exhausted system memory while starting a packaging
 shell. The isolated game was closed; the original process was not stopped. This
 is an observed resource limitation: use one game instance for subsequent tests.
 The successful run is not evidence of stable long-session resource use.
+
+## Recovery and guard validation
+
+The user later reported a solid-blue physical monitor. No game/probe processes
+remained. Refreshing graphics, selecting the PC-only Windows projection topology
+and restarting Virtual Desktop did not restore the physical image. The user
+reported recovery after checking the input and reconnecting the cable. The cause
+is unconfirmed; no claim is made that the probe caused or fixed the signal issue.
+The recovery actions were diagnostic host actions, not behavior of this program.
+
+With Hookshot closed, the hardened build passed three CTest checks. The new
+process-lifecycle check creates two harmless sleeping copies of its own test
+executable named `hookshot.exe` inside the build directory. It verifies real
+process enumeration, selected-PID matching, duplicate rejection, cleanup and
+simulated RAM/commit exhaustion without loading XR or any game assets. It skips
+instead of spawning fixtures if a real Hookshot process is already running.
+The eight Python preflight tests still pass. A direct `--check-capture` invocation
+with no game running returned `capture_blocked`, with no runtime initialization.
+MSVC capture and llvm-mingw synthetic/session builds compile. The new periodic
+checks and Escape request have not yet been exercised during a headset run.

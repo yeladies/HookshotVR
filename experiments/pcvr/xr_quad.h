@@ -131,7 +131,12 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
     using Clock = std::chrono::steady_clock;
     const auto deadline = Clock::now() + std::chrono::seconds(seconds);
     const auto hard_deadline = deadline + std::chrono::seconds(5);
+    auto health_deadline = Clock::now() + std::chrono::seconds(1);
     while (Clock::now() < hard_deadline) {
+        if (capture_pid && Clock::now() >= health_deadline) {
+            check_capture_health(capture_pid);
+            health_deadline = Clock::now() + std::chrono::seconds(1);
+        }
         XrEventDataBuffer event{XR_TYPE_EVENT_DATA_BUFFER};
         for (;;) {
             const auto result = xrPollEvent(s.instance, &event);
@@ -158,9 +163,11 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
             }
             event = {XR_TYPE_EVENT_DATA_BUFFER};
         }
-        if (Clock::now() >= deadline) {
+        const bool escape = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+        if (Clock::now() >= deadline || escape) {
             if (!running) break;
             if (!exit_requested) {
+                std::printf("exit_requested=%s\n", escape ? "escape" : "deadline");
                 xr_check(xrRequestExitSession(s.session), "xrRequestExitSession");
                 exit_requested = true;
             }

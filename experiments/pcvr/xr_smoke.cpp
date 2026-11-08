@@ -18,6 +18,7 @@
 #include <chrono>
 #include <thread>
 #include <charconv>
+#include "capture_guards.h"
 #ifdef HOOKSHOT_WINDOW_CAPTURE
 #include "window_capture.h"
 #include <winrt/base.h>
@@ -205,6 +206,7 @@ int main(int argc, char** argv) {
     bool session = false;
     int quad_seconds = 0;
     uint32_t capture_pid = 0;
+    bool capture_preflight = false;
     for (int i = 1; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--help")) {
             std::puts("hookshot_xr_smoke --loader ABSOLUTE_DLL_PATH [--session] [--quad-seconds 1..60] [--capture-pid PID]\n"
@@ -212,10 +214,13 @@ int main(int argc, char** argv) {
                       "--session: also create/destroy a Vulkan device and idle XR session.\n"
                       "--quad-seconds: brief dim blue panel; no game or input.\n"
                       "--capture-pid: MSVC build only; capture one running Hookshot window instead of the blue panel.\n"
+                      "--check-capture: with --capture-pid, check processes/memory only; no loader or headset needed.\n"
+                      "Escape requests exit from a panel run. Capture checks memory/processes once per second.\n"
                       "Exit 0=completed, 1=runtime error, 2=usage, 3=HMD unavailable, 4=GPU timeout.");
             return 0;
         }
-        if (!std::strcmp(argv[i], "--capture-pid") && i + 1 < argc) {
+        if (!std::strcmp(argv[i], "--check-capture")) capture_preflight = true;
+        else if (!std::strcmp(argv[i], "--capture-pid") && i + 1 < argc) {
             const std::string value = argv[++i];
             const auto parsed = std::from_chars(value.data(), value.data() + value.size(), capture_pid);
             if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() || !capture_pid) {
@@ -241,6 +246,11 @@ int main(int argc, char** argv) {
         }
         else { std::fprintf(stderr, "Invalid argument; use --help\n"); return 2; }
     }
+    if (capture_preflight) {
+        if (!capture_pid) { std::fprintf(stderr, "--check-capture requires --capture-pid\n"); return 2; }
+        try { check_capture_health(capture_pid, true); return 0; }
+        catch (const std::exception& e) { std::fprintf(stderr, "status=capture_blocked error=%s\n", e.what()); return 1; }
+    }
     if (loader.empty() || !loader.is_absolute()) {
         std::fprintf(stderr, "--loader requires an absolute trusted x64 OpenXR loader path\n");
         return 2;
@@ -249,7 +259,10 @@ int main(int argc, char** argv) {
 #ifndef HOOKSHOT_WINDOW_CAPTURE
     if (capture_pid) { std::fprintf(stderr, "Window capture requires the MSVC/Windows SDK build\n"); return 2; }
 #endif
-    try { return run(loader, session, quad_seconds, capture_pid); }
+    try {
+        if (capture_pid) check_capture_health(capture_pid, true);
+        return run(loader, session, quad_seconds, capture_pid);
+    }
 #ifdef HOOKSHOT_WINDOW_CAPTURE
     catch (const winrt::hresult_error& e) {
         std::fprintf(stderr, "status=capture_failed HRESULT=%08lx error=%s\n", static_cast<unsigned long>(e.code().value),
