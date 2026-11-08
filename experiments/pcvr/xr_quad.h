@@ -1,7 +1,8 @@
 // Included inside this experiment's anonymous namespace, after State.
 // A single head-relative dim panel, deliberately no game frame or camera patch.
 int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr vget,
-              PFN_vkGetDeviceProcAddr dget, XrSystemId system, uint32_t family, int seconds) {
+              PFN_vkGetDeviceProcAddr dget, VkPhysicalDevice physical, XrSystemId system, uint32_t family,
+              int seconds, uint32_t capture_pid) {
 #define XR_FN(name) const auto name = xr_proc<PFN_##name>(get, s.instance, #name)
     XR_FN(xrEnumerateViewConfigurations); XR_FN(xrEnumerateEnvironmentBlendModes);
     XR_FN(xrCreateReferenceSpace); XR_FN(xrDestroySpace);
@@ -16,26 +17,44 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
     VK_FN(vkCreateFence); VK_FN(vkDestroyFence); VK_FN(vkResetFences); VK_FN(vkWaitForFences);
     VK_FN(vkResetCommandBuffer); VK_FN(vkBeginCommandBuffer); VK_FN(vkEndCommandBuffer);
     VK_FN(vkCmdPipelineBarrier); VK_FN(vkCmdClearColorImage); VK_FN(vkQueueSubmit); VK_FN(vkGetDeviceQueue);
+    VK_FN(vkCreateBuffer); VK_FN(vkDestroyBuffer); VK_FN(vkGetBufferMemoryRequirements);
+    VK_FN(vkAllocateMemory); VK_FN(vkFreeMemory); VK_FN(vkBindBufferMemory); VK_FN(vkMapMemory);
+    VK_FN(vkUnmapMemory); VK_FN(vkCmdCopyBufferToImage);
 #undef VK_FN
-    (void)vget;
-    (void)system;
+    const auto vkGetPhysicalDeviceMemoryProperties = vk_proc<PFN_vkGetPhysicalDeviceMemoryProperties>(vget, s.vi, "vkGetPhysicalDeviceMemoryProperties");
     struct Resources {
         State& s;
         PFN_xrDestroySpace destroy_space;
         PFN_xrDestroySwapchain destroy_swap;
         PFN_vkDestroyCommandPool destroy_pool;
         PFN_vkDestroyFence destroy_fence;
+        PFN_vkDestroyBuffer destroy_buffer;
+        PFN_vkFreeMemory free_memory;
+        PFN_vkUnmapMemory unmap_memory;
         XrSpace space = XR_NULL_HANDLE;
         XrSwapchain swap = XR_NULL_HANDLE;
         VkCommandPool pool = VK_NULL_HANDLE;
         VkFence fence = VK_NULL_HANDLE;
+        VkBuffer upload = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        void* mapped = nullptr;
         ~Resources() {
             if (fence) destroy_fence(s.vd, fence, nullptr);
             if (pool) destroy_pool(s.vd, pool, nullptr);
+            if (mapped) unmap_memory(s.vd, memory);
+            if (upload) destroy_buffer(s.vd, upload, nullptr);
+            if (memory) free_memory(s.vd, memory, nullptr);
             if (swap) destroy_swap(swap);
             if (space) destroy_space(space);
         }
-    } r{s, xrDestroySpace, xrDestroySwapchain, vkDestroyCommandPool, vkDestroyFence};
+    } r{s, xrDestroySpace, xrDestroySwapchain, vkDestroyCommandPool, vkDestroyFence,
+        vkDestroyBuffer, vkFreeMemory, vkUnmapMemory};
+#ifdef HOOKSHOT_WINDOW_CAPTURE
+    std::unique_ptr<WindowCapture> capture;
+    if (capture_pid) capture = std::make_unique<WindowCapture>(capture_pid);
+#else
+    (void)capture_pid;
+#endif
     uint32_t n = 0;
     xr_check(xrEnumerateViewConfigurations(s.instance, system, 0, &n, nullptr), "view config count");
     std::vector<XrViewConfigurationType> configs(n);
@@ -60,6 +79,27 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
     for (auto f : formats)
         if (f == VK_FORMAT_R8G8B8A8_UNORM || f == VK_FORMAT_B8G8R8A8_UNORM) { format = f; break; }
     if (format == VK_FORMAT_UNDEFINED) throw std::runtime_error("No supported UNORM panel format");
+    if (capture_pid) {
+        VkBufferCreateInfo b{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        b.size = 640 * 360 * 4; b.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        b.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        vk_check(vkCreateBuffer(s.vd, &b, nullptr, &r.upload), "vkCreateBuffer(upload)");
+        VkMemoryRequirements mem{};
+        vkGetBufferMemoryRequirements(s.vd, r.upload, &mem);
+        VkPhysicalDeviceMemoryProperties types{};
+        vkGetPhysicalDeviceMemoryProperties(physical, &types);
+        uint32_t type = 0;
+        const auto flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        while (type < types.memoryTypeCount && (!(mem.memoryTypeBits & (1u << type)) ||
+               (types.memoryTypes[type].propertyFlags & flags) != flags)) ++type;
+        if (type == types.memoryTypeCount) throw std::runtime_error("No coherent upload memory");
+        VkMemoryAllocateInfo a{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+        a.allocationSize = mem.size; a.memoryTypeIndex = type;
+        vk_check(vkAllocateMemory(s.vd, &a, nullptr, &r.memory), "vkAllocateMemory(upload)");
+        vk_check(vkBindBufferMemory(s.vd, r.upload, r.memory, 0), "vkBindBufferMemory(upload)");
+        vk_check(vkMapMemory(s.vd, r.memory, 0, b.size, 0, &r.mapped), "vkMapMemory(upload)");
+        std::memset(r.mapped, 0, static_cast<size_t>(b.size));
+    }
     XrSwapchainCreateInfo sci{XR_TYPE_SWAPCHAIN_CREATE_INFO};
     sci.usageFlags = XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT | XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
     sci.format = format;
@@ -85,6 +125,9 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
     vkGetDeviceQueue(s.vd, family, 0, &queue);
     bool running = false, exit_requested = false;
     uint64_t frames = 0, layers_sent = 0;
+    uint64_t captured_frames = 0;
+    uint64_t capture_changes = 0;
+    [[maybe_unused]] uint64_t last_capture_hash = 0;
     using Clock = std::chrono::steady_clock;
     const auto deadline = Clock::now() + std::chrono::seconds(seconds);
     const auto hard_deadline = deadline + std::chrono::seconds(5);
@@ -106,9 +149,10 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
                 } else if (e.state == XR_SESSION_STATE_STOPPING) {
                     if (running) xr_check(xrEndSession(s.session), "xrEndSession");
                     running = false;
-                    std::printf("status=quad_finished frames=%llu layers_submitted=%llu visual_confirmation=required\n",
-                                static_cast<unsigned long long>(frames), static_cast<unsigned long long>(layers_sent));
-                    return layers_sent ? 0 : 3;
+                    std::printf("status=quad_finished frames=%llu layers_submitted=%llu captured_frames=%llu capture_changes=%llu visual_confirmation=required\n",
+                                static_cast<unsigned long long>(frames), static_cast<unsigned long long>(layers_sent),
+                                static_cast<unsigned long long>(captured_frames), static_cast<unsigned long long>(capture_changes));
+                    return layers_sent && (!capture_pid || captured_frames) ? 0 : 3;
                 } else if (e.state == XR_SESSION_STATE_EXITING || e.state == XR_SESSION_STATE_LOSS_PENDING)
                     throw std::runtime_error("XR session exiting or lost");
             }
@@ -138,6 +182,16 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
             image_wait.timeout = 1000000000LL;
             const auto waited = xrWaitSwapchainImage(r.swap, &image_wait);
             if (waited != XR_SUCCESS) throw std::runtime_error("XR image wait failed/timed out: " + std::to_string(waited));
+#ifdef HOOKSHOT_WINDOW_CAPTURE
+            if (capture && capture->copy_pixels(static_cast<uint8_t*>(r.mapped), 640, 360, format == VK_FORMAT_B8G8R8A8_UNORM)) {
+                uint64_t hash = 14695981039346656037ULL;
+                const auto* bytes = static_cast<const uint8_t*>(r.mapped);
+                for (size_t i = 0; i < 640 * 360 * 4; i += 13) hash = (hash ^ bytes[i]) * 1099511628211ULL;
+                if (captured_frames && hash != last_capture_hash) ++capture_changes;
+                last_capture_hash = hash;
+                ++captured_frames;
+            }
+#endif
             vk_check(vkResetCommandBuffer(cmd, 0), "vkResetCommandBuffer");
             VkCommandBufferBeginInfo cb{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
             cb.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -151,8 +205,13 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
             barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
             vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0,
                                  0, nullptr, 0, nullptr, 1, &barrier);
-            const VkClearColorValue color{{0.025f, 0.08f, 0.14f, 1.0f}};
-            vkCmdClearColorImage(cmd, barrier.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &color, 1, &barrier.subresourceRange);
+            if (captured_frames) {
+                const VkBufferImageCopy copy{0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {640, 360, 1}};
+                vkCmdCopyBufferToImage(cmd, r.upload, barrier.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+            } else {
+                const VkClearColorValue color{{0.025f, 0.08f, 0.14f, 1.0f}};
+                vkCmdClearColorImage(cmd, barrier.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &color, 1, &barrier.subresourceRange);
+            }
             barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;

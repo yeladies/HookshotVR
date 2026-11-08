@@ -1,5 +1,29 @@
 # PCVR experiment validation
 
+## Follow-up: external window bridge
+
+A separate 20-second Windows Graphics Capture test copied an isolated Hookshot
+v2.0.3 window (installed executable's reported source `73ddf2ad`) through CPU
+readback and Vulkan upload into the XR quad. This was not a rebuilt game from the
+audited fork and did not patch its renderer. It used its own save directory and
+the existing local romfs; game-derived files stayed in ignored local work.
+
+Observed: 685 frame iterations, 684 XR quad layers, 572 captured window images,
+351 sampled image-content changes, exit 0 after STOPPING. Source window 1282x752,
+letterboxed output 640x360. The user explicitly confirmed seeing the game in Quest
+3. MSVC capture build and MinGW synthetic-only build succeeded; existing CTest and
+Python checks passed. A shader-preparation process was rejected because it had
+no qualifying game window. Vulkan/OpenXR validation layers were not used.
+
+This result supports external monoscopic window delivery only; it does not validate
+game-frame VkImage sharing, game camera tracking, stereo, input, latency, colors
+or performance. Reproduction and limitations: [compiled experiment](../experiments/pcvr/README.md).
+
+Following the visual test, simultaneous isolated-game and original shader-preparation
+processes exhausted system memory during packaging. Only the task-created game
+copy was closed. Further tests must use one game instance; long-session stability
+has not been established.
+
 ## Follow-up: compiled session and synthetic panel
 
 After the initial audit below, tools were found outside PATH: Visual Studio 18

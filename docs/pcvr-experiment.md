@@ -4,8 +4,10 @@ Audited baseline: `45620e817d6000118d6077857ba2910d051de164` on
 `yeladies/HookshotVR`, 2026-11-08. Work branch:
 `experiment/pcvr-openxr-preflight`. This is a loader diagnostic and an integration
 plan, **not a VR game build**. A later isolated synthetic panel test was displayed
-in Quest 3 and confirmed by the user; game rendering, stereo gameplay and
-controllers remain untested. See [the compiled experiment](../experiments/pcvr/README.md).
+in Quest 3 and confirmed by the user. A subsequent Windows Graphics Capture bridge
+also delivered an isolated Hookshot window to the panel, confirmed by the user.
+Native render-to-XR integration, stereo gameplay and XR controllers remain untested.
+See [the compiled experiment](../experiments/pcvr/README.md).
 No game-derived files are required by either probe.
 
 ## Reproduce the first experiment
@@ -66,7 +68,8 @@ The lowest-risk visible experiment is the existing monoscopic frame on an
 `XrCompositionLayerQuad`. This would be a virtual screen, not stereoscopic gameplay.
 The final frame already includes HUD, so it needs no speculative camera patch.
 The isolated experiment now implements session/device creation and a synthetic quad
-frame loop. Copying the game's final texture into that path remains unimplemented.
+frame loop. An external per-window/CPU bridge can now display a running game's
+window. Directly copying the renderer's final Vulkan texture remains unimplemented.
 
 1. Enable `XR_KHR_vulkan_enable2`, create an XR instance, obtain an HMD system and
    call `xrGetVulkanGraphicsRequirements2KHR`. Compare its OpenXR-encoded version

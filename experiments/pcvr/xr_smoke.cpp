@@ -17,6 +17,11 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <charconv>
+#ifdef HOOKSHOT_WINDOW_CAPTURE
+#include "window_capture.h"
+#include <winrt/base.h>
+#endif
 
 namespace {
 void xr_check(XrResult r, const char* stage) {
@@ -74,7 +79,7 @@ bool extension_supported(PFN_xrEnumerateInstanceExtensionProperties enumerate) {
     }
     throw std::runtime_error("Unstable extension list");
 }
-int run(const std::filesystem::path& loader, bool create_session, int quad_seconds) {
+int run(const std::filesystem::path& loader, bool create_session, int quad_seconds, uint32_t capture_pid) {
     State s;
     s.xr_dll = LoadLibraryExW(loader.c_str(), nullptr,
                             LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -189,7 +194,7 @@ int run(const std::filesystem::path& loader, bool create_session, int quad_secon
     s.destroy_session = xr_proc<PFN_xrDestroySession>(get, s.instance, "xrDestroySession");
     xr_check(xr_proc<PFN_xrCreateSession>(get, s.instance, "xrCreateSession")(s.instance, &sci, &s.session), "xrCreateSession");
     std::printf("queue_family=%u queue_index=0\n", family);
-    if (quad_seconds) return quad_test(s, get, vget, dget, system, family, quad_seconds);
+    if (quad_seconds) return quad_test(s, get, vget, dget, physical, system, family, quad_seconds, capture_pid);
     std::puts("status=session_created; frame_submitted=false; game_feature_compatibility=not_tested");
     return 0;
 }
@@ -199,16 +204,25 @@ int main(int argc, char** argv) {
     std::filesystem::path loader;
     bool session = false;
     int quad_seconds = 0;
+    uint32_t capture_pid = 0;
     for (int i = 1; i < argc; ++i) {
         if (!std::strcmp(argv[i], "--help")) {
-            std::puts("hookshot_xr_smoke --loader ABSOLUTE_DLL_PATH [--session] [--quad-seconds 1..60]\n"
+            std::puts("hookshot_xr_smoke --loader ABSOLUTE_DLL_PATH [--session] [--quad-seconds 1..60] [--capture-pid PID]\n"
                       "Default: instance, HMD system and Vulkan requirements only.\n"
                       "--session: also create/destroy a Vulkan device and idle XR session.\n"
                       "--quad-seconds: brief dim blue panel; no game or input.\n"
+                      "--capture-pid: MSVC build only; capture one running Hookshot window instead of the blue panel.\n"
                       "Exit 0=completed, 1=runtime error, 2=usage, 3=HMD unavailable, 4=GPU timeout.");
             return 0;
         }
-        if (!std::strcmp(argv[i], "--quad-seconds") && i + 1 < argc) {
+        if (!std::strcmp(argv[i], "--capture-pid") && i + 1 < argc) {
+            const std::string value = argv[++i];
+            const auto parsed = std::from_chars(value.data(), value.data() + value.size(), capture_pid);
+            if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() || !capture_pid) {
+                std::fprintf(stderr, "Invalid capture PID\n"); return 2;
+            }
+        }
+        else if (!std::strcmp(argv[i], "--quad-seconds") && i + 1 < argc) {
             const std::string value = argv[++i];
             if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos || value.size() > 2) {
                 std::fprintf(stderr, "--quad-seconds must be 1..60\n"); return 2;
@@ -218,13 +232,29 @@ int main(int argc, char** argv) {
             session = true;
         }
         else if (!std::strcmp(argv[i], "--session")) session = true;
-        else if (!std::strcmp(argv[i], "--loader") && i + 1 < argc) loader = std::filesystem::u8path(argv[++i]);
+        else if (!std::strcmp(argv[i], "--loader") && i + 1 < argc) {
+#ifdef __cpp_char8_t
+            loader = std::filesystem::path(reinterpret_cast<const char8_t*>(argv[++i]));
+#else
+            loader = std::filesystem::u8path(argv[++i]);
+#endif
+        }
         else { std::fprintf(stderr, "Invalid argument; use --help\n"); return 2; }
     }
     if (loader.empty() || !loader.is_absolute()) {
         std::fprintf(stderr, "--loader requires an absolute trusted x64 OpenXR loader path\n");
         return 2;
     }
-    try { return run(loader, session, quad_seconds); }
+    if (capture_pid && !quad_seconds) { std::fprintf(stderr, "--capture-pid requires --quad-seconds\n"); return 2; }
+#ifndef HOOKSHOT_WINDOW_CAPTURE
+    if (capture_pid) { std::fprintf(stderr, "Window capture requires the MSVC/Windows SDK build\n"); return 2; }
+#endif
+    try { return run(loader, session, quad_seconds, capture_pid); }
+#ifdef HOOKSHOT_WINDOW_CAPTURE
+    catch (const winrt::hresult_error& e) {
+        std::fprintf(stderr, "status=capture_failed HRESULT=%08lx error=%s\n", static_cast<unsigned long>(e.code().value),
+                     winrt::to_string(e.message()).c_str()); return 1;
+    }
+#endif
     catch (const std::exception& e) { std::fprintf(stderr, "status=failed error=%s\n", e.what()); return 1; }
 }

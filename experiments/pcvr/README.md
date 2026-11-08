@@ -10,15 +10,17 @@ Three explicit stages are available:
 | none | Enumerate enable2, create XR instance, get HMD system, query Vulkan requirements |
 | `--session` | Also create a Vulkan 1.3 instance/device through XR wrappers, choose the runtime GPU and create/destroy an idle session |
 | `--quad-seconds 10` | Also run a brief XR frame loop displaying a dim blue 16:9 panel, then request exit and end the session |
+| `--quad-seconds 20 --capture-pid PID` | MSVC build: show the explicitly selected Hookshot window in that quad through Windows Graphics Capture and a CPU/Vulkan upload |
 
-The synthetic panel is head-relative, 1.6 by 0.9 metres at 2 metres distance, in both
-eyes. It contains no game imagery. No controller actions or game camera transforms
+The panel is head-relative, 1.6 by 0.9 metres at 2 metres distance, in both
+eyes. Its default content is synthetic; the optional capture mode copies a running
+Hookshot window. No controller actions or game camera transforms
 are implemented. Session initialization does not validate the game's full Vulkan
 feature chain. The runtime's reported GPU is used without changing desktop GPU options.
 
 ## Build
 
-Use CMake 3.20+, a Windows x64 C++17 compiler, official OpenXR headers and Vulkan
+Use CMake 3.20+, a Windows x64 compiler, official OpenXR headers and Vulkan
 headers. No OpenXR import library is needed: an explicitly selected, trusted loader
 is loaded with a restricted Windows DLL search path. Do not pass the runtime DLL
 (for example `virtualdesktop-openxr.dll`) as the loader.
@@ -40,7 +42,9 @@ ctest --test-dir work/pcvr-smoke -C Release --output-on-failure
 
 The default Visual Studio generator must target an installed C++ toolchain. A
 MinGW/Ninja generator with an explicitly chosen x64 compiler is also supported.
-Do not compile the game to build this test.
+MSVC builds use C++20 and the Windows SDK C++/WinRT, D3D11 and Windows Graphics
+Capture libraries. MinGW retains the C++17 synthetic/session stages and explicitly
+rejects capture mode. Do not compile the game to build this test.
 
 ## Run
 
@@ -54,8 +58,35 @@ $loader = 'C:/absolute/path/to/trusted/openxr_loader.dll'
 & work/pcvr-smoke/Release/hookshot_xr_smoke.exe --loader $loader --quad-seconds 10
 ```
 
+For external game-window delivery, start a locally built Hookshot, obtain its PID
+and explicitly choose it (the example variable must be assigned the actual PID):
+
+```powershell
+$gamePid = 12345 # replace with the PID of the intended running hookshot.exe
+& work/pcvr-smoke/Release/hookshot_xr_smoke.exe --loader $loader --quad-seconds 20 --capture-pid $gamePid
+```
+
+Capture mode requires exactly one visible, non-owned window belonging to that
+`hookshot.exe` process. It refuses a different executable, an ambiguous process,
+a preparation console belonging to conhost, a minimized window or a resize.
+It uses a per-window capture item, never a monitor or desktop capture. The system
+capture notification border is not disabled. No captured pixels are written to
+disk or sent to a network by this program; images travel to the selected XR runtime.
+
+This is a diagnostic bridge, **not native renderer integration**: WGC produces
+BGRA frames on D3D11, a CPU readback scales them with aspect-preserving letterboxing
+to 640x360, and coherent Vulkan staging memory uploads them to acquired XR images.
+The prior upload's fence completes before the buffer is rewritten. No-new-frame
+reuses the last captured image; until the first capture arrives the blue panel is
+shown. No game queue, DLL, executable, camera matrix or save file is patched.
+The captured window includes its window decorations. This path is SDR, copies via
+CPU, may add latency, does not forward controller input and is not a performance
+baseline for future direct VkImage integration. Keep the game window restored and
+its original controls focused as needed. A window close/resize stops the experiment.
+
 Exit codes: 0 = completed requested stage; 1 = runtime/API failure; 2 = usage;
-3 = HMD unavailable or no panel layers sent; 4 = GPU fence timeout. A failed
+3 = HMD unavailable, no panel layers sent or no captured frames in capture mode;
+4 = GPU fence timeout. A failed
 requirements query is not a successful session test. A successful `xrEndFrame`
 does not by itself establish that the user saw the panel.
 
@@ -93,3 +124,40 @@ Vulkan/OpenXR validation layers, headset reconnection during rendering, device
 loss and the renderer's full feature set have not been tested. No validation-layer
 installation was found in the checked system registry location. Preserve the
 original renderer until an opt-in game-frame copy path can be built and validated.
+
+## Follow-up: external game window, 2026-11-08
+
+The bridge captured an isolated copy of the user's pre-existing Hookshot v2.0.3
+executable (its log identifies source `73ddf2ad`), not a newly built game executable
+from this fork. The source audit remains pinned to the baseline stated in the docs.
+The isolated run had its own `user` directory, read the existing local romfs, and
+used the verified existing `RX_VK_PRECOMPILE=0` option for that process only. The
+user's original shader-preparation run was left running. No game assets, binaries,
+caches, saves or captured pixels are committed or included in the probe package.
+
+A 20-second capture run with the same VirtualDesktopXR/RTX 2060 SUPER setup:
+
+- Window source: 1282x752; output: 640x360, preserving aspect ratio.
+- 685 frame iterations, 684 submitted quad layers, 572 newly captured frames.
+- 351 changes in a sampled pixel hash (a changing-content indicator, not a frame
+  rate or proof of correct colors). Repeated XR frames can reuse a captured image.
+- Reached FOCUSED, requested exit, ended through STOPPING, exit 0.
+- The user explicitly confirmed seeing the game image inside the Quest 3 panel.
+
+Builds passed with MSVC capture enabled and llvm-mingw without capture. The existing
+two CTest argument checks and eight Python tests still pass. Target selection also
+rejected the preparation-only process before any capture. The first attempt from
+the restricted execution environment could not inspect the process; the real
+per-window run required the normal desktop process context. Normal desktop use
+does not require administrator elevation.
+
+This validates external window delivery only. Native Hookshot Vulkan-to-XR sharing,
+stereo and game-camera 6DoF remain unimplemented. The next integration should
+replace the CPU bridge only after preserving the game's device feature chain,
+source image lifetime and shared queue synchronization under validation layers.
+
+After the successful visual run, keeping the isolated game alongside the original
+shader-preparation process exhausted system memory while starting a packaging
+shell. The isolated game was closed; the original process was not stopped. This
+is an observed resource limitation: use one game instance for subsequent tests.
+The successful run is not evidence of stable long-session resource use.
