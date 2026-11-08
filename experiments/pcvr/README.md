@@ -101,8 +101,9 @@ Exit codes: 0 = completed requested stage; 1 = runtime/API failure; 2 = usage;
 requirements query is not a successful session test. A successful `xrEndFrame`
 does not by itself establish that the user saw the panel.
 
-The panel requires primary stereo, opaque composition and an enumerated UNORM
-format with transfer-destination/color-attachment swapchain usage. Unsupported
+The panel requires primary stereo, opaque composition and an enumerated format
+with transfer-destination/color-attachment swapchain usage: sRGB for captured SDR
+pixels, UNORM for the synthetic linear-color panel. Unsupported
 conditions fail explicitly rather than guessing another presentation path. Each
 frame clears an acquired/waited XR image, transitions it to the required color
 attachment layout, waits for its Vulkan fence, releases it, then submits the quad
@@ -190,5 +191,35 @@ simulated RAM/commit exhaustion without loading XR or any game assets. It skips
 instead of spawning fixtures if a real Hookshot process is already running.
 The eight Python preflight tests still pass. A direct `--check-capture` invocation
 with no game running returned `capture_blocked`, with no runtime initialization.
-MSVC capture and llvm-mingw synthetic/session builds compile. The new periodic
-checks and Escape request have not yet been exercised during a headset run.
+MSVC capture and llvm-mingw synthetic/session builds compile. The later headset
+verification below exercised the periodic checks and Escape path.
+
+## Guarded headset run and brightness correction
+
+One isolated game instance passed preflight with roughly 4 GiB available RAM and
+3.2 GiB commit headroom. A guarded ten-second run submitted 363 layers from 363
+captures and ended by deadline. The user confirmed the physical monitor was normal
+but reported excessive headset brightness.
+
+The capture was incorrectly putting SDR desktop sRGB-encoded bytes into an XR
+UNORM image. OpenXR treats those image values as linear. Capture now requires an
+enumerated `B8G8R8A8_SRGB` or `R8G8B8A8_SRGB` swapchain and preserves encoded bytes,
+swizzling BGRA/RGBA only. It explicitly fails without sRGB capture support. No
+headset brightness setting or arbitrary darkening multiplier is applied. The
+synthetic linear-color panel retains UNORM. See the
+[Khronos swapchain color contract](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XrSwapchain.html).
+
+The corrected run, with a 30-second ceiling, selected Vulkan format 50
+(`VK_FORMAT_B8G8R8A8_SRGB`). The user pressed Escape: the log recorded
+`exit_requested=escape`, 326 frame iterations, 325 layers and 245 captured frames,
+then STOPPING and exit 0. The user confirmed normal brightness and a normal monitor
+afterward. Periodic process/memory checks remained active. The task-created game
+was closed normally and its exit verified.
+
+All four CTest checks and eight Python tests passed after the correction. The new
+CPU-only color regression covers sRGB selection when UNORM is listed first,
+UNORM-only rejection, encoded channel preservation, alpha and BGRA/RGBA ordering.
+Both compiler variants build. This is a short user-confirmed SDR visual result,
+not HDR calibration, a long stability test or native renderer sharing validation.
+Forced low-memory shutdown during live XR remains untested; policy failures were
+exercised with fixtures.

@@ -1,5 +1,26 @@
 # PCVR experiment validation
 
+## Guarded headset verification and sRGB fix
+
+One isolated game instance passed preflight at about 4 GiB available RAM and
+3.2 GiB commit headroom. A guarded ten-second run submitted 363 layers from 363
+captures, ending by deadline. The user confirmed a normal monitor but excessive
+headset brightness. Capture had submitted encoded SDR pixels into a linear UNORM
+XR image; it now requires an advertised sRGB format and preserves encoded channel
+values rather than applying an arbitrary exposure reduction.
+
+The corrected run selected `VK_FORMAT_B8G8R8A8_SRGB` (50), submitted 325 layers
+from 245 captures over 326 frame iterations, logged `exit_requested=escape` and
+ended through STOPPING with exit 0. The user explicitly confirmed normal brightness
+and a normal monitor. Periodic process/memory checks ran during the test. The
+isolated game was closed normally and its exit verified.
+
+Four CTest checks and eight Python tests pass. The new color regression needs no
+graphics. MSVC capture and llvm-mingw synthetic/session variants compile. Long
+stability runs, HDR, validation-layer coverage and forced memory pressure in live
+XR remain untested. Logs stay in ignored local work; no captured pixels or game
+assets were published.
+
 ## Recovery follow-up and capture resource guards
 
 After a reported solid-blue physical monitor, the user restored its image after
@@ -14,7 +35,8 @@ capture. A non-graphical `--check-capture` mode and an Escape exit request were 
 Three CTest checks and eight Python tests pass. The new CTest uses harmless child
 process fixtures and simulated low memory; it does not launch Hookshot or XR.
 A real no-game preflight was rejected before runtime initialization. Both compiler
-variants build. No new headset run has validated the periodic guards or Escape.
+variants build. The subsequent runs above verified normal periodic checking and
+Escape; no forced memory exhaustion was injected into a headset session.
 
 ## Follow-up: external window bridge
 

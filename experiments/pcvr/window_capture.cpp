@@ -13,6 +13,8 @@
 #include <filesystem>
 #include <stdexcept>
 #include "window_capture.h"
+#define VK_NO_PROTOTYPES
+#include "panel_color.h"
 
 namespace {
 struct Apartment {
@@ -112,7 +114,7 @@ bool WindowCapture::copy_pixels(uint8_t* dst, uint32_t width, uint32_t height, b
         for (uint32_t x = 0; x < w; ++x) {
             const auto* src = row + (uint64_t(x) * size.Width / w) * 4;
             auto* pixel = dst + (static_cast<size_t>(y + y0) * width + x + x0) * 4;
-            pixel[0] = src[bgra ? 0 : 2]; pixel[1] = src[1]; pixel[2] = src[bgra ? 2 : 0]; pixel[3] = 255;
+            copy_capture_pixel(pixel, src, bgra);
         }
     }
     c.context->Unmap(c.staging.get(), 0);

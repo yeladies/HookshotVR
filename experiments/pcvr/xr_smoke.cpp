@@ -19,6 +19,7 @@
 #include <thread>
 #include <charconv>
 #include "capture_guards.h"
+#include "panel_color.h"
 #ifdef HOOKSHOT_WINDOW_CAPTURE
 #include "window_capture.h"
 #include <winrt/base.h>

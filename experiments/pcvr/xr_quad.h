@@ -75,10 +75,10 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
     xr_check(xrEnumerateSwapchainFormats(s.session, 0, &n, nullptr), "format count");
     std::vector<int64_t> formats(n);
     xr_check(xrEnumerateSwapchainFormats(s.session, n, &n, formats.data()), "formats");
-    int64_t format = VK_FORMAT_UNDEFINED;
-    for (auto f : formats)
-        if (f == VK_FORMAT_R8G8B8A8_UNORM || f == VK_FORMAT_B8G8R8A8_UNORM) { format = f; break; }
-    if (format == VK_FORMAT_UNDEFINED) throw std::runtime_error("No supported UNORM panel format");
+    const auto format = choose_panel_format(formats, capture_pid != 0);
+    if (format == VK_FORMAT_UNDEFINED)
+        throw std::runtime_error(capture_pid ? "No supported sRGB XR format for encoded SDR capture" : "No supported UNORM panel format");
+    std::printf("panel_format=%d capture_color=%s\n", static_cast<int>(format), capture_pid ? "srgb_encoded" : "linear_synthetic");
     if (capture_pid) {
         VkBufferCreateInfo b{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
         b.size = 640 * 360 * 4; b.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -190,7 +190,7 @@ int quad_test(State& s, PFN_xrGetInstanceProcAddr get, PFN_vkGetInstanceProcAddr
             const auto waited = xrWaitSwapchainImage(r.swap, &image_wait);
             if (waited != XR_SUCCESS) throw std::runtime_error("XR image wait failed/timed out: " + std::to_string(waited));
 #ifdef HOOKSHOT_WINDOW_CAPTURE
-            if (capture && capture->copy_pixels(static_cast<uint8_t*>(r.mapped), 640, 360, format == VK_FORMAT_B8G8R8A8_UNORM)) {
+            if (capture && capture->copy_pixels(static_cast<uint8_t*>(r.mapped), 640, 360, panel_is_bgra(format))) {
                 uint64_t hash = 14695981039346656037ULL;
                 const auto* bytes = static_cast<const uint8_t*>(r.mapped);
                 for (size_t i = 0; i < 640 * 360 * 4; i += 13) hash = (hash ^ bytes[i]) * 1099511628211ULL;
