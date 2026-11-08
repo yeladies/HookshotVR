@@ -3,8 +3,10 @@
 Audited baseline: `45620e817d6000118d6077857ba2910d051de164` on
 `yeladies/HookshotVR`, 2026-11-08. Work branch:
 `experiment/pcvr-openxr-preflight`. This is a loader diagnostic and an integration
-plan, **not a VR game build**. No headset, tracking, stereo rendering or controllers
-have been tested. No game-derived files are required by the new probe.
+plan, **not a VR game build**. A later isolated synthetic panel test was displayed
+in Quest 3 and confirmed by the user; game rendering, stereo gameplay and
+controllers remain untested. See [the compiled experiment](../experiments/pcvr/README.md).
+No game-derived files are required by either probe.
 
 ## Reproduce the first experiment
 
@@ -63,7 +65,8 @@ still say MKW or WebGPU; the actual native Vulkan path is distinct.
 The lowest-risk visible experiment is the existing monoscopic frame on an
 `XrCompositionLayerQuad`. This would be a virtual screen, not stereoscopic gameplay.
 The final frame already includes HUD, so it needs no speculative camera patch.
-It still requires real session and GPU lifecycle work and is not implemented here.
+The isolated experiment now implements session/device creation and a synthetic quad
+frame loop. Copying the game's final texture into that path remains unimplemented.
 
 1. Enable `XR_KHR_vulkan_enable2`, create an XR instance, obtain an HMD system and
    call `xrGetVulkanGraphicsRequirements2KHR`. Compare its OpenXR-encoded version

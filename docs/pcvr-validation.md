@@ -1,5 +1,27 @@
 # PCVR experiment validation
 
+## Follow-up: compiled session and synthetic panel
+
+After the initial audit below, tools were found outside PATH: Visual Studio 18
+Community/MSVC 19.51, Windows SDK 10.0.26100.0, and Hookshot Builder's llvm-mingw
+and Vulkan-Headers 1.4.345. OpenXR headers were fetched from the official SDK at
+`24a1f2b92d212501a2b1b8d30ffd53abf55fcfa8`.
+
+The installed OpenXR loader bundled with a Meta Horizon application successfully
+loaded the selected VirtualDesktopXR runtime and advertised Vulkan enable2.
+The compiled probe first returned HMD unavailable. After the user connected Quest
+3, it created an XR instance, queried requirements, selected the RTX 2060 SUPER,
+and created a Vulkan 1.3 device and idle XR session. A ten-second synthetic quad
+run submitted 606 layers across 607 frame iterations and shut down through
+STOPPING with exit 0. The user confirmed seeing the blue panel in Quest 3.
+
+The executable also compiled with llvm-mingw with warnings treated as errors.
+Two CTest argument checks and the eight Python probe tests passed. No game build
+or game-frame delivery has been tested. No validation layers were used. Full
+commands, limitations and device details: [compiled experiment](../experiments/pcvr/README.md).
+
+## Initial source-only audit (historical results)
+
 Date: 2026-11-08. Baseline: `45620e817d6000118d6077857ba2910d051de164`.
 Environment: Windows x64, Python 3.12, fresh source clone. No C++ compiler found on
 PATH; Vulkan/SPIR-V development headers and several optional test dependencies
