@@ -46,3 +46,10 @@ CMake fetches the same SDK revision unless `OPENXR_SDK_SOURCE_DIR` supplies a lo
 Reports, SDK files, executables and test output belong under ignored `work/`.
 Only original mod source, tests and documentation are published. Never add game files,
 generated game code, shader caches, saves or personal configuration to Git.
+
+## Isolated game build
+
+See [the flat baseline procedure](../docs/vr-game-build.md) for `build-game.ps1` and
+`run-game.ps1`. These use a private work/runtime root and keep the stable installation as
+read-only input. Future physical interaction research uses the saved
+[reference projects](../docs/vr-reference-projects.md).

@@ -22,19 +22,21 @@ against the stable installation, use hardlinks for mutable data, or point test s
 
 1. **Bootstrap (implemented):** standalone OpenXR capability probe and game-free contract tests.
    Actual runtime results are local evidence, not committed personal machine reports.
-2. **Session and graphics negotiation:** query Vulkan requirements and runtime-selected GPU,
-   build a minimal session, handle focus/disconnect, submit a simple test scene, read valid head
-   and controller poses. Verify VDXR supports the complete Vulkan feature set needed by Hookshot.
+2. **Session and graphics negotiation (basic live test passed):** the standalone Vulkan marker
+   scene displayed in Quest 3 and returned valid head/controller poses. Full Hookshot graphics
+   feature compatibility and exhaustive fault handling remain pending; see `vr-validation.md`.
 3. **Isolated flat baseline:** build the audited Hookshot source separately; verify saves, options,
    logs, caches and update checks stay in the experimental root. Check disk space first: this PC
-   had about 34 GB free on C: at inspection, below the upstream full-build guidance of about 60 GB.
-   No full game build has been attempted.
+   has about 34 GB free on C:, below the installer build guidance of about 60 GB. The direct
+   build in `vr-game-build.md` avoids duplicating RomFS. Local translation/native compilation
+   is now being exercised separately from the stable installation.
 4. **Head-tracked stereo:** drive the main gameplay view from an XR origin, independent head pose
    and per-eye pose/projection. Render both eyes from one simulation tick, with isolated targets.
 5. **Player integration:** room-scale/body synchronization through real collision handling,
    calibrated world scale, child/adult eye heights, head/body separation and explicit transitions.
 6. **Hands and interaction:** controller actions, hand/weapon poses and physical aiming; find the
    authoritative attack/block/projectile functions before enabling physical sword/shield combat.
+   The user-supplied classic `oot-vr` reference is retained in `vr-reference-projects.md` for this stage.
 7. **Comfort and optimization:** UI layers, camera transitions, independent temporal history per eye,
    measured CPU/GPU budgets and regression tests for ordinary flat play.
 
