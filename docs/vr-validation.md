@@ -63,3 +63,21 @@ startup/recentering changes have not been separated from physical headset moveme
 
 Visible output and controller tracking remain **unverified**. The native scene code is available
 for the next interactive test; no successful headset visual test is claimed.
+
+## Successful interactive retry — 2026-11-12
+
+A subsequent 10-second visible test completed with exit 0. The runtime selected the RTX 2060 SUPER,
+reached VISIBLE and FOCUSED, and accepted 705 stereo projection frames from 706 frame iterations.
+The run recorded 706 valid head/view samples and 618 valid grip-pose samples for each controller.
+The user confirmed seeing the scene in the Quest headset and that the desktop monitor continued
+working. The application closed normally; no scene process remained active afterward.
+
+This supersedes the earlier unverified status for basic headset output and controller grip-pose
+access. It does not validate game integration, physical combat, positional accuracy, latency,
+full renderer feature compatibility or all disconnect/device-loss paths. The user did not yet
+separately assess whether the world markers remain stable under every head movement.
+
+Before this retry, the user reported that the desktop monitor had previously become blue with no
+signal and required reconnecting HDMI. The cause is undetermined; this was not described as a
+Windows blue-screen crash. The issue did not recur in this retry according to the user. Do not
+infer that all display/driver failure cases have been resolved. Raw poses and logs remain local.
