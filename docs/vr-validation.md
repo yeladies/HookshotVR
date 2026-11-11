@@ -38,3 +38,28 @@ remaining failures against an unmodified baseline. No unrelated tests were weake
 The stable installation was not launched, updated or written by the bootstrap tools.
 Its launcher, game executable, renderer, version/configuration and save-file hashes are checked
 against the previously recorded local baseline. Raw logs and reports remain in ignored `work/`.
+
+## Spatial session follow-up
+
+The new `hookshot_vr_scene` built successfully on Windows with the same compiler. Both native
+test executables passed, including projection/roll/disparity/validity checks. Vulkan headers
+are pinned independently; the loader is loaded dynamically from the OS.
+
+The first 20-second live run created the Vulkan-bound OpenXR session on the runtime-selected
+RTX 2060 SUPER. It received 1,422 valid head poses and stereo-view samples. Observed head position
+ranges were approximately 0.36 m, 0.69 m and 0.60 m in the local X/Y/Z axes.
+
+That run remained in SYNCHRONIZED without VISIBLE or FOCUSED. `shouldRender` remained false:
+**zero stereo frames were submitted, and zero controller poses were recorded**. The application
+did not force rendering. This establishes live head pose access, not visible stereo or controller
+tracking. A follow-up run with the headset worn and Virtual Desktop switched to VR is required.
+The revised startup waits up to 45 seconds for visibility before counting the visible test time.
+
+A second run used that 45-second wait. It collected 3,227 valid head/view samples and emitted
+the last head position and quaternion, but again submitted zero stereo frames and obtained zero
+controller poses. The application exited with code 3 and explicitly reported the visibility timeout.
+The position ranges are observations of runtime pose data, not a controlled movement experiment;
+startup/recentering changes have not been separated from physical headset movement.
+
+Visible output and controller tracking remain **unverified**. The native scene code is available
+for the next interactive test; no successful headset visual test is claimed.

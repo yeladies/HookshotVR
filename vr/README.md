@@ -3,6 +3,8 @@
 Experimental PCVR adaptation for Quest 3 on Windows, initially through Virtual Desktop / VDXR.
 **The game is not playable in VR yet.** This first milestone adds a game-free OpenXR capability probe, not a VR renderer.
 The inherited Hookshot source and licenses remain intact. See [the roadmap](../docs/vr-roadmap.md).
+A standalone [Vulkan stereo marker scene](../docs/vr-spatial-test.md) now exercises sessions,
+per-eye projection and live head/controller grip poses independently of the game.
 
 ## Build and test the probe on Windows
 
@@ -15,6 +17,7 @@ The SDK's Apache-2.0 notices and third-party notices stay with that checkout.
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File vr/build.ps1
 .\work\vr-build\hookshot_vr_probe.exe
+.\work\vr-build\hookshot_vr_scene.exe --seconds 20
 ```
 
 The build script runs the native contract tests without a headset or game.
@@ -28,6 +31,8 @@ queries the HMD system and its stereo view sizes, then destroys the instance.
 It does not create a session, query live poses, open the game, change the active runtime,
 or write to the game installation. A result of `capabilities_ready` does not prove graphics
 device compatibility, live tracking, controller input, frame submission or performance.
+The separate `hookshot_vr_scene` performs those first session/render/pose experiments; its output
+and limitations are documented separately. Neither tool starts or modifies Hookshot.
 
 For Linux or another compiler:
 
