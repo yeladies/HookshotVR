@@ -1,3 +1,7 @@
+> **HookshotVR development:** this branch starts an experimental Quest 3 / OpenXR adaptation.
+> The game is not playable in VR yet. See [VR setup and probe](vr/README.md) and [roadmap](docs/vr-roadmap.md).
+> The upstream Hookshot documentation follows below.
+
 <h1 align="center">
   <br>
   <a>

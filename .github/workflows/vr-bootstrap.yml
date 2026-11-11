@@ -1,0 +1,24 @@
+name: VR bootstrap (no game data)
+on:
+  push:
+    branches: [vr/bootstrap]
+    paths: ['vr/**', '.github/workflows/vr-bootstrap.yml']
+  pull_request:
+    paths: ['vr/**', '.github/workflows/vr-bootstrap.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: cmake -S vr -B work/vr-build -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build work/vr-build --config Release --parallel 2
+      - run: ctest --test-dir work/vr-build -C Release --output-on-failure

@@ -37,3 +37,14 @@ build-linux/
 
 # ---- NVIDIA's DLSS SDK (scripts/ngx_sdk.py): NVIDIA's files, never committed ----
 ngx-sdk/
+
+# Local installation state must never enter the VR repository
+user/
+.hookshot_exefs/
+.hookshot_romfs*
+*.ini
+*.idx
+*.npdm
+*.map
+language.txt
+hookshot_version.txt
