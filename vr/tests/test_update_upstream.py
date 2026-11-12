@@ -59,9 +59,19 @@ class UpdateTests(unittest.TestCase):
         (self.root / "readme.md").write_text("user edit\n")
         with self.assertRaises(RuntimeError): update.prepare(self.root, self.manifest, self.base)
         self.assertEqual((self.root / "readme.md").read_text(), "user edit\n")
+    def test_authored_shader_reapplies(self):
+        shader=self.root/"vr/shaders/eye_address_copy.comp"
+        shader.parent.mkdir(parents=True)
+        shader.write_text("// authored synthetic shader source\n")
+        self.commit("add authored shader")
+        report=update.prepare(self.root,self.manifest,self.base)
+        self.assertTrue(report["patch_applied"])
+        self.assertEqual((Path(report["candidate_directory"])/"vr/shaders/eye_address_copy.comp").read_text(),shader.read_text())
+        self.assertEqual(report["compatibility"],"unverified")
     def test_patch_allowlist(self):
-        for path in ("work/image.bin", "vr/game.exe", "../host/hos_main.c", "user/save.sav"):
+        for path in ("work/image.bin", "vr/game.exe", "../host/hos_main.c", "user/save.sav", "vr/shaders/game.spv", "vr/shaders/unknown.comp", "work/capture.comp"):
             self.assertFalse(update.allowed_patch(path))
         self.assertTrue(update.allowed_patch("vr/src/mod.cpp"))
+        self.assertTrue(update.allowed_patch("vr/shaders/eye_address_copy.comp"))
 
 if __name__ == "__main__": unittest.main()
