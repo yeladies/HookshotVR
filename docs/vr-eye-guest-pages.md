@@ -58,3 +58,8 @@ integration boundary. Both planners continue to report replay readiness as false
 Upstream review now monitors `vk_memory.cpp`, `vk_bank.cpp` and the SPIR-V emit context
 in addition to replay/draw contracts, so pointer-translation changes are included in
 candidate update reports and trigger VR CI.
+
+The opt-in [native resource smoke](vr-eye-vulkan-resources.md#full-size-synthetic-guest-roots)
+now consumes these patches for two full-size synthetic GPU roots and verifies shader
+reads through aliases in both guest windows. This authored test is separate from live
+game table copying, descriptor routing and replay integration.

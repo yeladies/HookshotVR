@@ -116,3 +116,35 @@ Downloaded tooling remains private under work/. The generator uses Vulkan 1.2,
 checks output bounds/magic and records the normalized source hash. A game-free CTest
 checks source freshness, instruction boundaries and the compute/addressing contract;
 it does not replace SPIR-V validation or the opt-in native GPU run.
+
+## Full-size synthetic guest roots
+
+The next native stage joins the CPU page layout and patch encoder to the authored
+shader. Two independent device-local root buffers use the backend's complete
+3,145,728-entry topology (24 MiB each). The synthetic source snapshot maps one
+4096-byte original buffer at the first page of both guest windows. Each root is
+zeroed, populated with those two original entries, then patched to its own private
+eye buffer in GPU transfer order. This constructs roots from an authored sparse
+snapshot; copying a live game GPU root is not implemented.
+
+The shader dereferences the selected root entry and reads a full 4096-byte eye
+payload. Each eye uses the low window in one round and the second window in the
+other, so both aliases and both private roots are exercised. The original GPU buffer
+is separately read back each round and compared to the authored source. Root writes,
+shader reads/writes and host readback have explicit dependencies. Auxiliary storage
+shares the submission's observed completion boundary; uncertain execution retains
+it together with the device until process exit. The auxiliary allocator permits
+only device-local memory and caps actual allocation requirements at 64 MiB.
+
+RTX 2060 SUPER result (2026-11-12): 4096 shader words / 16,384 eye bytes, four complete
+synthetic payloads, 4096 image pixels and 8192 original-buffer bytes checked across
+two submissions, with all comparisons passing. Eye resources use 16,384 bytes;
+the two roots plus original buffer use 50,335,744 bytes, plus staging. Resources
+are reused only after the fence completes. No game process, XR session, original
+installation writes or display-mode changes occur.
+
+This validates the complete synthetic route from CPU patch planning to physical
+shader reads through private guest roots. It does not prove the game's access
+inventory complete or route its descriptors, embedded pointers, temporal histories
+or camera-dependent compute. Production integration must snapshot the real root at
+the correct queue point and preserve all real mappings and resource lifetimes.
