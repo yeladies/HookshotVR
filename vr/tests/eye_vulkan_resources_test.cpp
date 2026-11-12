@@ -10,7 +10,7 @@ void check(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
 template<class T>T handle(uint64_t id){if constexpr(std::is_pointer_v<T>)return reinterpret_cast<T>(uintptr_t(id));else return T(id);}
 template<class T>uint64_t id(T h){if constexpr(std::is_pointer_v<T>)return uintptr_t(h);else return uint64_t(h);}
 struct Fake {
-    uint64_t next=100;int step=0,fail=0,submissions=0,waits=0,resets=0;bool complete=false,fail_reset=false;
+    uint64_t next=100;int step=0,fail=0,submissions=0,waits=0,resets=0;bool complete=false,fail_reset=false;int address_mode=0,address_allocations=0,address_buffers=0;
     VkResult submit_result=VK_SUCCESS;std::set<uint64_t> buffers,images,memory,fences;
     bool advance(){return ++step==fail;}
     bool empty()const{return buffers.empty()&&images.empty()&&memory.empty()&&fences.empty();}
@@ -18,6 +18,7 @@ struct Fake {
 VKAPI_ATTR VkResult VKAPI_CALL create_buffer(VkDevice,const VkBufferCreateInfo* info,const VkAllocationCallbacks*,VkBuffer* out){
     if(fake.advance())return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     check(info->size==1024&&!(info->flags&VK_BUFFER_CREATE_SPARSE_BINDING_BIT),"bounded non-sparse buffer");
+    if(info->usage&VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)++fake.address_buffers;
     *out=handle<VkBuffer>(++fake.next);fake.buffers.insert(id(*out));return VK_SUCCESS;
 }
 VKAPI_ATTR void VKAPI_CALL destroy_buffer(VkDevice,VkBuffer h,const VkAllocationCallbacks*){check(fake.buffers.erase(id(h))==1,"buffer destroyed once");}
@@ -33,6 +34,7 @@ VKAPI_ATTR void VKAPI_CALL image_requirements(VkDevice,VkImage,VkMemoryRequireme
 VKAPI_ATTR VkResult VKAPI_CALL bind_image(VkDevice,VkImage,VkDeviceMemory,VkDeviceSize offset){check(offset==0,"dedicated image bind");return fake.advance()?VK_ERROR_OUT_OF_DEVICE_MEMORY:VK_SUCCESS;}
 VKAPI_ATTR VkResult VKAPI_CALL allocate(VkDevice,const VkMemoryAllocateInfo* info,const VkAllocationCallbacks*,VkDeviceMemory* out){
     if(fake.advance())return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+    if(info->pNext){auto* flags=static_cast<const VkMemoryAllocateFlagsInfo*>(info->pNext);check(flags->sType==VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO&&flags->flags==VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT,"device address allocation enabled");++fake.address_allocations;}
     check(info->memoryTypeIndex==0,"compatible device-local memory type");*out=handle<VkDeviceMemory>(++fake.next);fake.memory.insert(id(*out));return VK_SUCCESS;
 }
 VKAPI_ATTR void VKAPI_CALL free_memory(VkDevice,VkDeviceMemory h,const VkAllocationCallbacks*){check(fake.memory.erase(id(h))==1,"allocation freed once");}
@@ -44,10 +46,21 @@ VKAPI_ATTR void VKAPI_CALL destroy_fence(VkDevice,VkFence h,const VkAllocationCa
 VKAPI_ATTR VkResult VKAPI_CALL submit(VkQueue,uint32_t n,const VkSubmitInfo* info,VkFence fence){check(n==1&&info->commandBufferCount==1&&fake.fences.count(id(fence)),"single owned fence submission");++fake.submissions;return fake.submit_result;}
 VKAPI_ATTR VkResult VKAPI_CALL wait(VkDevice,uint32_t n,const VkFence* fence,VkBool32 all,uint64_t){check(n==1&&all&&fake.fences.count(id(*fence)),"owned completion query");++fake.waits;return fake.complete?VK_SUCCESS:VK_TIMEOUT;}
 VKAPI_ATTR VkResult VKAPI_CALL reset(VkDevice,uint32_t count,const VkFence* fence){check(count==1&&fake.fences.count(id(*fence))&&fake.complete,"reset only after observed completion");++fake.resets;if(fake.fail_reset)return VK_ERROR_DEVICE_LOST;fake.complete=false;return VK_SUCCESS;}
+VKAPI_ATTR VkDeviceAddress VKAPI_CALL buffer_address(VkDevice,const VkBufferDeviceAddressInfo* info){
+    if(fake.address_mode==1)return 0;if(fake.address_mode==2)return 0x100000;
+    if(fake.address_mode==3)return UINT64_MAX-15;if(fake.address_mode==4)return 0x100001;
+    return id(info->buffer)*4096;
+}
 EyeResourceApi api(){return {create_buffer,destroy_buffer,buffer_requirements,bind_buffer,create_image,destroy_image,image_requirements,bind_image,allocate,free_memory,create_fence,destroy_fence,submit,wait,reset};}
 VkPhysicalDeviceMemoryProperties properties(){VkPhysicalDeviceMemoryProperties p{};p.memoryTypeCount=1;p.memoryTypes[0]={VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,0};p.memoryHeapCount=1;p.memoryHeaps[0]={1024*1024,VK_MEMORY_HEAP_DEVICE_LOCAL_BIT};return p;}
 bool create(EyeResourcePair& p,uint64_t budget=10240){return p.create(handle<VkDevice>(1),api(),properties(),32,32,VK_FORMAT_R8G8B8A8_UNORM,1024,budget);}
 int main(){try {
+    for(int mode=0;mode<5;++mode){fake={};fake.address_mode=mode;{EyeResourcePair pair;auto a=api();a.buffer_address=buffer_address;
+        check(pair.create(handle<VkDevice>(1),a,properties(),32,32,VK_FORMAT_R8G8B8A8_UNORM,1024,10240,true)==(mode==0),"address success/zero/overlap/overflow/alignment validation");
+        if(mode==0)check(fake.address_allocations==2&&fake.address_buffers==2&&pair.eye(0)->address!=pair.eye(1)->address,"buffer usage and allocation flags match distinct device addresses");
+    }check(fake.empty(),"address failure or completion cleans storage");}
+    fake={};{EyeResourcePair pair;check(!pair.create(handle<VkDevice>(1),api(),properties(),32,32,VK_FORMAT_R8G8B8A8_UNORM,1024,10240,true)&&fake.step==0,"missing address API rejects before allocation");}
+
     // Every individual creation/allocation/bind/fence failure must unwind its prefix.
     for(int fail=1;fail<=13;++fail){fake={};fake.fail=fail;{EyeResourcePair p;check(!create(p),"injected allocation failure");check(!p.eye(0)&&!p.allocated_bytes(),"no partial publication");}check(fake.empty(),"failure cleans complete prefix");}
     fake={};{EyeResourcePair p;check(!create(p,10239),"actual requirements enforce pair budget");}check(fake.empty(),"budget failure cleanup");

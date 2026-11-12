@@ -48,7 +48,7 @@ int main(int argc,char** argv){
         if(library)c.get=reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(library,"vkGetInstanceProcAddr"));
 #endif
         require(c.get,"System Vulkan loader unavailable");
-        VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};app.pApplicationName="HookshotVR private-eye resource smoke";app.apiVersion=VK_API_VERSION_1_0;
+        VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};app.pApplicationName="HookshotVR private-eye resource smoke";app.apiVersion=VK_API_VERSION_1_2;
         VkInstanceCreateInfo ici{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};ici.pApplicationInfo=&app;
         checked(c.global<PFN_vkCreateInstance>("vkCreateInstance")(&ici,nullptr,&c.instance),"create instance");
         auto enumerate=c.global<PFN_vkEnumeratePhysicalDevices>("vkEnumeratePhysicalDevices");uint32_t count=0;checked(enumerate(c.instance,&count,nullptr),"enumerate count");require(count>0&&count<=32,"bounded physical devices");
@@ -60,8 +60,14 @@ int main(int argc,char** argv){
         }
         require(physical,"graphics queue unavailable");VkPhysicalDeviceProperties props{};c.global<PFN_vkGetPhysicalDeviceProperties>("vkGetPhysicalDeviceProperties")(physical,&props);
         VkPhysicalDeviceMemoryProperties memory{};c.global<PFN_vkGetPhysicalDeviceMemoryProperties>("vkGetPhysicalDeviceMemoryProperties")(physical,&memory);
+        require(props.apiVersion>=VK_API_VERSION_1_2,"Vulkan 1.2 required for native device-address smoke");
+        VkPhysicalDeviceBufferDeviceAddressFeatures address_features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES};
+        VkPhysicalDeviceFeatures2 features{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};features.pNext=&address_features;
+        c.global<PFN_vkGetPhysicalDeviceFeatures2>("vkGetPhysicalDeviceFeatures2")(physical,&features);
+        require(address_features.bufferDeviceAddress,"buffer device address unavailable");
+        address_features.bufferDeviceAddressCaptureReplay=VK_FALSE;address_features.bufferDeviceAddressMultiDevice=VK_FALSE;
         float priority=1;VkDeviceQueueCreateInfo qi{VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO};qi.queueFamilyIndex=family;qi.queueCount=1;qi.pQueuePriorities=&priority;
-        VkDeviceCreateInfo di{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};di.queueCreateInfoCount=1;di.pQueueCreateInfos=&qi;
+        VkDeviceCreateInfo di{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};di.pNext=&address_features;di.queueCreateInfoCount=1;di.pQueueCreateInfos=&qi;
         checked(c.global<PFN_vkCreateDevice>("vkCreateDevice")(physical,&di,nullptr,&c.device),"create device");
         c.gd=c.global<PFN_vkGetDeviceProcAddr>("vkGetDeviceProcAddr");c.fn<PFN_vkGetDeviceQueue>("vkGetDeviceQueue")(c.device,family,0,&c.queue);
         EyeResourceApi api;
@@ -70,6 +76,7 @@ int main(int argc,char** argv){
         LOAD(create_image,CreateImage);LOAD(destroy_image,DestroyImage);LOAD(image_requirements,GetImageMemoryRequirements);LOAD(bind_image,BindImageMemory);
         LOAD(allocate,AllocateMemory);LOAD(free,FreeMemory);LOAD(create_fence,CreateFence);LOAD(destroy_fence,DestroyFence);LOAD(submit,QueueSubmit);LOAD(wait,WaitForFences);LOAD(reset,ResetFences);
 #undef LOAD
+        api.buffer_address=c.fn<PFN_vkGetBufferDeviceAddress>("vkGetBufferDeviceAddress");
         // Entirely authored camera payload: no game data or measured world calibration.
         std::vector<std::byte> original(1024);
         for(size_t i=0;i<original.size();++i)original[i]=std::byte((i*37)%256);
@@ -88,7 +95,8 @@ int main(int argc,char** argv){
             require(prepare_eye_uniform_copy(original.data(),original.size(),matrices,ClipDepth::MinusOneToOne,payloads[eye]),"prepare complete eye payload");
         }
         require(original==source_before&&payloads[0]!=payloads[1],"source preserved and eye payloads distinct");
-        EyeResourcePair pair;require(pair.create(c.device,api,memory,32,32,VK_FORMAT_R8G8B8A8_UNORM,1024,8*1024*1024),"create bounded independent eyes");
+        EyeResourcePair pair;require(pair.create(c.device,api,memory,32,32,VK_FORMAT_R8G8B8A8_UNORM,1024,8*1024*1024,true),"create bounded independent eyes");
+        require(pair.eye(0)->address&&pair.eye(1)->address&&pair.eye(0)->address!=pair.eye(1)->address,"independent buffer device addresses");
         VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bi.size=2*(32*32*4+1024);bi.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT;bi.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
         checked(api.create_buffer(c.device,&bi,nullptr,&c.staging),"create readback");VkMemoryRequirements req{};api.buffer_requirements(c.device,c.staging,&req);require(req.size<=1024*1024,"bounded staging allocation");
         uint32_t type=UINT32_MAX;bool coherent=false;
@@ -129,7 +137,7 @@ int main(int argc,char** argv){
             for(auto& payload:payloads)payload[0x300]^=std::byte{7};
         }
         }
-        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; independent_images=2; independent_buffers=2; image_pixels_checked=4096; buffer_bytes_checked=4096; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
+        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; image_pixels_checked=4096; buffer_bytes_checked=4096; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
         return 0;
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
 }

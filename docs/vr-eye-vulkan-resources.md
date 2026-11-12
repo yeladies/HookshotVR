@@ -23,7 +23,7 @@ through the owner lifetime. This is not a renderer-wide retirement system.
 The authored fake-Vulkan test injects all 13 creation/allocation/bind/fence failures,
 checks cleanup, budget and memory-type rejection, distinct eye handles and memory,
 completion polling, duplicate-submit rejection and uncertain-work retention.
-All 60 VR CTest cases pass on Windows.
+All 66 VR CTest cases pass on Windows.
 
 A separately invoked native smoke is excluded from CTest, so CI needs neither a
 GPU nor a Vulkan loader. Build the VR tools normally, then explicitly run:
@@ -50,7 +50,7 @@ performance or full-scene memory measurement. Raw output is private under work/.
 
 The observed scene inventory is not yet allocated by this owner. Depth/stencil,
 format capability policies, multiple mips/layers/samples, original-image copy
-regions and contents, views, descriptor remapping, device addresses, buffer alias
+regions and contents, views, descriptor remapping, live address routing, buffer alias
 groups, temporal histories and multiple in-flight frames need explicit handling.
 Hidden pointers/indirect geometry and compute dependencies remain audit gates.
 Do not wire automatic scene replay merely because this small smoke passes.
@@ -68,3 +68,22 @@ resets the completed command pool, changes each eye's image color and synthetic
 uniform tail, and checks all 4096 pixels and 4096 buffer bytes across both rounds.
 All checks pass on RTX 2060 SUPER; eye resource allocation remains 10,240 bytes.
 The fake test also exercises eight explicit reuse cycles without new allocations.
+
+## Optional addressable buffers
+
+The standalone owner can request buffer device addresses. The caller must enable
+`bufferDeviceAddress` on its Vulkan device and supply the address-query function.
+The owner adds both shader-device-address buffer usage and the matching memory
+allocation flag. Images receive no address allocation flag. Zero, misaligned,
+overflowing or overlapping eye address ranges fail creation and unwind allocations.
+Default non-addressable creation retains the previous API requirements.
+
+The native smoke now requests Vulkan 1.2, queries support and enables only the needed
+buffer-address feature. On RTX 2060 SUPER (2026-11-12), distinct address ranges and
+all two-round image/uniform readbacks pass: 4096 pixels, 4096 buffer bytes, four full
+synthetic payloads, two submissions, 10,240 bytes of eye allocations plus staging.
+The fake test covers missing query support and invalid address ranges.
+
+This validates address-capable storage allocation and transfer completion. It does
+not execute shader pointer dereferences, upload a guest root, integrate the CPU page
+patches with the renderer, or measure game stereo performance.
