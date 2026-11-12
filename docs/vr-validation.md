@@ -295,3 +295,30 @@ No OpenXR session was opened by this diagnostic. The new launcher result guard
 recognizes the saved positive camera evidence and fails a requested scene-capture run
 when such evidence is absent. Native stereo game rendering and head-driven gameplay
 remain unimplemented. See [scene-camera provenance](vr-scene-camera.md).
+
+## Submit-time camera snapshot validation (2026-11-12)
+
+All 47 VR CTest cases passed. The new test exercises the actual camera callback and
+thread-local scope implementation as well as bounded history/store, future/stale
+rejection, camera identity ambiguity, equivalent stationary samples, nested scopes,
+unknown-submission rejection, resource lifetime across eviction and context refresh
+without mutating work already active on another thread.
+
+A 150-second muted flat run with a fresh private save reached Dodongo's Cavern. Short
+right-stick camera turns were sent through the game's private test-input interface.
+At the last aggregate sample, both methods examined 1,996,000 HDR/depth candidates:
+submit-time matching accepted 1,522,485 (76.3%), versus 610,217 (30.6%) using only the
+latest host association. No candidate lacked a submit context; 3,583 had ambiguous
+camera identities and were rejected. Many accepted candidates still had equivalent
+host observations: identical matrices do not identify a unique simulation tick.
+Peak sampled working set was 6,663 MiB. Both positive-evidence runner gates passed.
+These counts describe candidate inspection, not completed GPU draws or verified
+stereo rendering. No OpenXR session was opened, and no camera matrix was overwritten.
+
+The full inherited run initially completed 356 passed, 6 failed, 59 skipped. One
+additional failure was the timeline fixture's unknown context argument. The fixture
+was updated without removing allocator/order assertions, with an extra check that
+camera binding reserves no timeline values. It then passed against both the modified
+source and the original upstream source. The other five are the previously recorded
+baseline failures. The full suite was not repeated after this fixture-only correction.
+The update-worktree fixtures also passed after their source allowlist was extended.

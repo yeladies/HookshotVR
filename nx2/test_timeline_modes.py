@@ -22,6 +22,17 @@ def main():
     start=s.index('        const uint64_t value = ',s.index('void do_present('));end=s.index('\n',s.index('        present_value = 0;',start))
     present=s[start:end]
     source_submit=block(s,'void submit_q(');source_present=block(s,'void present(')
+    # Keep the allocator fixture usable on the unmodified upstream source too.
+    camera_context = 'SceneSubmissionPtr' in direct
+    camera_stub = r'''
+#include <memory>
+#include <utility>
+using SceneSubmissionPtr=std::shared_ptr<const int>;
+unsigned camera_bindings=0;
+void xr_scene_submission_bind(uint64_t value,SceneSubmissionPtr){CHECK(value==q_values);++camera_bindings;}
+''' if camera_context else ''
+    direct_adapter = 'void do_submit(const uint64_t* h,int n){do_submit(h,n,{});}' if camera_context else ''
+    camera_check = 'CHECK(camera_bindings==201);' if camera_context else ''
     # (8c28ed7 takes the value first, for the queue it belongs to, then submits it: both lines, as the source has them)
     ordered_submit='\n'.join(next(l for l in source_submit.splitlines() if text in l)
                              for text in ('const uint64_t value = ++q_values;','submit_job(h, value, queue);'))
@@ -38,7 +49,7 @@ std::atomic<uint64_t> pushed{0},q_values{0};uint64_t present_value=0,last=0;unsi
 void signal(uint64_t v){CHECK(v>last);last=v;pushed=v;allocations++;}
 bool run_submit(const uint64_t*,int,uint64_t value,uint64_t,bool){signal(value);return true;}
 void submit_job(std::vector<uint64_t>&,uint64_t value,uint64_t){signal(value);}
-''' +direct+r'''
+''' +camera_stub+direct+direct_adapter+r'''
 void direct_present(){
 ''' +present+r'''
     signal(value);
@@ -67,6 +78,7 @@ int main(){
     CHECK(last==1000 && q_values==1000 && allocations==1000);
     // Allocated ordered work can be ahead of the last GPU submission.
     q_values=1100;do_submit(nullptr,0);CHECK(last==1101 && q_values==1101);
+''' +camera_check+r'''
     puts("PASS: 100 dump transitions, legacy/queued paths, no present double-allocation, reserved work ahead of pushed");
 }
 '''

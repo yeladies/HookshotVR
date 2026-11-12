@@ -10,6 +10,7 @@
 //
 // Without a window (HOS_HEADLESS) presents render into an image of their own; RX_VK_SHOTS=<dir> writes every
 // RX_VK_SHOT_EVERY-th one (default 300) there as a PNG.
+#include "xr_camera_submission.h"
 #include <algorithm>
 #include <sys/stat.h>
 #include <atomic>
@@ -1943,6 +1944,7 @@ bool run_submit(const uint64_t* handles, int n, uint64_t value, uint64_t queue, 
                 const uint8_t* p = nullptr, bool may_stop = false) {
     std::lock_guard lk(replay_mu);
     ReplayPin pin;
+    SceneSubmissionScope camera_scope(value);
     SlowWatch slow("submit");
     PROF(PROF_SUBMIT);
     if (memory_work) {
@@ -1995,8 +1997,10 @@ bool run_submit(const uint64_t* handles, int n, uint64_t value, uint64_t queue, 
     if (!burst_open && dump_pending()) wait_value(value), dump_write();
     return true;
 }
-void do_submit(const uint64_t* handles, int n) {   // (RX_VK_ASYNC=0: on the submitting thread, in its order)
-    run_submit(handles, n, ++q_values, 0, true);
+void do_submit(const uint64_t* handles, int n, SceneSubmissionPtr camera) {   // (RX_VK_ASYNC=0: on the submitting thread, in its order)
+    const uint64_t value=++q_values;
+    xr_scene_submission_bind(value,std::move(camera));
+    run_submit(handles, n, value, 0, true);
 }
 
 /// A stopped queue on (forced: past the wait it stopped at), then its later submits, as far as their waits allow
@@ -2017,7 +2021,9 @@ void resume_queue(uint64_t queue, bool forced) {
             if (cpu_event) {
                 std::lock_guard lk(replay_mu);
                 if (rec_cur) finish_recording(burst_open ? burst_value : q.value);   // (its mirrors synced again after)
-                memory_capture_now(q.value, completed());
+                const auto camera=xr_scene_submission_capture();
+                if(memory_capture_now(q.value, completed()))
+                    xr_scene_submission_bind(q.value,camera);
                 st_resume_captures++;
             }
             q.waiting = false;
@@ -4048,6 +4054,7 @@ enum JobKind { JOB_SUBMIT, JOB_PRESENT, JOB_TEXTURE_RELEASED, JOB_PROGRAM_RELEAS
                JOB_EVENT_SIGNAL };
 struct Job {
     JobKind kind;
+    SceneSubmissionPtr camera;
     std::vector<uint64_t> handles;
     nvn_tex tex;
     bool has_tex = false;
@@ -4200,6 +4207,7 @@ void enqueue(Job&& j) {
         q_presents++;
     }
     if (j.kind == JOB_SUBMIT || j.kind == JOB_PRESENT) j.value = ++q_values;
+    if(j.kind==JOB_SUBMIT)xr_scene_submission_bind(j.value,std::move(j.camera));
     q_jobs.push_back(std::move(j));
     q_cv.notify_one();
 }
@@ -4250,6 +4258,7 @@ void submit_q(const uint64_t* handles, int n, uint64_t queue) {
         // counted into the other set, and the foliage, grass, characters and particles of that frame were never drawn.
         // With it the syncs take the submits' captures, as the console's GPU sees its memory. RX_VK_SYNC_CAPTURE=0: off.
         static const bool capture = !getenv("RX_VK_SYNC_CAPTURE") || atoi(getenv("RX_VK_SYNC_CAPTURE")) != 0;
+        const auto camera=xr_scene_submission_capture();
         if (capture) memory_capture_submit();
         // (RX_VK_SUBMIT_DELAY_US=<us> (a test): a console's GPU starts later than this replay does. Does what a submission reads
         // arrive just after it, from the game's other threads?)
@@ -4263,6 +4272,7 @@ void submit_q(const uint64_t* handles, int n, uint64_t queue) {
             std::call_once(watch, [] { std::thread(sync_watch).detach(); });
             std::vector<uint64_t> h(handles, handles + std::max(n, 0));
             const uint64_t value = ++q_values;
+            xr_scene_submission_bind(value,std::move(camera));
             if (queue) {
                 q_last[queue] = value;
                 value_queue[value] = queue;
@@ -4272,11 +4282,13 @@ void submit_q(const uint64_t* handles, int n, uint64_t queue) {
             update_blocked();
             return;
         }
-        return do_submit(handles, n);
+        return do_submit(handles, n, camera);
     }
     std::lock_guard lk(submit_order_mu);
+    const auto camera=xr_scene_submission_capture();
     memory_capture_submit();   // (the pages as they are now, on the game's thread: vk_memory.cpp)
     Job j{JOB_SUBMIT};
+    j.camera = camera;
     j.handles.assign(handles, handles + std::max(n, 0));
     j.queue = queue;
     enqueue(std::move(j));
