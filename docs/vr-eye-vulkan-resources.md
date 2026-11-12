@@ -23,7 +23,7 @@ through the owner lifetime. This is not a renderer-wide retirement system.
 The authored fake-Vulkan test injects all 13 creation/allocation/bind/fence failures,
 checks cleanup, budget and memory-type rejection, distinct eye handles and memory,
 completion polling, duplicate-submit rejection and uncertain-work retention.
-All 66 VR CTest cases pass on Windows.
+All 67 VR CTest cases pass on Windows.
 
 A separately invoked native smoke is excluded from CTest, so CI needs neither a
 GPU nor a Vulkan loader. Build the VR tools normally, then explicitly run:
@@ -85,5 +85,34 @@ synthetic payloads, two submissions, 10,240 bytes of eye allocations plus stagin
 The fake test covers missing query support and invalid address ranges.
 
 This validates address-capable storage allocation and transfer completion. It does
-not execute shader pointer dereferences, upload a guest root, integrate the CPU page
-patches with the renderer, or measure game stereo performance.
+not upload a guest root, integrate the CPU page patches with the renderer, or measure
+game stereo performance. The following stage adds an authored pointer-access check.
+
+## Authored shader pointer readback
+
+The native smoke now reads each eye buffer through a physical storage-buffer pointer
+in an authored compute shader, rather than copying that buffer with a transfer command.
+A second physical pointer addresses the bounded output span in staging. Four groups
+of 64 invocations copy 256 words per eye per round. Transfer-to-compute and
+compute-to-host dependencies precede the CPU comparison and fence-based reuse.
+The selected queue must support both graphics and compute.
+
+On RTX 2060 SUPER, 1024 shader-read words (4096 bytes), all four complete synthetic
+payloads and 4096 image pixels pass across two submissions. The same allocations are
+reused, with source CPU payload unchanged. No game or XR session is created.
+This proves direct physical-pointer access for this authored test; guest page-table
+indirection and real game shader coverage are still pending.
+
+The checked-in header is generated from `vr/shaders/eye_address_copy.comp`:
+
+```powershell
+python -I -B vr/generate_eye_address_shader.py --compiler PATH/TO/glslang.exe
+```
+
+Use the [official Khronos compiler](https://github.com/KhronosGroup/glslang/releases).
+The local Windows archive used here has SHA256
+`e9cbdffc02a708f424aa070202b676aada7af6f5af1f4221ae65e3b331977a46`.
+Downloaded tooling remains private under work/. The generator uses Vulkan 1.2,
+checks output bounds/magic and records the normalized source hash. A game-free CTest
+checks source freshness, instruction boundaries and the compute/addressing contract;
+it does not replace SPIR-V validation or the opt-in native GPU run.
