@@ -1,7 +1,8 @@
 # Renderer OpenXR device negotiation
 
 The optional adapter in `gpu/vk/vk_xr.cpp` now participates in the real renderer's initialization.
-It does not yet create an XR session, swapchain, frame loop or pose connection. The game continues
+Negotiation alone creates no XR session. The separate opt-in [session probe](vr-renderer-session.md)
+adds a bounded zero-layer session and pose mailbox. The game continues
 using flat presentation even when negotiation succeeds. The host/renderer ABI remains version 17;
 no fields or callbacks were added.
 
@@ -79,3 +80,5 @@ Live evidence and inherited-suite limitations are recorded in [validation](vr-va
 Next connect a renderer-owned session to the negotiated device/queue, explicit frame ownership and
 predicted-time pose samples. Per-eye camera/projection hooks and graphics replay isolation remain
 as described in [camera integration](vr-camera-integration.md).
+The follow-up [session/pose probe](vr-renderer-session.md) now implements the diagnostic session
+portion of this next boundary; game camera consumption and stereo images remain pending.

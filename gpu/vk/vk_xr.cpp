@@ -10,6 +10,11 @@ namespace mkwvk { void logf(const char*, ...); }
 #include <cstring>
 #include <filesystem>
 #include <vector>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <chrono>
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -26,6 +31,13 @@ struct Bridge {
     XrInstance instance = XR_NULL_HANDLE;
     XrSystemId system = XR_NULL_SYSTEM_ID;
     bool ready = false;
+    std::thread worker;
+    std::atomic<bool> stop{false};
+    std::atomic<uint64_t> origin_epoch{0};
+    std::mutex worker_mutex, mailbox_mutex;
+    std::condition_variable worker_cv;
+    bool initialized=false, start_ok=false, done=true;
+    XrFrameSnapshot latest{};
     template<class T> bool function(const char* name, T& out) {
         PFN_xrVoidFunction raw = nullptr;
         const XrResult result = get(instance, name, &raw);
@@ -33,8 +45,9 @@ struct Bridge {
         if (XR_FAILED(result) || !out) { logf("xr: missing %s (%d)", name, int(result)); return false; }
         return true;
     }
-    ~Bridge() { reset(); }
+
     void reset() {
+        if (!xr_vulkan_session_stop()) return;
         ready = false;
         if (instance && destroy) destroy(instance);
         instance = XR_NULL_HANDLE; system = XR_NULL_SYSTEM_ID; destroy = nullptr; get = nullptr;
@@ -45,17 +58,82 @@ struct Bridge {
 #endif
         library = nullptr;
     }
-} bridge;
+};
+// The host keeps its renderer DLL loaded for the process lifetime. Explicit reset/close joins
+// the owner thread; avoid joining a thread from CRT destructors under Windows loader lock.
+Bridge& bridge=*new Bridge;
 bool ok(XrResult result, const char* operation) {
     if (XR_SUCCEEDED(result)) return true;
-    logf("xr: %s failed (%d); XR adapter initialization failed", operation, int(result));
+    logf("xr: %s failed (%d); XR adapter operation failed", operation, int(result));
     return false;
 }
+}
+} // namespace mkwvk
+#include "vk_xr_session.h"
+namespace mkwvk {
+bool xr_vulkan_session_stop() {
+    bridge.stop.store(true);
+    { std::lock_guard lock(bridge.mailbox_mutex);bridge.latest={}; }
+    if(bridge.worker.joinable()) {
+        bridge.stop.store(true);
+        std::unique_lock lock(bridge.worker_mutex);
+        if(!bridge.worker_cv.wait_for(lock,std::chrono::seconds(5),[]{return bridge.done;})) {
+            logf("xr: session owner did not stop within 5 s; retaining runtime resources until process exit");
+            return false; // Never unload code/handles still in use by the owner.
+        }
+        lock.unlock();bridge.worker.join();
+    }
+    std::lock_guard lock(bridge.mailbox_mutex);bridge.latest={};
+    return true;
+}
+bool xr_vulkan_latest_frame(XrFrameSnapshot* out) {
+    if(!out)return false;
+    std::lock_guard lock(bridge.mailbox_mutex);
+    *out=bridge.latest;
+    const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if(bridge.stop.load()||!out->sequence||!out->running||now-out->observed_at_monotonic_ns>250000000) {
+        *out={};return false;
+    }
+    return true;
+}
+bool xr_vulkan_session_start(VkInstance instance,VkPhysicalDevice physical,VkDevice device,uint32_t queue_family,std::mutex& queue_mutex,uint32_t duration_ms) {
+    if(!bridge.ready||duration_ms==0||duration_ms>30000||!xr_vulkan_session_stop())return false;
+    bridge.stop.store(false);
+    { std::lock_guard lock(bridge.worker_mutex);bridge.initialized=false;bridge.start_ok=false;bridge.done=false; }
+    try {
+        bridge.worker=std::thread([=,&queue_mutex] {
+            SessionProbe probe(bridge,queue_mutex);
+            try {
+                const bool started=probe.initialize(instance,physical,device,queue_family);
+                { std::lock_guard lock(bridge.worker_mutex);bridge.start_ok=started;bridge.initialized=true; }
+                bridge.worker_cv.notify_all();
+                const auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(duration_ms);
+                while(started&&!bridge.stop.load()&&std::chrono::steady_clock::now()<deadline) {
+                    if(!probe.tick())break;
+                    { std::lock_guard lock(bridge.mailbox_mutex);bridge.latest=bridge.stop.load()?XrFrameSnapshot{}:probe.snapshot; }
+                    if(!probe.running)std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                }
+            } catch(const std::exception& e) { logf("xr: session owner exception: %s",e.what()); }
+            probe.close();
+            { std::lock_guard lock(bridge.mailbox_mutex);bridge.latest={}; }
+            { std::lock_guard lock(bridge.worker_mutex);bridge.initialized=true;bridge.done=true; }
+            bridge.worker_cv.notify_all();
+        });
+    } catch(const std::exception& e) {
+        logf("xr: cannot start session owner: %s",e.what());
+        std::lock_guard lock(bridge.worker_mutex);bridge.done=true;return false;
+    }
+    std::unique_lock lock(bridge.worker_mutex);
+    if(!bridge.worker_cv.wait_for(lock,std::chrono::seconds(10),[]{return bridge.initialized;})) {
+        bridge.stop.store(true);logf("xr: session startup timed out");return false;
+    }
+    return bridge.start_ok;
 }
 void xr_vulkan_reset() { bridge.reset(); }
 bool xr_vulkan_active() { return bridge.ready; }
 bool xr_vulkan_prepare(bool requested) {
     bridge.reset();
+    if (bridge.worker.joinable()) return false;
     if (!requested) return true;
     const char* path = std::getenv("HOOKSHOT_OPENXR_LOADER");
     if (!path || !*path || !std::filesystem::u8path(path).is_absolute()) {
@@ -139,6 +217,9 @@ bool xr_vulkan_prepare(bool requested) {
     return !requested;
 }
 bool xr_vulkan_active() { return false; }
+bool xr_vulkan_session_start(VkInstance,VkPhysicalDevice,VkDevice,uint32_t,std::mutex&,uint32_t) { return false; }
+bool xr_vulkan_session_stop() { return true; }
+bool xr_vulkan_latest_frame(XrFrameSnapshot* out) { if(out)*out={};return false; }
 void xr_vulkan_reset() {}
 bool xr_vulkan_instance(PFN_vkGetInstanceProcAddr, const VkInstanceCreateInfo&, VkInstance*) { return false; }
 bool xr_vulkan_physical(VkInstance, VkPhysicalDevice*) { return false; }

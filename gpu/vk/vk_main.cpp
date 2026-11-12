@@ -1318,6 +1318,7 @@ void mkwvk_close_asked(void) {
         prepare_stop();
         if (WaitForSingleObject(prep_ended, 10000) != WAIT_OBJECT_0) logf("vk: the preparation did not stop within 10 s: closing anyway");
     }
+    xr_vulkan_reset();   // stop the XR owner before runtime/device resources can go away
     dlss_fg_close();   // (NVIDIA DLSS Frame Generation through NGX: its feature let go before the process exits, vk_dlss.cpp)
 }
 
@@ -1336,6 +1337,12 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
         return nullptr;
     }
     if (!xr_vulkan_prepare(env_on("RX_VK_XR")) || !create_instance() || !pick_device() || !create_device()) {
+        xr_vulkan_reset();
+        return nullptr;
+    }
+    if (env_on("RX_VK_XR_SESSION_PROBE") &&
+        !xr_vulkan_session_start(dev.instance, dev.physical, dev.device, dev.queue_family, dev.present_mu)) {
+        logf("xr: renderer session probe could not start");
         xr_vulkan_reset();
         return nullptr;
     }

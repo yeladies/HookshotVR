@@ -160,3 +160,38 @@ No inherited tests were weakened or edited. The 59 skips still limit coverage; t
 green upstream suite. The 19 inventoried stable installation files retained their SHA-256 hashes,
 and no game test process remained after the bounded runs. Raw logs and all build/game-derived output
 remain local. See [renderer negotiation](vr-renderer-openxr.md) for commands and the next boundary.
+
+## Renderer-owned session follow-up — 2026-11-12
+
+The optional renderer session probe is now implemented with a single owner thread and a synchronized
+internal pose mailbox. This is still a zero-layer diagnostic: there are no game-eye swapchains,
+head-driven game camera writes or game images in the headset. The host/renderer ABI remains 17.
+Frame begin/end calls share the graphics queue's existing mutex; frame waiting does not hold it.
+The first attempted build was interrupted before launching the live probe to add this queue
+synchronization. No unprotected session test was run.
+
+The first completed live run reached VISIBLE and FOCUSED and closed its session automatically after
+686 balanced zero-layer frames, with 686 valid head and stereo-view pose samples. After adding host
+observation timestamps/sample-expiry handling, the final renderer compiled in 63 seconds with zero
+failed units. A repeated 25-second headless game smoke completed its bounded session with **697
+frames, 697 valid head samples and 697 valid stereo-view samples**. The wrapper reported no XR API
+errors, valid poses and session closure. Peak sampled process working set was 3,087 MiB. These counts
+are runtime validity observations, not physical tracking accuracy or evidence of stereo game images.
+No controller action integration was added in this step.
+
+A subsequent 25-second smoke of that renderer with XR disabled used Vulkan with no XR log markers
+and peaked at 3,061 MiB. Both game runs ended at their deliberate time limit. The session owner had
+already destroyed its spaces and session in the XR run; the process-level watchdog is still a forced
+stop, not a graceful full-engine teardown test. No game process remained after testing. The stable
+installation's 19 inventoried files retained their SHA-256 hashes.
+
+All **31 native CTest cases pass**, including production session lifecycle/partial cleanup, invalid
+or stale samples, shouldRender false, focus/session/instance loss, origin revision, bounded restart,
+frame balance and graphics-queue lock requirements. The repeated inherited suite completed **356
+passed, 5 failed, 59 skipped** in 312 seconds; the five failures have the same known baseline symptoms
+recorded above. No inherited tests were changed. Linux and CI results have not been observed passing.
+
+The [session implementation boundary](vr-renderer-session.md) describes ownership and stall limits.
+Next add a timed game-camera consumer and actual per-eye images with correct projection/culling/
+temporal state; the independent diagnostic frame loop alone does not align game and XR frames.
+Logs, captures, generated game code, saves and binaries remain local under ignored work folders.

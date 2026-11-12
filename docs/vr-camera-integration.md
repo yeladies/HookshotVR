@@ -51,3 +51,6 @@ synthetic inputs only. Together with `vr_probe_contract` and `vr_scene_math`, th
 passed locally on Windows. They do not establish working in-game VR or accurate physical scale.
 The [renderer device negotiation](vr-renderer-openxr.md) part of gate 2 is implemented and locally
 validated. Renderer-owned session/frame/pose integration and all per-eye game rendering gates remain pending.
+
+A bounded [renderer session/pose probe](vr-renderer-session.md) now supplies internal snapshots
+with predicted time and origin generation. No game camera consumer or stereo replay is connected yet.

@@ -7,6 +7,7 @@ param(
     [switch]$SnapshotStableSaves,
     [switch]$ExperimentalXrRenderer,
     [switch]$XrNegotiation,
+    [switch]$XrSessionProbe,
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
@@ -16,6 +17,7 @@ function Read-ExperimentalLog {
     $reader = [IO.StreamReader]::new($stream)
     try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
 }
+if ($XrSessionProbe) { $XrNegotiation = $true }
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $InstallationRoot = (Resolve-Path -LiteralPath $InstallationRoot).Path
 $buildRoot = Join-Path $projectRoot 'work/game-build/sa/build'
@@ -97,6 +99,7 @@ $env:HOS_INPUT_LIVE = Join-Path $runRoot 'input-live.txt'
 $env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
 Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
+$env:RX_VK_XR_SESSION_PROBE = $(if ($XrSessionProbe) { '1' } else { '0' })
 $env:RX_VK_XR = $(if ($XrNegotiation) { '1' } else { '0' })
 if ($XrNegotiation) { $env:HOOKSHOT_OPENXR_LOADER = $OpenXRLoader } else { Remove-Item Env:HOOKSHOT_OPENXR_LOADER -ErrorAction SilentlyContinue }
 $env:RX_BACKEND = 'vulkan'
@@ -155,9 +158,21 @@ if ($XrNegotiation -and !$xrNegotiated) {
     $xrNegotiated = $log.Contains('xr: renderer Vulkan device negotiated')
     if (!$xrNegotiated -and $reason -eq 'time_limit') { $reason = 'xr_negotiation_unverified' }
 }
-[ordered]@{ experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+$sessionApiErrors = $false
+$sessionClosed = $false
+$sessionValidPoses = $false
+if ($XrSessionProbe) {
+    $log = Read-ExperimentalLog
+    $sessionApiErrors = $log -match 'xr: .*failed|xr: session owner exception|xr: session startup timed out|xr: renderer session probe could not start'
+    $sessionClosed = $log.Contains('xr: renderer session probe closed;')
+    $sessionValidPoses = $log -match 'xr: renderer session probe closed; frames [1-9][0-9]*, valid head [1-9][0-9]*, valid stereo poses [1-9][0-9]*'
+    if ((!$sessionClosed -or !$sessionValidPoses -or $sessionApiErrors) -and $reason -eq 'time_limit') { $reason = 'xr_session_unverified' }
+}
+[ordered]@{ xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
 
 if ($XrNegotiation -and !$xrNegotiated) { exit 1 }
+
+if ($XrSessionProbe -and (!$sessionClosed -or !$sessionValidPoses -or $sessionApiErrors)) { exit 1 }

@@ -7,8 +7,90 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <atomic>
+#include <thread>
+#include <chrono>
 namespace {
 bool mode(const char* value) { const char* s=std::getenv("XR_FAKE_MODE");return s&&!std::strcmp(s,value); }
+std::atomic<int> counts[10]{};
+bool (*queue_check)()=nullptr;
+int event_stage=0, frames=0;
+bool stopping=false, frame_open=false;
+XrTime located_time=0;
+XrResult XRAPI_CALL create_session(XrInstance,const XrSessionCreateInfo* info,XrSession* out) {
+    if(mode("session_create_error"))return XR_ERROR_RUNTIME_FAILURE;
+    const auto* binding=static_cast<const XrGraphicsBindingVulkan2KHR*>(info->next);
+    if(!binding||binding->instance!=reinterpret_cast<VkInstance>(uintptr_t(2))||
+       binding->physicalDevice!=reinterpret_cast<VkPhysicalDevice>(uintptr_t(3))||
+       binding->device!=reinterpret_cast<VkDevice>(uintptr_t(4))||binding->queueFamilyIndex!=7||binding->queueIndex!=0)++counts[5];
+    *out=reinterpret_cast<XrSession>(uintptr_t(5));++counts[0];event_stage=0;frames=0;stopping=false;frame_open=false;
+    return XR_SUCCESS;
+}
+XrResult XRAPI_CALL destroy_session(XrSession) { ++counts[1];return XR_SUCCESS; }
+XrResult XRAPI_CALL create_space(XrSession,const XrReferenceSpaceCreateInfo* info,XrSpace* out) {
+    if(mode("session_space_error")&&info->referenceSpaceType==XR_REFERENCE_SPACE_TYPE_VIEW)return XR_ERROR_RUNTIME_FAILURE;
+    *out=reinterpret_cast<XrSpace>(uintptr_t(10+counts[6]++));return XR_SUCCESS;
+}
+XrResult XRAPI_CALL destroy_space(XrSpace) { ++counts[7];return XR_SUCCESS; }
+XrResult XRAPI_CALL view_config(XrInstance,XrSystemId,XrViewConfigurationType,uint32_t,uint32_t* count,XrViewConfigurationView*) {
+    *count=mode("session_wrong_stereo")?1:2;return XR_SUCCESS;
+}
+XrResult XRAPI_CALL blends(XrInstance,XrSystemId,XrViewConfigurationType,uint32_t capacity,uint32_t* count,XrEnvironmentBlendMode* out) {
+    *count=1;if(capacity)out[0]=mode("session_missing_blend")?XR_ENVIRONMENT_BLEND_MODE_ADDITIVE:XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+    return XR_SUCCESS;
+}
+XrResult XRAPI_CALL poll(XrInstance,XrEventDataBuffer* out) {
+    XrSessionState state=XR_SESSION_STATE_UNKNOWN;
+    if(stopping) { state=XR_SESSION_STATE_STOPPING;stopping=false;event_stage=99; }
+    else if(event_stage==0){state=XR_SESSION_STATE_READY;++event_stage;}
+    else if(event_stage==1){state=XR_SESSION_STATE_FOCUSED;++event_stage;}
+    else if(frames>=2&&event_stage==2&&mode("session_focus_loss")) {state=XR_SESSION_STATE_VISIBLE;++event_stage;}
+    else if(frames>=3&&event_stage==2&&mode("session_instance_loss")) {
+        XrEventDataInstanceLossPending event{XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING};
+        std::memcpy(out,&event,sizeof event);++event_stage;return XR_SUCCESS;
+    }
+    else if(frames>=3&&event_stage==2&&(mode("session_stop")||mode("session_loss"))) {
+        state=mode("session_stop")?XR_SESSION_STATE_STOPPING:XR_SESSION_STATE_LOSS_PENDING;++event_stage;
+    } else if(frames>=1&&event_stage==2&&mode("session_origin_change")) {
+        XrEventDataReferenceSpaceChangePending e{XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING};
+        e.session=reinterpret_cast<XrSession>(uintptr_t(5));e.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_LOCAL;e.changeTime=1000000000000;
+        std::memcpy(out,&e,sizeof e);++event_stage;return XR_SUCCESS;
+    } else return XR_EVENT_UNAVAILABLE;
+    XrEventDataSessionStateChanged e{XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED};
+    e.session=reinterpret_cast<XrSession>(uintptr_t(5));e.state=state;std::memcpy(out,&e,sizeof e);return XR_SUCCESS;
+}
+XrResult XRAPI_CALL begin_session(XrSession,const XrSessionBeginInfo*) { return XR_SUCCESS; }
+XrResult XRAPI_CALL end_session(XrSession) { ++counts[8];return XR_SUCCESS; }
+XrResult XRAPI_CALL exit_session(XrSession) { ++counts[9];stopping=true;return XR_SUCCESS; }
+XrResult XRAPI_CALL wait_frame(XrSession,const XrFrameWaitInfo*,XrFrameState* out) {
+    if(mode("session_wait_error"))return XR_ERROR_RUNTIME_FAILURE;
+    if(frame_open||(queue_check&&queue_check()))++counts[5];
+    std::this_thread::sleep_for(std::chrono::milliseconds(mode("session_stale")&&frames==1?500:5));
+    out->predictedDisplayTime=(++frames)*10000000;out->predictedDisplayPeriod=10000000;
+    out->shouldRender=mode("session_no_render")?XR_FALSE:XR_TRUE;return XR_SUCCESS;
+}
+XrResult XRAPI_CALL begin_frame(XrSession,const XrFrameBeginInfo*) {
+    if(mode("session_begin_error"))return XR_ERROR_RUNTIME_FAILURE;
+    if(frame_open||!queue_check||!queue_check())++counts[5];frame_open=true;++counts[2];return XR_SUCCESS;
+}
+XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
+    if(!queue_check||!queue_check())++counts[5];
+    if(!frame_open||info->layerCount||info->layers||info->displayTime!=frames*10000000)++counts[4];
+    frame_open=false;++counts[3];return mode("session_end_error")?XR_ERROR_RUNTIME_FAILURE:XR_SUCCESS;
+}
+XrResult XRAPI_CALL locate_space(XrSpace,XrSpace,XrTime time,XrSpaceLocation* out) {
+    if(mode("session_locate_error"))return XR_ERROR_RUNTIME_FAILURE;
+    located_time=time;
+    out->pose.orientation.w=1;out->pose.position={1,2,3};
+    out->locationFlags=mode("session_invalid_pose")?0:XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+    return XR_SUCCESS;
+}
+XrResult XRAPI_CALL locate_views(XrSession,const XrViewLocateInfo* info,XrViewState* state,uint32_t capacity,uint32_t* count,XrView* views) {
+    if(info->displayTime!=located_time||capacity!=2)++counts[5];
+    *count=2;state->viewStateFlags=mode("session_invalid_pose")?0:XR_VIEW_STATE_POSITION_VALID_BIT|XR_VIEW_STATE_ORIENTATION_VALID_BIT;
+    for(int i=0;i<2;++i){views[i].pose.orientation.w=1;views[i].pose.position.x=i?0.032f:-0.032f;views[i].fov={-0.7f,0.8f,0.9f,-0.6f};}
+    return XR_SUCCESS;
+}
 XrResult XRAPI_CALL extensions(const char*,uint32_t cap,uint32_t* count,XrExtensionProperties* props) {
     *count=mode("no_extension")?0:1;
     if(cap&&*count) std::strcpy(props[0].extensionName,XR_KHR_VULKAN_ENABLE2_EXTENSION_NAME);
@@ -50,6 +132,7 @@ XrResult XRAPI_CALL device(XrInstance,const XrVulkanDeviceCreateInfoKHR* info,Vk
 #endif
 extern "C" EXPORT XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance,const char* name,PFN_xrVoidFunction* out) {
     *out=nullptr;
+    if(mode("session_missing_function")&&!std::strcmp(name,"xrWaitFrame"))return XR_ERROR_FUNCTION_UNSUPPORTED;
     if(mode("missing_function")&&!std::strcmp(name,"xrGetSystem"))return XR_ERROR_FUNCTION_UNSUPPORTED;
 #define MAP(n,f) if(!std::strcmp(name,n)){*out=reinterpret_cast<PFN_xrVoidFunction>(f);return XR_SUCCESS;}
     MAP("xrEnumerateInstanceExtensionProperties",extensions)
@@ -57,6 +140,16 @@ extern "C" EXPORT XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance,const cha
     MAP("xrGetVulkanGraphicsRequirements2KHR",requirements)
     MAP("xrCreateVulkanInstanceKHR",instance) MAP("xrGetVulkanGraphicsDevice2KHR",physical)
     MAP("xrCreateVulkanDeviceKHR",device)
+    MAP("xrCreateSession",create_session) MAP("xrDestroySession",destroy_session)
+    MAP("xrCreateReferenceSpace",create_space) MAP("xrDestroySpace",destroy_space)
+    MAP("xrEnumerateViewConfigurationViews",view_config) MAP("xrEnumerateEnvironmentBlendModes",blends)
+    MAP("xrPollEvent",poll) MAP("xrBeginSession",begin_session) MAP("xrEndSession",end_session)
+    MAP("xrRequestExitSession",exit_session) MAP("xrWaitFrame",wait_frame)
+    MAP("xrBeginFrame",begin_frame) MAP("xrEndFrame",end_frame)
+    MAP("xrLocateSpace",locate_space) MAP("xrLocateViews",locate_views)
 #undef MAP
     return XR_ERROR_FUNCTION_UNSUPPORTED;
 }
+extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<10?counts[key].load():-1; }
+
+extern "C" EXPORT void XRAPI_CALL xrTestSetQueueCheck(bool (*check)()) { queue_check=check; }

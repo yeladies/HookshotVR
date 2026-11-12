@@ -30,7 +30,7 @@ against the stable installation, use hardlinks for mutable data, or point test s
    the main menu and a 3D scene from a private save snapshot. Stable file hashes remain unchanged. Full gameplay and
    broader save compatibility remain pending; see `vr-game-build.md` and `vr-validation.md`. The build
    avoids duplicating RomFS and uses matched experimental executable/renderer binaries.
-4. **Head-tracked stereo (camera math tested; integration pending):** drive the main gameplay view from an XR origin, independent head pose
+4. **Head-tracked stereo (camera math/session poses tested; game stereo pending):** drive the main gameplay view from an XR origin, independent head pose
    and per-eye pose/projection. See `vr-camera-integration.md`. Render both eyes from one simulation tick, with isolated targets.
 5. **Player integration:** room-scale/body synchronization through real collision handling,
    calibrated world scale, child/adult eye heights, head/body separation and explicit transitions.
@@ -72,3 +72,7 @@ bump `MKWVK_API_VERSION` and rebuild both binaries. Store all game-dependent tes
 
 References: [Vulkan binding](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_vulkan_enable2.html),
 [frame submission](https://github.com/KhronosGroup/OpenXR-Guide/blob/main/chapters/frame_submission.md).
+
+A bounded renderer-owned [session/pose probe](vr-renderer-session.md) has passed locally with zero
+composition layers. It supplies internal predicted-time samples; game camera consumption and stereo
+images are still pending. This does not upgrade the project to playable VR.

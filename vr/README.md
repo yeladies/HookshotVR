@@ -60,3 +60,6 @@ the remaining host/renderer connection. The game does not consume XR poses yet.
 The optional [renderer negotiation adapter](../docs/vr-renderer-openxr.md) now creates the actual
 renderer Vulkan device through OpenXR enable2. It remains opt-in and does not submit game frames
 to the headset. `build-renderer.ps1` rebuilds that component without translating or compiling the game.
+
+The opt-in [renderer session probe](../docs/vr-renderer-session.md) adds a bounded zero-layer
+OpenXR frame loop and synchronized head/eye pose mailbox. It still does not display game stereo.
