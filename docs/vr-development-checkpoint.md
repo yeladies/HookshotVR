@@ -19,6 +19,7 @@ No new headset test is required for the completed diagnostics below.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
 - 67 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
 under ignored work directories. Only original source, tests and documentation belong

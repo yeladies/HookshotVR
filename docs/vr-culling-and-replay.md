@@ -54,3 +54,35 @@ bounded allocation/transfer/lifetime prototype; the full scene inventory is not
 routed through it. Physical weapons, body collision and controller interactions
 follow the stereo/camera foundation, with the recorded `oot-vr` reference available
 for mechanics research. The stable game installation stays separate throughout.
+
+## Observing an engine render boundary
+
+A second possible integration route is to repeat a proven render-only engine phase
+from one simulation tick. The per-view uniform writer documented in `nx2/oot_jitter.py`
+is an observation point, not evidence that it or any caller is safe to run twice.
+Its `main+0x6bc520` address must use the verified main-module base; native linker
+addresses and guest addresses are different coordinate systems.
+
+The existing `HOS_SAMPLE` / `HOS_SAMPLE_FILE` profiler was exercised locally against
+the main thread in a bounded private-save run, without an XR session or camera
+writes. Of 79,895 sampled native stacks, four resolve through the documented view
+writer and five through its immediate wrapper. The executable matches the build
+receipt; executable, linker map, source fingerprint and profile hashes are associated
+in an ignored private report. Raw stacks, generated code and symbol maps stay local.
+
+These observations identify a runtime caller context to audit. Resolution uses
+nearest public linker-map symbols, and unwinding, tail calls and inlining may hide
+frames. A sample is not a complete call trace or a proof of function boundaries.
+No render-only boundary has been established; `safe_to_repeat` remains false.
+
+Before selecting this route, distinguish simulation, view preparation, visibility,
+render jobs, NVN recording and presentation in the observed caller chain. Audit
+writes and asynchronous tasks, including frame counters, animations, physics,
+random state, resource uploads and temporal histories. Associate all observations
+with the same simulation/submission identity. Do not invoke the game main/update
+loop twice or infer purity from a short static call graph.
+
+Until a repeatable phase is demonstrated, retain the bounded private-resource route
+and its coverage gates. The [real uniform upload probe](vr-game-uniform-upload-probe.md)
+validates complete private payload transport; it does not choose or enable either
+engine replay or renderer replay automatically.
