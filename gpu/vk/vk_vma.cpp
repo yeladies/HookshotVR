@@ -226,6 +226,16 @@ bool create_image(const VkImageCreateInfo& ci, VkImage& image, VmaAllocation& al
     if (told++ < 4) logf("vk: VRAM full: a %ux%u image (format %d) in system memory", ci.extent.width, ci.extent.height, (int)ci.format);
     return true;
 }
+bool create_xr_private_image(const VkImageCreateInfo& ci,VkImage& image,VmaAllocation& allocation) {
+    VmaAllocationCreateInfo ai{};
+    ai.usage=VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    ai.requiredFlags=VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    ai.flags=VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+    if(dev.memory_budget)ai.flags|=VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;
+    VkImage candidate=VK_NULL_HANDLE;VmaAllocation memory=nullptr;
+    if(vmaCreateImage(vma,&ci,&ai,&candidate,&memory,nullptr)!=VK_SUCCESS)return false;
+    image=candidate;allocation=memory;return true;
+}
 void destroy_image(VkImage image, VmaAllocation allocation) {
     vmaDestroyImage(vma, image, allocation);
 }

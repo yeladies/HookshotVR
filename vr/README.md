@@ -97,3 +97,7 @@ GPU culling/indirect data and the required single-simulation stereo model.
 The [conservative stereo candidate planner](../docs/vr-stereo-candidate-plan.md)
 combines compute-camera observations with a graph captured in the same process.
 Its output is an incomplete resource plan, never permission to replay GPU work.
+
+The [native game-image clone probe](../docs/vr-game-image-clone-probe.md) optionally
+checks strict local-memory allocation, copies and timeline retirement from a real
+scene draw using `-EyeImageProbe`. It does not display the copies or enable stereo.

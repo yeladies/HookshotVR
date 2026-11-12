@@ -52,6 +52,7 @@
 #include "vk_jobs.h"
 #include "vk_shader.h"
 #include "vk_texture.h"
+#include "xr_eye_image_probe.h"
 #include "movie_upscale_policy.h"
 #include "skip_code.h"
 #include "driver_faults.h"
@@ -6334,6 +6335,11 @@ void lineage_pair(uint64_t key,const Texture* in,const Texture* out) {
     work.reads={in->id};work.writes={out->id};work.width=out->width;work.height=out->height;
     xr_image_lineage_work(texture_frame_no(),std::move(work));
 }
+void eye_image_probe_note(VkCommandBuffer command,const Targets& targets,bool camera_seed) {
+    if(!camera_seed||!xr_eye_image_probe_wants(texture_frame_no()))return;
+    end_pass(command); // Copies are outside rendering; the original targets are never replaced.
+    xr_eye_image_probe_record(command,targets.color[0],targets.depth,rec_value);
+}
 void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camera_address,
                                const std::vector<uint64_t>* additional_cameras=nullptr) {
     if(xr_shader_uniform_audit_compute_only()&&
@@ -6866,8 +6872,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
             vkCmdDrawIndirect(cmd, fallback_draw_records, 0, 1, sizeof(VkDrawIndirectCommand));   // (its count: the records taken)
             st_mesh++;
             st_draws++, pass().draws++;
+            eye_image_probe_note(cmd,at,vr_camera_seed);
             lineage_note(p,&at,vr_camera_seed,true);
-    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+            if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
             return;
         }
         {   // (amd-fix, diagnosis) RX_VK_LOG_MESH_PROGS=1: each mesh program's first draw and every 600th, with what its
@@ -6933,8 +6940,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                 mesh_conv_buf = VK_NULL_HANDLE;
                 st_mesh++;
                 st_draws++, pass().draws++;
+                eye_image_probe_note(cmd,at,vr_camera_seed);
                 lineage_note(p,&at,vr_camera_seed,true);
-    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+                if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
                 return;
             }
             if (d.max < 0 || d.stride < 0) SKIP_HERE();   // (hookshot: the game's ints; a negative count was ~4e9 draws)
@@ -6966,8 +6974,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         }
         st_mesh++;
         st_draws++, pass().draws++;
+        eye_image_probe_note(cmd,at,vr_camera_seed);
         lineage_note(p,&at,vr_camera_seed,true);
-    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+        if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
     }
     // vertex streams (from their pools, strides dynamic) and the zero stream
@@ -7058,8 +7067,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         vkCmdDrawIndexed(cmd, quads * 6, (uint32_t)std::max(1, d.instances), 0, d.indexed ? d.base_vertex : 0,
                          (uint32_t)d.base_instance);
         st_draws++, pass().draws++;
+        eye_image_probe_note(cmd,at,vr_camera_seed);
         lineage_note(p,&at,vr_camera_seed,true);
-    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+        if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
     }
     if (d.indirect) {
@@ -7097,6 +7107,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         vkCmdDraw(cmd, (uint32_t)d.count, (uint32_t)std::max(1, d.instances), (uint32_t)d.first, (uint32_t)d.base_instance);
     }
     st_draws++, pass().draws++;
+    eye_image_probe_note(cmd,at,vr_camera_seed);
     lineage_note(p,&at,vr_camera_seed,true);
     if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
 }

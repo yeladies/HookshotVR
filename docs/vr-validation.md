@@ -426,3 +426,26 @@ scene eye allocation, replay, camera override or XR projection layer is enabled.
 The final default-off isolated smoke completes its 20-second bound at 3069 MiB
 peak working set, with all capture/session flags off. The 19-file stable-install
 SHA-256 baseline remains unchanged; no diagnostic game process is left running.
+
+## Native game-image clones (2026-11-12)
+
+Added a source-shape-aware pair factory and one-attempt dedicated/device-local VMA
+entry point, with preflight requirements/budgets and no host/pool/over-budget
+fallback. Depth/stencil copies split aspects, full mips/layers are retained, and
+the owner retires only after its actual last-use timeline value. The optional game
+probe receives the exact draw recorder value, keeps source Texture objects and
+handles intact, and polls completion once per later frame.
+
+All 64 VR CTest cases pass, including an extracted actual strict-allocator test.
+The final inherited suite is 357 passed, five documented baseline failures and
+59 skipped in 296 seconds. Native paired build passes in 69 seconds, zero failed
+units. A 150-second private-save/headless/muted/no-XR probe passes with matched
+scene/source cameras, GPU copy completion and resource release. The sampled
+1152x648 HDR color/depth copies use 14,155,776 actual allocation bytes (13.5 MiB)
+for four private images; peak process working set is 6591 MiB. No source image
+object, descriptor or guest registration is replaced. No stereo replay is enabled.
+Raw result/probe/log stay private under ignored work/validation.
+
+The final 20-second default-off smoke completes at 3040 MiB peak working set,
+with the eye-image probe/captures/XR disabled. The stable 19-file SHA-256 baseline
+is unchanged and no diagnostic game process remains running.
