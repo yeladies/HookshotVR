@@ -15,11 +15,12 @@ param(
     [switch]$SceneCapture,
     [switch]$ImageLineage,
     [switch]$CameraUniformAudit,
+    [switch]$ShaderUniformAudit,
     [switch]$Audio,
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
-if ($ImageLineage -or $CameraUniformAudit) { $SceneCapture = $true }
+if ($ImageLineage -or $CameraUniformAudit -or $ShaderUniformAudit) { $SceneCapture = $true }
 if ($SceneCapture) { $CameraCapture = $true }
 if ($LoadTestSave -and !$SnapshotStableSaves) { throw 'Scripted save loading requires a private save snapshot.' }
 function Read-ExperimentalLog {
@@ -126,6 +127,10 @@ $env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
 Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
 if ($SceneCapture) { $env:RX_VK_PARALLEL = '0'; $env:RX_VK_RECORDER = 'off' }
+if ($ShaderUniformAudit) {
+    $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR = Join-Path $runRoot ('shader-uniform-audit-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR | Out-Null
+} else { Remove-Item Env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR -ErrorAction SilentlyContinue }
 if ($CameraUniformAudit) {
     $env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE = Join-Path $runRoot 'camera-uniform-blocks.jsonl'
     Remove-Item -LiteralPath $env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE -ErrorAction SilentlyContinue
@@ -263,7 +268,17 @@ if ($CameraUniformAudit -and (Test-Path -LiteralPath $env:HOOKSHOT_VR_CAMERA_BLO
     }
 }
 if ($CameraUniformAudit -and (!$uniformAuditCaptured -or !$uniformAuditMultipleViews) -and $reason -eq 'time_limit') { $reason = 'camera_uniform_audit_unverified' }
-[ordered]@{ camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+$shaderAuditObserved = $false
+if ($ShaderUniformAudit -and (Test-Path -LiteralPath (Join-Path $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR 'program-bindings.jsonl'))) {
+    $shaderSummary = Join-Path $runRoot 'shader-uniform-audit-summary.json'
+    & $python -I -B (Join-Path $PSScriptRoot 'audit_shader_bindings.py') $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR > $shaderSummary
+    if ($LASTEXITCODE -eq 0) {
+        $audit = Get-Content -LiteralPath $shaderSummary -Raw | ConvertFrom-Json
+        $shaderAuditObserved = $audit.primary_camera_bindings -gt 0 -and $audit.queries_with_static_reads -gt 0 -and $audit.missing_primary_modules -eq 0 -and !$audit.safe_to_patch
+    }
+}
+if ($ShaderUniformAudit -and !$shaderAuditObserved -and $reason -eq 'time_limit') { $reason = 'shader_uniform_audit_unverified' }
+[ordered]@{ shader_uniform_audit_requested = [bool]$ShaderUniformAudit; shader_uniform_audit_observed = $shaderAuditObserved; shader_uniform_audit_directory = $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR; camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
@@ -279,3 +294,5 @@ if ($SceneCapture -and !$submissionObserved) { exit 1 }
 if ($ImageLineage -and !$lineageVerified) { exit 1 }
 
 if ($CameraUniformAudit -and (!$uniformAuditCaptured -or !$uniformAuditMultipleViews)) { exit 1 }
+
+if ($ShaderUniformAudit -and !$shaderAuditObserved) { exit 1 }

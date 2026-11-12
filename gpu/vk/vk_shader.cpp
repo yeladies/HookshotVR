@@ -50,6 +50,7 @@
 #include "shader_recompiler/runtime_info.h"
 
 #include "vk_paths.h"
+#include "xr_shader_uniform_audit.h"
 #include "vk_internal.h"
 #include "vk_jobs.h"
 #include "vk_draw.h"
@@ -652,6 +653,7 @@ VkShaderModule make_module(const std::vector<uint32_t>& spirv) {
     ci.pCode = spirv.data();
     VkShaderModule m = VK_NULL_HANDLE;
     vkCreateShaderModule(dev.device, &ci, nullptr, &m);
+    if(m)xr_shader_uniform_audit_module((uint64_t)m,spirv.data(),spirv.size());
     return m;
 }
 

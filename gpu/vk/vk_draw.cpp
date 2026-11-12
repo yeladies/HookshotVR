@@ -8,6 +8,7 @@
 // Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
 #include "xr_scene_camera.h"
 #include "xr_image_lineage.h"
+#include "xr_shader_uniform_audit.h"
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
@@ -6332,6 +6333,28 @@ void lineage_pair(uint64_t key,const Texture* in,const Texture* out) {
     work.reads={in->id};work.writes={out->id};work.width=out->width;work.height=out->height;
     xr_image_lineage_work(texture_frame_no(),std::move(work));
 }
+void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camera_address) {
+    if(!xr_shader_uniform_audit_wants_program(p.key))return;
+    std::vector<ShaderUniformAuditBinding> bindings;uint32_t binding=0;
+    for(const auto& stage:p.stages){
+        const int ns=std::clamp(stage.nvn_stage,0,kNvnStages-1);
+        for(const auto& descriptor:stage.info.constant_buffer_descriptors){
+            for(uint32_t element=0;element<descriptor.count;++element){
+                const uint32_t bank=descriptor.index+element;if(bank<3||bank>=19)continue;
+                const auto& uniform=s.ubo[ns][bank-3];
+                const uint32_t used=bank<Shader::Info::MAX_CBUFS?stage.info.constant_buffer_used_sizes[bank]:0;
+                const uint64_t want=used?std::max<uint64_t>(used,16):std::max<uint64_t>(uniform.size,16);
+                const uint32_t range=uint32_t(std::min<uint64_t>(std::min<uint64_t>(want,uniform.size?std::max<uint64_t>(uniform.size,16):want),dev.props.limits.maxUniformBufferRange));
+                bindings.push_back({(uint64_t)stage.module,uint32_t(ns),uint32_t(stage.vk_stage),binding,element,bank,range,
+                    uniform.addr&&uniform.addr==camera_address});
+            }
+            ++binding;
+        }
+        binding+=uint32_t(stage.info.storage_buffers_descriptors.size()+stage.info.texture_buffer_descriptors.size()+
+            stage.info.image_buffer_descriptors.size()+stage.info.texture_descriptors.size()+stage.info.image_descriptors.size());
+    }
+    xr_shader_uniform_audit_program(p.key,bindings);
+}
 void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     PROF_HOT(PROF_DRAW);
     FINE_N(FC_DRAWS, 1);
@@ -6805,6 +6828,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
             st_mesh++;
             st_draws++, pass().draws++;
             lineage_note(p,&at,vr_camera_seed,true);
+    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
             return;
         }
         {   // (amd-fix, diagnosis) RX_VK_LOG_MESH_PROGS=1: each mesh program's first draw and every 600th, with what its
@@ -6871,6 +6895,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                 st_mesh++;
                 st_draws++, pass().draws++;
                 lineage_note(p,&at,vr_camera_seed,true);
+    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
                 return;
             }
             if (d.max < 0 || d.stride < 0) SKIP_HERE();   // (hookshot: the game's ints; a negative count was ~4e9 draws)
@@ -6903,6 +6928,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         st_mesh++;
         st_draws++, pass().draws++;
         lineage_note(p,&at,vr_camera_seed,true);
+    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
     }
     // vertex streams (from their pools, strides dynamic) and the zero stream
@@ -6994,6 +7020,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                          (uint32_t)d.base_instance);
         st_draws++, pass().draws++;
         lineage_note(p,&at,vr_camera_seed,true);
+    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
     }
     if (d.indirect) {
@@ -7032,6 +7059,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     }
     st_draws++, pass().draws++;
     lineage_note(p,&at,vr_camera_seed,true);
+    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
 }
 
 /// A dispatch over 2 ms is logged, 60 times, and only while RX_VK_SLOW_DISPATCH is set. Off, the clock is not read.

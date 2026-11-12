@@ -60,9 +60,16 @@ class CacheModuleCleanupTests(unittest.TestCase):
         functions += '\n' + block(source, 'void program_cache_load(')
         functions = functions.replace('bool keep) {', 'bool keep = false) {')   # (its default is in vk_progcache.h now)
         (directory / 'cache_types.inc').write_text(structs, encoding='utf-8')
+        observer = 'xr_shader_uniform_audit_module(' in block(source, 'VkShaderModule make_module(')
+        if observer:
+            functions = ('unsigned audit_notifications=0;\nbool xr_shader_uniform_audit_module(uint64_t module,const uint32_t*,size_t){CHECK(module!=0);++audit_notifications;return false;}\n' + functions)
         (directory / 'cache_functions.inc').write_text(functions, encoding='utf-8')
         cls.executable = directory / 'check.exe'
         test_source = ROOT / 'tests/program_cache_cleanup_test.cpp'
+        if observer:
+            content = test_source.read_text(encoding='utf-8').replace('    release_accepted(programs);', '    CHECK(audit_notifications == created);\n    release_accepted(programs);')
+            test_source = directory / 'observed_cleanup.cpp'
+            test_source.write_text(content, encoding='utf-8')
         if Path(compiler).stem.lower() == 'cl':
             command = [compiler, '/nologo', '/std:c++20', '/EHsc', '/W4', '/WX', '/D_CRT_SECURE_NO_WARNINGS',
                        '/I' + str(directory), str(test_source), '/Fe:' + str(cls.executable)]

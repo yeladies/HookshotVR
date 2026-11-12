@@ -81,3 +81,6 @@ recorded draw uniforms with the host camera without overriding any matrices.
 
 [Resource lineage](../docs/vr-image-lineage.md) and [private uniform audits](../docs/vr-camera-uniform-audit.md)
 prepare per-eye isolation. These remain diagnostic and do not render native game stereo.
+
+The optional [SPIR-V uniform audit](../docs/vr-shader-uniform-audit.md) checks representative
+shader reads of source-checked camera bindings; modules remain private and unchanged.

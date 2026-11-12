@@ -331,3 +331,38 @@ The inherited suite remains 357 passed, 5 classified baseline failures, 59 skipp
 The upscale fallback fixture retains every prior behavior assertion and passes its
 23 cases against both this source and unchanged upstream. No real XR session was
 opened by these diagnostics. Stereo game images and camera writes are still absent.
+
+## Shader binding audit (2026-11-12)
+
+All 57 VR CTest cases passed, including private bounded module export and static
+Uniform access analysis. The inherited suite again completed 357 passed, 5 known
+baseline failures and 59 skipped. Cache-cleanup fixtures retained their existing
+module lifetime assertions and additionally checked observer notifications against
+successful module creation.
+
+A 150-second headless private-save run exported 581 modules locally, below the
+64 MiB cap, and recorded 64 representative emitted camera programs. Its 99 checked
+camera bindings yielded 82 unique queries, 80 resolved static subsets and 2
+unresolved subsets, with no missing primary modules or parse errors. Fragment
+bindings read the inverse-view region, while other accesses extend beyond the
+small captured prefix. Peak sampled working set was 6653 MiB. No shader, uniform,
+Vulkan pipeline input or guest memory was rewritten. No XR session was opened.
+See [shader consumption](vr-shader-uniform-audit.md) for the scope and remaining gaps.
+
+## Private eye-uniform preparation (2026-11-12)
+
+`vr/src/eye_uniform_copy.h` now builds an unsubmitted CPU copy of the complete
+caller-supplied descriptor payload. It validates the original rigid view, VP=P*V
+and inverse view, validates the target eye matrices and eye position, and changes
+only the reviewed view/VP/projection/inverse-view region at 0..0xe0. All other
+bytes remain exact, including unknown values at 0x1c0 and beyond 0x230. Payloads
+are bounded to 1 MiB; truncated, aliased, nonfinite, inconsistent and zero-to-one
+clip inputs fail without replacing the previous output. The caller must still
+establish the reviewed game profile, full descriptor extent and NVN clip convention.
+This helper neither rewrites a live game buffer nor submits GPU work.
+
+The new authored test exercises asymmetric projection, pitch/yaw/translation,
+distinct eyes, inverse composition, complete-payload preservation and rejection
+paths. All 58 game-free VR CTest cases pass. No additional headset test is needed.
+The final default-off isolated game smoke completed its 20-second bound at
+2971 MiB peak working set, with every optional diagnostic/session flag off.

@@ -4,6 +4,6 @@
   "base_commit": "940eb9ef34134913d2bc2a7b3ed5cb3caea58ef3",
   "mod_host_renderer_abi": 18,
   "supported_game_builds": ["e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348"],
-  "integration_files": ["gpu/vk/vk_api.h", "gpu/vk/vk_main.cpp", "gpu/vk/vk_replay.cpp", "gpu/vk/vk_draw.cpp", "gpu/vk/vk_temporal.cpp", "host/hos_main.c", "host/rx_backend.c", "nx2/build.py", "nx2/oot_patches.py", "nx2/oot_jitter.py"],
+  "integration_files": ["gpu/vk/vk_api.h", "gpu/vk/vk_main.cpp", "gpu/vk/vk_replay.cpp", "gpu/vk/vk_draw.cpp", "gpu/vk/vk_shader.cpp", "gpu/vk/vk_temporal.cpp", "host/hos_main.c", "host/rx_backend.c", "nx2/build.py", "nx2/oot_patches.py", "nx2/oot_jitter.py"],
   "release_policy": "unverified_until_source_review_build_tests_and_headset_validation"
 }
