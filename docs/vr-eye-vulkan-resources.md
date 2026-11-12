@@ -148,3 +148,30 @@ shader reads through private guest roots. It does not prove the game's access
 inventory complete or route its descriptors, embedded pointers, temporal histories
 or camera-dependent compute. Production integration must snapshot the real root at
 the correct queue point and preserve all real mappings and resource lifetimes.
+
+## Copy an original GPU root before patching
+
+The current smoke extends the full-root stage with a separate original GPU table.
+It is zeroed and initialized with two aliases of a writable candidate page plus a
+second, shared-read-only source page. The complete 24 MiB table is copied on the GPU
+to each eye root before applying the CPU-generated patches. Explicit transfer
+write/read and write/write dependencies separate initialization, copies and patches.
+No CPU write substitutes for the GPU copy or alters the mapped original table.
+
+Each eye's private page and unchanged shared page are read through that eye root.
+A further shader read uses the original root to verify that its writable-page entry
+still reaches original storage. All comparisons use complete 4096-byte authored
+payloads, including the unknown-byte tail. The same storage and roots are reused
+across two completed submissions, and both guest-window aliases are exercised.
+
+RTX 2060 SUPER result (2026-11-12): all 4096 private-page words, 4096 shared-page words,
+2048 original-root words and 4096 image pixels pass. Eye allocations remain 16,384
+bytes. Three full roots and the 8192-byte original source use 75,505,664 bytes, plus
+staging; auxiliary allocation requirements are bounded by 96 MiB in this stage.
+The native output is private in `work/vr-eye-root-copy-native.log`.
+
+This checks GPU-copy preservation and subsequent private patches using authored
+inputs. It still does not snapshot the live game's table or prove its shared pages
+read-only. In particular, the backend's deferred table uploads must complete before
+a real private-root snapshot is copied; reading its CPU mapping while GPU updates
+are in flight cannot provide the required immutable snapshot.

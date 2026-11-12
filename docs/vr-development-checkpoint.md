@@ -11,7 +11,7 @@ No new headset test is required for the completed diagnostics below.
 - Conservative emitted-command image/storage-range lineage; present-slice analysis and alias closure.
 - Image inventory/reference budgets and a pure per-eye buffer address layout.
 - Diagnostic [guest-page closure planner](vr-eye-guest-pages.md), with generation checks and alias/read-range expansion, plus atomic CPU address-patch encoding.
-- Standalone bounded Vulkan eye resource owner; native 32x32 image/buffer readback, disjoint buffer device addresses, authored shader reads through two full-size private guest roots and explicit reuse pass on RTX 2060 SUPER.
+- Standalone bounded Vulkan eye resource owner; native 32x32 image/buffer readback, disjoint buffer device addresses, authored shader reads through copied/patched full-size private guest roots with shared/original preservation and explicit reuse pass on RTX 2060 SUPER.
 - Strict VMA image/view factory; a real 1152x648 game HDR/depth probe allocates/copies/retires four images (13.5 MiB) and four views. Full scene routing is still absent.
 - Private eight-view uniform audit and representative SPIR-V read-footprint audit.
 - Separate compute-only observations, plus bounded submitted-matrix candidate search (not semantic proof).

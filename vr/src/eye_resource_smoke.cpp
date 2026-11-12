@@ -24,7 +24,7 @@ struct Context {
     PFN_vkGetInstanceProcAddr get=nullptr;PFN_vkGetDeviceProcAddr gd=nullptr;
     VkInstance instance=VK_NULL_HANDLE;VkDevice device=VK_NULL_HANDLE;VkQueue queue=VK_NULL_HANDLE;
     VkCommandPool pool=VK_NULL_HANDLE;VkBuffer staging=VK_NULL_HANDLE;VkDeviceMemory memory=VK_NULL_HANDLE;
-    std::array<AddressBuffer,3> auxiliary{};uint64_t auxiliary_bytes=0;
+    std::array<AddressBuffer,4> auxiliary{};uint64_t auxiliary_bytes=0;
     VkShaderModule shader=VK_NULL_HANDLE;VkPipelineLayout layout=VK_NULL_HANDLE;VkPipeline pipeline=VK_NULL_HANDLE;
     bool uncertain=false;
     template<class T>T global(const char* name){auto fn=get(instance,name);require(fn!=nullptr,name);return reinterpret_cast<T>(fn);}
@@ -53,7 +53,7 @@ void address_buffer(Context& c,const EyeResourceApi& api,const VkPhysicalDeviceM
     bi.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     checked(api.create_buffer(c.device,&bi,nullptr,&out.buffer),"create auxiliary address buffer");
     VkMemoryRequirements req{};api.buffer_requirements(c.device,out.buffer,&req);
-    require(req.size&&req.size<=64ull*1024*1024-c.auxiliary_bytes,"auxiliary actual-allocation budget");
+    require(req.size&&req.size<=96ull*1024*1024-c.auxiliary_bytes,"auxiliary actual-allocation budget");
     uint32_t type=UINT32_MAX;
     for(uint32_t i=0;i<memory.memoryTypeCount;++i)if((req.memoryTypeBits&(1u<<i))&&(memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)){type=i;break;}
     require(type!=UINT32_MAX,"auxiliary device-local memory required");
@@ -126,17 +126,18 @@ int main(int argc,char** argv){
         require(original==source_before&&payloads[0]!=payloads[1],"source preserved and eye payloads distinct");
         EyeResourcePair pair;require(pair.create(c.device,api,memory,32,32,VK_FORMAT_R8G8B8A8_UNORM,4096,8*1024*1024,true),"create bounded independent eyes");
         require(pair.eye(0)->address&&pair.eye(1)->address&&pair.eye(0)->address!=pair.eye(1)->address,"independent buffer device addresses");
-        address_buffer(c,api,memory,4096,c.auxiliary[0]);
-        for(unsigned eye=0;eye<2;++eye)address_buffer(c,api,memory,kEyeGuestTableBytes,c.auxiliary[eye+1]);
+        address_buffer(c,api,memory,8192,c.auxiliary[0]);
+        for(unsigned index=1;index<4;++index)address_buffer(c,api,memory,kEyeGuestTableBytes,c.auxiliary[index]);
         constexpr uint64_t guest_a=0x1000000000ull,guest_b=0x7f00000000ull;
         const EyePageStamp stamp{1,1,1,1};EyeGuestPagePlan plan;
-        require(EyeGuestPagePlan::build({{1,0,4096}},{},{{guest_a,1,0},{guest_b,1,0}},
-            {{1,4096,c.auxiliary[0].address}},stamp,stamp,256,4096,plan),"build authored full-page plan");
+        require(EyeGuestPagePlan::build({{1,0,4096}},{},{{guest_a,1,0},{guest_b,1,0},{guest_a+4096,1,4096}},
+            {{1,8192,c.auxiliary[0].address}},stamp,stamp,256,4096,plan),"build authored full-page plan");
         std::vector<uint64_t> original_root(kEyeGuestPageCount);original_root[0]=original_root[*eye_guest_page_index(guest_b)]=c.auxiliary[0].address;
+        original_root[1]=c.auxiliary[0].address+4096;
         const auto root_before=original_root;EyePagePatchSet patches;
         require(prepare_eye_page_patches(plan,stamp,original_root.data(),original_root.size(),
             {{pair.eye(0)->address,4096},{pair.eye(1)->address,4096}},patches)&&original_root==root_before,"encode patches preserving original root");
-        VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bi.size=2*(32*32*4+4096)+4096;bi.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;bi.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+        VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bi.size=2*(32*32*4+4096)+3*4096;bi.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;bi.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
         checked(api.create_buffer(c.device,&bi,nullptr,&c.staging),"create readback");VkMemoryRequirements req{};api.buffer_requirements(c.device,c.staging,&req);require(req.size<=1024*1024,"bounded staging allocation");
         uint32_t type=UINT32_MAX;bool coherent=false;
         for(uint32_t i=0;i<memory.memoryTypeCount;++i)if((req.memoryTypeBits&(1u<<i))&&(memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)){type=i;coherent=memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;break;}
@@ -158,18 +159,31 @@ int main(int argc,char** argv){
         VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;checked(c.fn<PFN_vkBeginCommandBuffer>("vkBeginCommandBuffer")(command,&begin),"begin");
         auto barrier=c.fn<PFN_vkCmdPipelineBarrier>("vkCmdPipelineBarrier");
         if(round==0){
-            c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,c.auxiliary[0].buffer,0,4096,original.data());
-            for(unsigned eye=0;eye<2;++eye)c.fn<PFN_vkCmdFillBuffer>("vkCmdFillBuffer")(command,c.auxiliary[eye+1].buffer,0,kEyeGuestTableBytes,0);
+            std::vector<std::byte> source_pages=original;source_pages.insert(source_pages.end(),original.begin(),original.end());
+            c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,c.auxiliary[0].buffer,0,8192,source_pages.data());
+            c.fn<PFN_vkCmdFillBuffer>("vkCmdFillBuffer")(command,c.auxiliary[3].buffer,0,kEyeGuestTableBytes,0);
             VkMemoryBarrier table_write{VK_STRUCTURE_TYPE_MEMORY_BARRIER};table_write.srcAccessMask=table_write.dstAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;
             barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,1,&table_write,0,nullptr,0,nullptr);
-            for(unsigned eye=0;eye<2;++eye)for(auto guest:{guest_a,guest_b}){
+            for(auto guest:{guest_a,guest_a+4096,guest_b}){
                 auto index=*eye_guest_page_index(guest);const auto value=original_root[index];
-                c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,c.auxiliary[eye+1].buffer,uint64_t(index)*8,8,&value);
+                c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,c.auxiliary[3].buffer,uint64_t(index)*8,8,&value);
             }
+            table_write.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;
+            barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,1,&table_write,0,nullptr,0,nullptr);
+            VkBufferCopy root_copy{0,0,kEyeGuestTableBytes};
+            for(unsigned eye=0;eye<2;++eye)c.fn<PFN_vkCmdCopyBuffer>("vkCmdCopyBuffer")(command,c.auxiliary[3].buffer,c.auxiliary[eye+1].buffer,1,&root_copy);
+            table_write.dstAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;
             barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,1,&table_write,0,nullptr,0,nullptr);
             for(unsigned eye=0;eye<2;++eye)for(auto patch:patches.eyes[eye])
                 c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,c.auxiliary[eye+1].buffer,uint64_t(patch.index)*8,8,&patch.address);
         }
+        auto read_page=[&](VkDeviceAddress root,uint32_t page,VkDeviceAddress destination){
+            struct Parameters {VkDeviceAddress root,destination;uint32_t page,padding;};
+            const Parameters addresses{root,destination,page,0};static_assert(sizeof addresses==24);
+            c.fn<PFN_vkCmdBindPipeline>("vkCmdBindPipeline")(command,VK_PIPELINE_BIND_POINT_COMPUTE,c.pipeline);
+            c.fn<PFN_vkCmdPushConstants>("vkCmdPushConstants")(command,c.layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof addresses,&addresses);
+            c.fn<PFN_vkCmdDispatch>("vkCmdDispatch")(command,16,1,1);
+        };
         for(unsigned eye=0;eye<2;++eye){
             const auto& e=*pair.eye(eye);VkImageMemoryBarrier ib{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};ib.dstAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;ib.oldLayout=VK_IMAGE_LAYOUT_UNDEFINED;ib.newLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;ib.srcQueueFamilyIndex=ib.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;ib.image=e.image;ib.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
             barrier(command,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&ib);
@@ -181,16 +195,10 @@ int main(int argc,char** argv){
             barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,1,&mb,0,nullptr,1,&ib);
             VkBufferImageCopy copy{};copy.bufferOffset=eye*8192;copy.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};copy.imageExtent={32,32,1};
             c.fn<PFN_vkCmdCopyImageToBuffer>("vkCmdCopyImageToBuffer")(command,e.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,c.staging,1,&copy);
-            struct Parameters {VkDeviceAddress root,destination;uint32_t page,padding;};
-            const Parameters addresses{c.auxiliary[eye+1].address,staging_address+eye*8192+4096,
-                *eye_guest_page_index((round+eye)%2?guest_b:guest_a),0};
-            static_assert(sizeof addresses==24);
-            c.fn<PFN_vkCmdBindPipeline>("vkCmdBindPipeline")(command,VK_PIPELINE_BIND_POINT_COMPUTE,c.pipeline);
-            c.fn<PFN_vkCmdPushConstants>("vkCmdPushConstants")(command,c.layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof addresses,&addresses);
-            c.fn<PFN_vkCmdDispatch>("vkCmdDispatch")(command,16,1,1);
+            read_page(c.auxiliary[eye+1].address,*eye_guest_page_index((round+eye)%2?guest_b:guest_a),staging_address+eye*8192+4096);
+            read_page(c.auxiliary[eye+1].address,1,staging_address+16384+eye*4096);
         }
-        VkBufferCopy original_copy{0,16384,4096};
-        c.fn<PFN_vkCmdCopyBuffer>("vkCmdCopyBuffer")(command,c.auxiliary[0].buffer,c.staging,1,&original_copy);
+        read_page(c.auxiliary[3].address,0,staging_address+24576);
         VkMemoryBarrier host{VK_STRUCTURE_TYPE_MEMORY_BARRIER};host.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT|VK_ACCESS_SHADER_WRITE_BIT;host.dstAccessMask=VK_ACCESS_HOST_READ_BIT;
         barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_HOST_BIT,0,1,&host,0,nullptr,0,nullptr);
         checked(c.fn<PFN_vkEndCommandBuffer>("vkEndCommandBuffer")(command),"end");
@@ -201,7 +209,10 @@ int main(int argc,char** argv){
         bool correct=true;auto* bytes=static_cast<const unsigned char*>(mapped);
         for(unsigned eye=0;eye<2;++eye){for(unsigned pixel=0;pixel<1024;++pixel)for(unsigned channel=0;channel<4;++channel)correct&=bytes[eye*8192+pixel*4+channel]==((channel==(eye+round)%2||channel==3)?255:0);
             for(unsigned offset=0;offset<4096;++offset)correct&=bytes[eye*8192+4096+offset]==std::to_integer<unsigned char>(payloads[eye][offset]);}
-        for(unsigned offset=0;offset<4096;++offset)correct&=bytes[16384+offset]==std::to_integer<unsigned char>(source_before[offset]);
+        for(unsigned offset=0;offset<4096;++offset){
+            const auto expected=std::to_integer<unsigned char>(source_before[offset]);
+            correct&=bytes[16384+offset]==expected&&bytes[20480+offset]==expected&&bytes[24576+offset]==expected;
+        }
         c.fn<PFN_vkUnmapMemory>("vkUnmapMemory")(c.device,c.memory);require(correct,"eye image/buffer readback mismatch");
         if(round==0){
             require(pair.rearm(),"rearm only after completion");
@@ -209,7 +220,7 @@ int main(int argc,char** argv){
             for(auto& payload:payloads)payload[0x300]^=std::byte{7};
         }
         }
-        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; auxiliary_allocation_bytes="<<c.auxiliary_bytes<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; physical_address_shader_readback=true; shader_words_checked=4096; private_guest_roots=2; guest_table_bytes_per_eye=25165824; guest_window_aliases_checked=true; original_gpu_bytes_checked=8192; image_pixels_checked=4096; buffer_bytes_checked=16384; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
+        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; auxiliary_allocation_bytes="<<c.auxiliary_bytes<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; physical_address_shader_readback=true; private_shader_words_checked=4096; shared_shader_words_checked=4096; original_root_shader_words_checked=2048; gpu_root_copy_verified=true; private_guest_roots=2; guest_table_bytes_per_eye=25165824; guest_window_aliases_checked=true; original_gpu_bytes_checked=8192; image_pixels_checked=4096; buffer_bytes_checked=16384; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
         return 0;
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
 }
