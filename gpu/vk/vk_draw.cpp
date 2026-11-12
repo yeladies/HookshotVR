@@ -6,6 +6,7 @@
 // and the draws themselves.
 //
 // Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
+#include "xr_scene_camera.h"
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
@@ -6328,6 +6329,16 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         if (told++ < 12) logf("vk: a draw without a program (frame %llu); its code:%s", (unsigned long long)texture_frame_no(),
                               program_code_keys(s).c_str());
         SKIP_HERE();
+    }
+    // Read-only VR provenance: vertex c3 with submission overlays, never live host memory.
+    if (xr_scene_capture_enabled() && at.n && at.color[0] && at.depth &&
+        at.color[0]->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32 && s.ubo[0][0].size >= 0x230) {
+        float camera_block[0x230 / 4];
+        if (ub_read(s.ubo[0][0].addr, camera_block, sizeof camera_block)) {
+            const SceneCameraEvidence evidence{texture_frame_no(), cp->key, at.color[0]->id, at.depth->id,
+                                                s.ubo[0][0].addr, at.width, at.height};
+            xr_scene_camera_observation(evidence, camera_block, sizeof camera_block / sizeof(float));
+        }
     }
     // (ultrawide's menu sides: the world's lighting composite was asked for, even if a skip or a pipeline not yet made leaves this
     // draw out below: the world is drawn, it is no menu. vk_framegen.cpp wide_sides)

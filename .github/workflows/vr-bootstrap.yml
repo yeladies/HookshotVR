@@ -2,9 +2,9 @@ name: VR bootstrap (no game data)
 on:
   push:
     branches: [vr/bootstrap]
-    paths: ['vr/**', 'gpu/vk/vk_xr.*', 'gpu/vk/vk_xr_session.h', 'gpu/vk/vk_xr_preview.h', 'gpu/vk/xr_preview_feed.h', 'gpu/vk/vk_replay.cpp', 'tests/test_vr_*.py', 'gpu/vk/xr_camera_capture.h', 'gpu/vk/vk_api.h', 'host/hos_main.c', 'host/rx_backend.c', 'gpu/vk/vk_main.cpp', 'nx2/build.py', '.github/workflows/vr-bootstrap.yml']
+    paths: ['vr/**', 'gpu/vk/vk_xr.*', 'gpu/vk/vk_xr_session.h', 'gpu/vk/vk_xr_preview.h', 'gpu/vk/xr_preview_feed.h', 'gpu/vk/vk_replay.cpp', 'gpu/vk/vk_draw.cpp', 'gpu/vk/vk_xr_camera.cpp', 'gpu/vk/xr_scene_camera.h', 'tests/test_vr_*.py', 'gpu/vk/xr_camera_capture.h', 'gpu/vk/vk_api.h', 'host/hos_main.c', 'host/rx_backend.c', 'gpu/vk/vk_main.cpp', 'nx2/build.py', '.github/workflows/vr-bootstrap.yml']
   pull_request:
-    paths: ['vr/**', 'gpu/vk/vk_xr.*', 'gpu/vk/vk_xr_session.h', 'gpu/vk/vk_xr_preview.h', 'gpu/vk/xr_preview_feed.h', 'gpu/vk/vk_replay.cpp', 'tests/test_vr_*.py', 'gpu/vk/xr_camera_capture.h', 'gpu/vk/vk_api.h', 'host/hos_main.c', 'host/rx_backend.c', 'gpu/vk/vk_main.cpp', 'nx2/build.py', '.github/workflows/vr-bootstrap.yml']
+    paths: ['vr/**', 'gpu/vk/vk_xr.*', 'gpu/vk/vk_xr_session.h', 'gpu/vk/vk_xr_preview.h', 'gpu/vk/xr_preview_feed.h', 'gpu/vk/vk_replay.cpp', 'gpu/vk/vk_draw.cpp', 'gpu/vk/vk_xr_camera.cpp', 'gpu/vk/xr_scene_camera.h', 'tests/test_vr_*.py', 'gpu/vk/xr_camera_capture.h', 'gpu/vk/vk_api.h', 'host/hos_main.c', 'host/rx_backend.c', 'gpu/vk/vk_main.cpp', 'nx2/build.py', '.github/workflows/vr-bootstrap.yml']
   workflow_dispatch:
 permissions:
   contents: read

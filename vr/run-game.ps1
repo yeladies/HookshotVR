@@ -12,9 +12,12 @@ param(
     [switch]$XrPreview,
     [switch]$PreviewReadbackTest,
     [switch]$CameraCapture,
+    [switch]$SceneCapture,
+    [switch]$Audio,
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+if ($SceneCapture) { $CameraCapture = $true }
 if ($LoadTestSave -and !$SnapshotStableSaves) { throw 'Scripted save loading requires a private save snapshot.' }
 function Read-ExperimentalLog {
     $stream = [IO.File]::Open((Join-Path $runRoot 'stderr.txt'), [IO.FileMode]::Open,
@@ -119,6 +122,7 @@ if ($LoadTestSave) { [IO.File]::WriteAllText($env:HOS_INPUT_LIVE, "20:A/150,30:A
 $env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
 Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
+$env:HOOKSHOT_VR_SCENE_CAPTURE = $(if ($SceneCapture) { '1' } else { '0' })
 $env:HOOKSHOT_VR_CAMERA_CAPTURE = $(if ($CameraCapture) { '1' } else { '0' })
 $env:RX_VK_XR_PREVIEW = $(if ($XrPreview) { '1' } else { '0' })
 $env:HOOKSHOT_VR_PREVIEW_READBACK_TEST = $(if ($PreviewReadbackTest) { '1' } else { '0' })
@@ -133,7 +137,11 @@ $env:RX_BACKEND = 'vulkan'
 $env:HOS_HEADLESS = $(if ($Window) { '0' } else { '1' })
 $env:HOS_WINDOW_NOACTIVATE = '1'
 $env:HOS_FULLSCREEN = '0'
-$env:HOS_AUDIO = '0'
+$env:HOS_AUDIO = $(if ($Audio) { '1' } else { '0' })
+if ($Audio) {
+    Remove-Item Env:HOS_AUDIO_MUTE -ErrorAction SilentlyContinue
+    $env:HOS_AUDIO_CHANNELS = '2'
+}
 $env:HOS_DISCORD = '0'
 $env:HOS_OUTPUT_RES = '1280x720'
 $env:HOS_HANDHELD = '1'
@@ -215,7 +223,12 @@ if ($XrPreview -or $PreviewReadbackTest) {
         $reason = 'preview_unverified'
     }
 }
-[ordered]@{ flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+$sceneObserved = $false
+if ($SceneCapture) {
+    $sceneObserved = (Read-ExperimentalLog) -match 'vr-scene: .* matched [1-9][0-9]*, matched replay frames [1-9][0-9]*'
+    if (!$sceneObserved -and $reason -eq 'time_limit') { $reason = 'scene_camera_unverified' }
+}
+[ordered]@{ audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
@@ -225,3 +238,5 @@ if ($XrNegotiation -and !$xrNegotiated) { exit 1 }
 if ($XrSessionProbe -and (!$sessionClosed -or !$sessionValidPoses -or $sessionApiErrors)) { exit 1 }
 
 if (($XrPreview -and !$previewSubmitted) -or ($PreviewReadbackTest -and !$readbackObserved)) { exit 1 }
+
+if ($SceneCapture -and !$sceneObserved) { exit 1 }

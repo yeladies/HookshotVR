@@ -16,15 +16,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vr/Start-Quest-Preview.ps1 -
 The launcher uses matched experimental binaries, checks the game build ID, renderer
 ABI, source fingerprint and binary hashes, then takes a private save snapshot.
 It attempts scripted menu/save loading; cold shader loading may delay that sequence.
-A menu image is still useful for the transport test. The test is muted, uses a headless
+A menu image is still useful for the transport test. The preview enables stereo audio on the Windows default output (normally redirected
+by Virtual Desktop); `-Mute` disables it. It uses a headless
 mirror and closes automatically. Nothing is installed into the stable game directory.
 Do not run it until both experimental build receipts are current.
 
 Check that the image appears upright, with readable text, correct colors and no
 left/right inversion. Move the head gently: the screen should remain anchored in
 space. The scene inside the screen still uses the ordinary game camera. Check the
-monitor remains normal and record any runtime errors. Actual VDXR visual behavior
-has not yet been validated for this feature.
+monitor remains normal and record any runtime errors. VDXR visual behavior was confirmed by the user on 2026-11-12: visible image,
+normal colors, world anchoring and a functioning monitor. Audio was disabled in
+that original test; audible headset output still needs checking.
 
 ## Implementation and limits
 

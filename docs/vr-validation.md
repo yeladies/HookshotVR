@@ -260,3 +260,38 @@ Source update tooling and synthetic Git fixtures prepare isolated candidates and
 retain conflicts without promoting compatibility. The launch guards reject unknown
 game build IDs, ABI mismatch, modified binaries and stale source fingerprints.
 See [preview procedure](vr-headset-preview.md) and [upstream maintenance](vr-upstream-updates.md).
+
+## Confirmed Quest transport (2026-11-12)
+
+The user confirmed the game image, normal colors, a world-anchored screen and a
+working monitor in the bounded VDXR quad preview. It submitted 7,716 quad layers
+using 1,679 game images; all 8,165 session frames had valid head and stereo poses.
+The session closed with no reported XR API errors; peak sampled working set was
+6,717 MiB. All 19 inventoried stable hashes remained unchanged and no game process
+was left running. Raw logs and the visual confirmation remain private under work/.
+This validates flat image transport only. The original test deliberately had audio
+disabled. The preview launcher now opts into stereo audio and supports `-Mute`;
+audio routing/audibility in the headset has not yet been confirmed.
+
+## Submitted scene-camera evidence and audio (2026-11-12)
+
+The rebuilt paired binaries compiled in 103 seconds with zero failed units. All 46
+VR CTest cases passed. The required inherited suite again reported 357 passed,
+5 previously classified baseline failures and 59 skipped; it is not fully green.
+
+A 150-second flat diagnostic with private save data reached Dodongo's Cavern and
+peaked at 6,609 MiB sampled working set. The last aggregate sample reported
+2,180,000 HDR/depth draw candidates: 56,543 invalid blocks, 1,540,424 without a fresh
+host association, 86,972 view mismatches, zero projection mismatches and 496,061
+matches across 740 matched replay-frame transitions. These are candidate observations,
+not counts of completed GPU draws or proof of unique main-camera ownership. The high
+missing-association count is a remaining synchronization limitation; the current
+latest-only host mailbox is insufficient to authorize a reliable camera override.
+No game matrix, shader, simulation or GPU replay behavior was changed.
+
+The audio renderer opened stereo output on the Windows default device. This proves
+local device opening only; audible Quest routing still requires user confirmation.
+No OpenXR session was opened by this diagnostic. The new launcher result guard
+recognizes the saved positive camera evidence and fails a requested scene-capture run
+when such evidence is absent. Native stereo game rendering and head-driven gameplay
+remain unimplemented. See [scene-camera provenance](vr-scene-camera.md).

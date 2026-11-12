@@ -70,9 +70,11 @@ tested per-eye projection math. They can run without a headset and do not open a
 ## Game-image preview and update workflow
 
 A bounded [flat-screen headset preview](../docs/vr-headset-preview.md) is implemented
-as the next transport test. Real game readback has passed offline; actual VDXR
-visibility is pending. It does not implement native stereo or head-driven gameplay.
+as the next transport test. Real game readback and VDXR flat-quad visibility have been confirmed. It does not implement native stereo or head-driven gameplay.
 
 [Upstream update tooling](../docs/vr-upstream-updates.md) prepares isolated source
 candidates for explicit review. Version profiles and private build receipts prevent
 launching unknown game builds or stale/mixed experimental binaries.
+
+[Submitted scene-camera diagnostics](../docs/vr-scene-camera.md) now compare actual
+recorded draw uniforms with the host camera without overriding any matrices.

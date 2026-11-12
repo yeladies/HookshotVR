@@ -58,3 +58,10 @@ with predicted time and origin generation. No game camera consumer or stereo rep
 The [offline camera stage](vr-offline-camera.md) now captures primary-camera and uniform-view
 observations through ABI 18 and correlates matching matrices diagnostically. It does not yet assign
 main-scene draw ownership or alter a game camera. Per-eye projection conventions have synthetic tests.
+
+## Submitted draw-camera evidence
+
+The optional [scene-camera diagnostic](vr-scene-camera.md) now compares immutable
+submitted uniform blocks with the fresh host camera candidate, including VP=P*V.
+This is a read-only prerequisite for main-scene ownership, not a camera override or
+native stereo renderer.
