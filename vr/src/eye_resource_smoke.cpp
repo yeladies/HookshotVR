@@ -3,6 +3,7 @@
 #define VK_NO_PROTOTYPES
 #include "eye_vulkan_resources.h"
 #include "eye_uniform_copy.h"
+#include "camera_math.h"
 #include "eye_address_copy_spv.h"
 #include "eye_page_patches.h"
 #include <cstring>

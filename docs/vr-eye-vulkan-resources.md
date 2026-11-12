@@ -175,3 +175,6 @@ inputs. It still does not snapshot the live game's table or prove its shared pag
 read-only. In particular, the backend's deferred table uploads must complete before
 a real private-root snapshot is copied; reading its CPU mapping while GPU updates
 are in flight cannot provide the required immutable snapshot.
+
+A separate [real-game uniform upload probe](vr-game-uniform-upload-probe.md) now
+validates complete submitted payload copies on the GPU without binding them to draws.

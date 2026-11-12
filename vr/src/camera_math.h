@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <openxr/openxr.h>
+#include "camera_view.h"
 #include <cmath>
 
 namespace hookshot::vr {
@@ -11,11 +12,6 @@ struct TrackingOrigin {
     XrVector3f local_reference{};
     double yaw_radians = 0;
     double world_units_per_metre = 1;
-};
-struct CameraView {
-    double eye[3]{};
-    // Row-major world-to-eye affine matrix: right, up, backward, translation.
-    double rows[3][4]{};
 };
 inline bool tracked_camera_view(const TrackingOrigin& origin, const XrPosef& pose,
                                 XrSpaceLocationFlags flags, CameraView& out) {

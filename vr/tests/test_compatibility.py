@@ -1,6 +1,7 @@
 """Windows guard tests using authored NSO-like headers and dummy files, never a real installation."""
 from pathlib import Path
 import json
+import importlib.util
 import shutil
 import subprocess
 import tempfile
@@ -41,4 +42,21 @@ class CompatibilityTests(unittest.TestCase):
         self.run_ps(check,False)
     def test_stale_source_guard(self):
         self.run_ps("Write-VrBuildReceipt $root (Join-Path $root 'receipt.json') (Join-Path $root 'renderer.dll') '' 'old' $true; Assert-VrBuildReceipt $root (Join-Path $root 'receipt.json') (Join-Path $root 'renderer.dll') '' 'new' $true",False)
+class SourceFingerprintTests(unittest.TestCase):
+    def test_shared_uniform_math_invalidates_native_source_receipt(self):
+        spec=importlib.util.spec_from_file_location("vr_receipt_version",ROOT/"nx2/version.py")
+        version=importlib.util.module_from_spec(spec);spec.loader.exec_module(version)
+        names=("xr_camera_view.h","xr_eye_matrices.h","xr_projection_math.h","xr_eye_uniform_copy.h")
+        with tempfile.TemporaryDirectory(prefix="vr-math-receipt-") as tmp:
+            root=Path(tmp);target=root/"gpu/vk";target.mkdir(parents=True)
+            for name in names:(target/name).write_bytes((ROOT/"gpu/vk"/name).read_bytes())
+            original=version.fingerprint(root)
+            for name in names:
+                with self.subTest(header=name):
+                    path=target/name;data=path.read_bytes().replace(b"\r\n",b"\n")
+                    path.write_bytes(data+b"// authored fixture change\n")
+                    self.assertNotEqual(version.fingerprint(root),original,"Shared math edits must invalidate native receipts")
+                    path.write_bytes(data.replace(b"\n",b"\r\n"))
+                    self.assertEqual(version.fingerprint(root),original,"Line endings do not change source identity")
+                    path.write_bytes(data)
 if __name__=="__main__":unittest.main()

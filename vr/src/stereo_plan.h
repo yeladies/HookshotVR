@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "camera_math.h"
-#include "projection_math.h"
+#include "eye_matrices.h"
 #include <array>
 namespace hookshot::vr {
 struct GameCameraStamp { uint64_t camera_id=0,revision=0;int64_t present=0,received_ns=0; };
@@ -20,7 +20,6 @@ struct StereoCalibration {
     DepthOrder depth=DepthOrder::Forward;
     bool flip_y=false;
 };
-struct EyeMatrices { CameraView view;ProjectionMatrix projection{},world_to_clip{}; };
 struct DiagnosticStereoPlan {
     GameCameraStamp game;
     uint64_t xr_sequence=0,origin_generation=0;

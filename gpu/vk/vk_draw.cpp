@@ -38,6 +38,7 @@
 
 #include "vk_paths.h"
 #include "vk_draw.h"
+#include "xr_eye_uniform_probe.h"
 #include "vk_menu.h"          // (opts.anisotropy: the Anisotropic filtering row; resolution_scale)
 #include "upscaler_rows.h"    // (upscale_lod_bias: which upscalers draw the 3D smaller)
 #include "dlss_actor.h"
@@ -6335,12 +6336,20 @@ void lineage_pair(uint64_t key,const Texture* in,const Texture* out) {
     work.reads={in->id};work.writes={out->id};work.width=out->width;work.height=out->height;
     xr_image_lineage_work(texture_frame_no(),std::move(work));
 }
-void eye_image_probe_note(VkCommandBuffer command,const Targets& targets,bool camera_seed) {
-    if(!camera_seed||!xr_eye_image_probe_wants(texture_frame_no()))return;
-    end_pass(command); // Copies are outside rendering; the original targets are never replaced.
-    xr_eye_image_probe_record(command,targets.color[0],targets.depth,rec_value,
+void eye_image_probe_note(VkCommandBuffer command,const Targets& targets,const NvnState& state,bool camera_seed) {
+    if(!camera_seed)return;
+    const bool images=xr_eye_image_probe_wants(texture_frame_no()),uniforms=xr_eye_uniform_probe_wants(texture_frame_no());
+    if(!images&&!uniforms)return;
+    end_pass(command); // Probes touch only private destinations outside rendering.
+    if(images)xr_eye_image_probe_record(command,targets.color[0],targets.depth,rec_value,
         {targets.color_level[0],targets.color_layer[0],targets.color_format[0]},
         {targets.depth_level,targets.depth_layer,targets.depth_format});
+    if(uniforms){
+        const auto& binding=state.ubo[0][0];std::vector<std::byte> source;
+        if(binding.size>=0x230&&binding.size<=65536&&binding.size%4==0){source.resize(binding.size);
+            if(!ub_read(binding.addr,source.data(),source.size()))source.clear();}
+        xr_eye_uniform_probe_record(command,rec_value,source.empty()?nullptr:source.data(),binding.size);
+    }
 }
 void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camera_address,
                                const std::vector<uint64_t>* additional_cameras=nullptr) {
@@ -6874,7 +6883,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
             vkCmdDrawIndirect(cmd, fallback_draw_records, 0, 1, sizeof(VkDrawIndirectCommand));   // (its count: the records taken)
             st_mesh++;
             st_draws++, pass().draws++;
-            eye_image_probe_note(cmd,at,vr_camera_seed);
+            eye_image_probe_note(cmd,at,s,vr_camera_seed);
             lineage_note(p,&at,vr_camera_seed,true);
             if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
             return;
@@ -6942,7 +6951,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                 mesh_conv_buf = VK_NULL_HANDLE;
                 st_mesh++;
                 st_draws++, pass().draws++;
-                eye_image_probe_note(cmd,at,vr_camera_seed);
+                eye_image_probe_note(cmd,at,s,vr_camera_seed);
                 lineage_note(p,&at,vr_camera_seed,true);
                 if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
                 return;
@@ -6976,7 +6985,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         }
         st_mesh++;
         st_draws++, pass().draws++;
-        eye_image_probe_note(cmd,at,vr_camera_seed);
+        eye_image_probe_note(cmd,at,s,vr_camera_seed);
         lineage_note(p,&at,vr_camera_seed,true);
         if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
@@ -7069,7 +7078,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         vkCmdDrawIndexed(cmd, quads * 6, (uint32_t)std::max(1, d.instances), 0, d.indexed ? d.base_vertex : 0,
                          (uint32_t)d.base_instance);
         st_draws++, pass().draws++;
-        eye_image_probe_note(cmd,at,vr_camera_seed);
+        eye_image_probe_note(cmd,at,s,vr_camera_seed);
         lineage_note(p,&at,vr_camera_seed,true);
         if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
@@ -7109,7 +7118,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         vkCmdDraw(cmd, (uint32_t)d.count, (uint32_t)std::max(1, d.instances), (uint32_t)d.first, (uint32_t)d.base_instance);
     }
     st_draws++, pass().draws++;
-    eye_image_probe_note(cmd,at,vr_camera_seed);
+    eye_image_probe_note(cmd,at,s,vr_camera_seed);
     lineage_note(p,&at,vr_camera_seed,true);
     if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
 }

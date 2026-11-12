@@ -16,7 +16,8 @@ No new headset test is required for the completed diagnostics below.
 - Private eight-view uniform audit and representative SPIR-V read-footprint audit.
 - Separate compute-only observations, plus bounded submitted-matrix candidate search (not semantic proof).
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
-- Validated CPU-only full-payload eye uniform copies, retaining every unknown byte.
+- Validated full-payload CPU eye uniform copies, retaining every unknown byte.
+- Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
 - 67 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "eye_uniform_copy.h"
+#include "camera_math.h"
 #include <iostream>
 #include <stdexcept>
 using namespace hookshot::vr;
