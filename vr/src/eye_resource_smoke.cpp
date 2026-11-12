@@ -68,7 +68,7 @@ int main(int argc,char** argv){
 #define LOAD(field,name) api.field=c.fn<PFN_vk##name>("vk" #name)
         LOAD(create_buffer,CreateBuffer);LOAD(destroy_buffer,DestroyBuffer);LOAD(buffer_requirements,GetBufferMemoryRequirements);LOAD(bind_buffer,BindBufferMemory);
         LOAD(create_image,CreateImage);LOAD(destroy_image,DestroyImage);LOAD(image_requirements,GetImageMemoryRequirements);LOAD(bind_image,BindImageMemory);
-        LOAD(allocate,AllocateMemory);LOAD(free,FreeMemory);LOAD(create_fence,CreateFence);LOAD(destroy_fence,DestroyFence);LOAD(submit,QueueSubmit);LOAD(wait,WaitForFences);
+        LOAD(allocate,AllocateMemory);LOAD(free,FreeMemory);LOAD(create_fence,CreateFence);LOAD(destroy_fence,DestroyFence);LOAD(submit,QueueSubmit);LOAD(wait,WaitForFences);LOAD(reset,ResetFences);
 #undef LOAD
         // Entirely authored camera payload: no game data or measured world calibration.
         std::vector<std::byte> original(1024);
@@ -96,12 +96,13 @@ int main(int argc,char** argv){
         require(type!=UINT32_MAX,"host-visible readback memory");VkMemoryAllocateInfo ai{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};ai.allocationSize=req.size;ai.memoryTypeIndex=type;checked(api.allocate(c.device,&ai,nullptr,&c.memory),"allocate readback");checked(api.bind_buffer(c.device,c.staging,c.memory,0),"bind readback");
         VkCommandPoolCreateInfo pi{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};pi.queueFamilyIndex=family;checked(c.fn<PFN_vkCreateCommandPool>("vkCreateCommandPool")(c.device,&pi,nullptr,&c.pool),"command pool");
         VkCommandBufferAllocateInfo ca{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};ca.commandPool=c.pool;ca.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;ca.commandBufferCount=1;VkCommandBuffer command=VK_NULL_HANDLE;
-        checked(c.fn<PFN_vkAllocateCommandBuffers>("vkAllocateCommandBuffers")(c.device,&ca,&command),"command buffer");VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;checked(c.fn<PFN_vkBeginCommandBuffer>("vkBeginCommandBuffer")(command,&begin),"begin");
+        checked(c.fn<PFN_vkAllocateCommandBuffers>("vkAllocateCommandBuffers")(c.device,&ca,&command),"command buffer");for(unsigned round=0;round<2;++round){
+        VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;checked(c.fn<PFN_vkBeginCommandBuffer>("vkBeginCommandBuffer")(command,&begin),"begin");
         auto barrier=c.fn<PFN_vkCmdPipelineBarrier>("vkCmdPipelineBarrier");
         for(unsigned eye=0;eye<2;++eye){
             const auto& e=*pair.eye(eye);VkImageMemoryBarrier ib{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};ib.dstAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;ib.oldLayout=VK_IMAGE_LAYOUT_UNDEFINED;ib.newLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;ib.srcQueueFamilyIndex=ib.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;ib.image=e.image;ib.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
             barrier(command,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&ib);
-            VkClearColorValue color{};color.float32[eye]=1;color.float32[3]=1;
+            VkClearColorValue color{};color.float32[(eye+round)%2]=1;color.float32[3]=1;
             c.fn<PFN_vkCmdClearColorImage>("vkCmdClearColorImage")(command,e.image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,&color,1,&ib.subresourceRange);
             c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,e.buffer,0,1024,payloads[eye].data());
             ib.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;ib.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;ib.oldLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;ib.newLayout=VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -119,10 +120,16 @@ int main(int argc,char** argv){
         void* mapped=nullptr;checked(c.fn<PFN_vkMapMemory>("vkMapMemory")(c.device,c.memory,0,VK_WHOLE_SIZE,0,&mapped),"map readback");
         if(!coherent){VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};range.memory=c.memory;range.size=VK_WHOLE_SIZE;checked(c.fn<PFN_vkInvalidateMappedMemoryRanges>("vkInvalidateMappedMemoryRanges")(c.device,1,&range),"invalidate readback");}
         bool correct=true;auto* bytes=static_cast<const unsigned char*>(mapped);
-        for(unsigned eye=0;eye<2;++eye){for(unsigned pixel=0;pixel<1024;++pixel)for(unsigned channel=0;channel<4;++channel)correct&=bytes[eye*5120+pixel*4+channel]==((channel==eye||channel==3)?255:0);
+        for(unsigned eye=0;eye<2;++eye){for(unsigned pixel=0;pixel<1024;++pixel)for(unsigned channel=0;channel<4;++channel)correct&=bytes[eye*5120+pixel*4+channel]==((channel==(eye+round)%2||channel==3)?255:0);
             for(unsigned offset=0;offset<1024;++offset)correct&=bytes[eye*5120+4096+offset]==std::to_integer<unsigned char>(payloads[eye][offset]);}
         c.fn<PFN_vkUnmapMemory>("vkUnmapMemory")(c.device,c.memory);require(correct,"eye image/buffer readback mismatch");
-        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; independent_images=2; independent_buffers=2; image_pixels_checked=2048; buffer_bytes_checked=2048; full_uniform_payloads_checked=2; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
+        if(round==0){
+            require(pair.rearm(),"rearm only after completion");
+            checked(c.fn<PFN_vkResetCommandPool>("vkResetCommandPool")(c.device,c.pool,0),"reset completed command pool");
+            for(auto& payload:payloads)payload[0x300]^=std::byte{7};
+        }
+        }
+        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; independent_images=2; independent_buffers=2; image_pixels_checked=4096; buffer_bytes_checked=4096; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
         return 0;
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
 }

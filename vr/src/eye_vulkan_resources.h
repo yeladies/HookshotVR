@@ -11,15 +11,15 @@ struct EyeResourceApi {
     PFN_vkGetImageMemoryRequirements image_requirements=nullptr;PFN_vkBindImageMemory bind_image=nullptr;
     PFN_vkAllocateMemory allocate=nullptr;PFN_vkFreeMemory free=nullptr;
     PFN_vkCreateFence create_fence=nullptr;PFN_vkDestroyFence destroy_fence=nullptr;
-    PFN_vkQueueSubmit submit=nullptr;PFN_vkWaitForFences wait=nullptr;
+    PFN_vkQueueSubmit submit=nullptr;PFN_vkWaitForFences wait=nullptr;PFN_vkResetFences reset=nullptr;
     bool valid()const{return create_buffer&&destroy_buffer&&buffer_requirements&&bind_buffer&&create_image&&
-        destroy_image&&image_requirements&&bind_image&&allocate&&free&&create_fence&&destroy_fence&&submit&&wait;}
+        destroy_image&&image_requirements&&bind_image&&allocate&&free&&create_fence&&destroy_fence&&submit&&wait&&reset;}
 };
 struct OwnedEyeResource {
     VkBuffer buffer=VK_NULL_HANDLE;VkDeviceMemory buffer_memory=VK_NULL_HANDLE;
     VkImage image=VK_NULL_HANDLE;VkDeviceMemory image_memory=VK_NULL_HANDLE;
 };
-// One-shot owned resource experiment, independent of the game's replay path.
+// Single-in-flight owned resource experiment, independent of the game's replay path.
 // Caller owns the device and queue synchronization and must keep them alive longer
 // than this object. Destruction never frees a resource whose completion is unknown.
 // A pending destruction intentionally retains allocations until device teardown.
@@ -84,7 +84,7 @@ public:
         ready_=true;return true;
     }
     // No implicit initialization/layout transition: caller records copies/barriers.
-    // Exactly one submission, on an externally synchronized queue of this device.
+    // One submission per explicit rearm, on an externally synchronized queue of this device.
     VkResult submit(VkQueue queue,VkCommandBuffer command) {
         if(!ready_||submitted_||!queue||!command)return VK_ERROR_INITIALIZATION_FAILED;
         VkSubmitInfo info{VK_STRUCTURE_TYPE_SUBMIT_INFO};info.commandBufferCount=1;info.pCommandBuffers=&command;
@@ -97,6 +97,13 @@ public:
         if(!pending_)return ready_;
         if(api_.wait(device_,1,&fence_,VK_TRUE,timeout_ns)!=VK_SUCCESS)return false;
         pending_=false;return true;
+    }
+    // Explicit reuse only after successful completion. The caller must reset/re-record
+    // its command buffer and manage existing image layouts and new payloads itself.
+    bool rearm() {
+        if(!ready_||!submitted_||pending_)return false;
+        if(api_.reset(device_,1,&fence_)!=VK_SUCCESS)return false;
+        submitted_=false;return true;
     }
     const OwnedEyeResource* eye(unsigned index)const{return ready_&&index<2?&eyes_[index]:nullptr;}
     uint64_t allocated_bytes()const{return bytes_;}

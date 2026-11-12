@@ -12,8 +12,10 @@ No new headset test is required for the completed diagnostics below.
 - Image inventory/reference budgets and a pure per-eye buffer address layout.
 - Standalone bounded Vulkan eye resource owner; native 32x32 image/buffer readback passes on RTX 2060 SUPER. The game does not yet allocate its scene inventory through it.
 - Private eight-view uniform audit and representative SPIR-V read-footprint audit.
+- Separate compute-only observations, plus bounded submitted-matrix candidate search (not semantic proof).
+- Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated CPU-only full-payload eye uniform copies, retaining every unknown byte.
-- 59 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 62 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
 under ignored work directories. Only original source, tests and documentation belong
@@ -21,10 +23,11 @@ in the branch. The stable installation remains read-only input.
 
 ## Next integration gates
 
-1. Preserve complete original uniform payloads while preparing private per-eye view,
-   VP, projection and confirmed inverse-view fields. The extra projection-like data at
+1. Integrate the validated full-payload CPU eye copies with reviewed descriptor routing.
+   Complete specialized compute-field semantics first. The extra projection-like data at
    0x1c0 and other fields still need semantic review; unknown fields must be retained.
-2. Validate camera-dependent compute/culling, hidden pointers, indirect geometry,
+2. Validate CPU scene visibility and a conservative center/two-eye volume, plus
+   camera-dependent compute/culling, hidden pointers, indirect geometry,
    copies/aliases and temporal resources not fully covered by the current lineage.
 3. Implement bounded owned Vulkan eye images/buffers, initial copies, descriptor/address
    remapping and fence-based retirement. Never repeat writes into shared original storage.
@@ -37,3 +40,5 @@ The shader audit resolves a static subset, not complete semantic proof or permis
 to rewrite every buffer. World scale, first-person body integration, room-scale
 collision, controller weapons and comfort remain development work. The classic
 `oot-vr` reference remains recorded for the later mechanics stage.
+
+See [visibility and replay gates](vr-culling-and-replay.md) before enabling a game camera override.

@@ -39,18 +39,23 @@ public:
     }
 };
 struct SubmittedCameraMatch {bool matched=false,ambiguous=false;uint32_t equivalent=0;uint64_t revision=0,camera_id=0;};
-inline SubmittedCameraMatch match_submitted_camera(const SceneSubmissionSnapshot* snapshot,int64_t now,
-                                                   const SceneCameraEvidence& draw,const float* block,size_t count) {
+inline SubmittedCameraMatch match_submitted_uniform(const SceneSubmissionSnapshot* snapshot,int64_t now,
+                                                    uint32_t width,uint32_t height,const float* block,size_t count) {
     SubmittedCameraMatch out{};
     if(!snapshot||snapshot->captured_ns<=0||now<snapshot->captured_ns||now-snapshot->captured_ns>500000000)return out;
     for(size_t i=0;i<snapshot->count&&i<snapshot->cameras.size();++i) {
         const auto& c=snapshot->cameras[i];
         if(c.received_ns<=0||c.received_ns>snapshot->captured_ns||snapshot->captured_ns-c.received_ns>250000000)continue;
-        if(match_scene_camera(block,count,draw,&c.pair)!=SceneCameraMatch::Match)continue;
+        if(match_camera_uniform(block,count,width,height,&c.pair)!=SceneCameraMatch::Match)continue;
         if(out.camera_id&&out.camera_id!=c.pair.primary.camera_id){out.ambiguous=true;out.matched=false;return out;}
         out.camera_id=c.pair.primary.camera_id;out.revision=c.pair.revision;++out.equivalent;out.matched=true;
     }
     return out;
+}
+inline SubmittedCameraMatch match_submitted_camera(const SceneSubmissionSnapshot* snapshot,int64_t now,
+                                                   const SceneCameraEvidence& draw,const float* block,size_t count) {
+    if(!draw.color||!draw.depth||!draw.uniform_address||!draw.program)return {};
+    return match_submitted_uniform(snapshot,now,draw.width,draw.height,block,count);
 }
 using SceneSubmissionPtr=std::shared_ptr<const SceneSubmissionSnapshot>;
 class SceneSubmissionStore {

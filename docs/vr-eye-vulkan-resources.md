@@ -8,7 +8,7 @@ prototype: the game renderer does not call it and no XR session is created.
 Creation publishes neither eye until all four resources are bound and an
 unsignaled completion fence exists. Actual Vulkan memory requirements count
 against the caller's total pair budget (hard ceiling 512 MiB). Failures unwind
-objects before allocations. Queue submission is one-shot; the caller supplies a
+objects before allocations. Queue submission permits one in-flight operation; the caller supplies a
 command buffer and externally synchronized queue belonging to the same device.
 The caller owns initialization, image layout transitions, queue-family ownership
 and the device lifetime. Resources start undefined, never as valid game history.
@@ -23,7 +23,7 @@ through the owner lifetime. This is not a renderer-wide retirement system.
 The authored fake-Vulkan test injects all 13 creation/allocation/bind/fence failures,
 checks cleanup, budget and memory-type rejection, distinct eye handles and memory,
 completion polling, duplicate-submit rejection and uncertain-work retention.
-All 59 VR CTest cases pass on Windows.
+All 60 VR CTest cases pass on Windows.
 
 A separately invoked native smoke is excluded from CTest, so CI needs neither a
 GPU nor a Vulkan loader. Build the VR tools normally, then explicitly run:
@@ -54,3 +54,17 @@ regions and contents, views, descriptor remapping, device addresses, buffer alia
 groups, temporal histories and multiple in-flight frames need explicit handling.
 Hidden pointers/indirect geometry and compute dependencies remain audit gates.
 Do not wire automatic scene replay merely because this small smoke passes.
+
+## Explicit reuse
+
+After a successful completion poll, `rearm()` resets the owned fence and permits
+one further submission with the same allocations. Rearming while work is pending,
+rearming twice, or submitting twice without rearming is rejected. A failed fence
+reset preserves the submission guard. Callers must reset/re-record command buffers
+and preserve or deliberately discard actual image contents/layouts themselves.
+
+The updated native smoke makes two submissions with the same resource allocations,
+resets the completed command pool, changes each eye's image color and synthetic
+uniform tail, and checks all 4096 pixels and 4096 buffer bytes across both rounds.
+All checks pass on RTX 2060 SUPER; eye resource allocation remains 10,240 bytes.
+The fake test also exercises eight explicit reuse cycles without new allocations.

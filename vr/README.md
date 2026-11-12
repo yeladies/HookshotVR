@@ -88,3 +88,12 @@ shader reads of source-checked camera bindings; modules remain private and uncha
 The [standalone owned-eye Vulkan experiment](../docs/vr-eye-vulkan-resources.md)
 checks independent allocations and transfer/fence lifetime without a game or XR
 session. It is not connected to the game's stereo replay path.
+
+For compute-only diagnostics without opening a headset session, use
+`vr/run-game.ps1 -ComputeShaderUniformAudit` with the existing isolated-run options.
+[Visibility and replay gates](../docs/vr-culling-and-replay.md) cover CPU selection,
+GPU culling/indirect data and the required single-simulation stereo model.
+
+The [conservative stereo candidate planner](../docs/vr-stereo-candidate-plan.md)
+combines compute-camera observations with a graph captured in the same process.
+Its output is an incomplete resource plan, never permission to replay GPU work.

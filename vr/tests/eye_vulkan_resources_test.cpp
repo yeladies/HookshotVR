@@ -10,7 +10,7 @@ void check(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
 template<class T>T handle(uint64_t id){if constexpr(std::is_pointer_v<T>)return reinterpret_cast<T>(uintptr_t(id));else return T(id);}
 template<class T>uint64_t id(T h){if constexpr(std::is_pointer_v<T>)return uintptr_t(h);else return uint64_t(h);}
 struct Fake {
-    uint64_t next=100;int step=0,fail=0,submissions=0,waits=0;bool complete=false;
+    uint64_t next=100;int step=0,fail=0,submissions=0,waits=0,resets=0;bool complete=false,fail_reset=false;
     VkResult submit_result=VK_SUCCESS;std::set<uint64_t> buffers,images,memory,fences;
     bool advance(){return ++step==fail;}
     bool empty()const{return buffers.empty()&&images.empty()&&memory.empty()&&fences.empty();}
@@ -43,7 +43,8 @@ VKAPI_ATTR VkResult VKAPI_CALL create_fence(VkDevice,const VkFenceCreateInfo* in
 VKAPI_ATTR void VKAPI_CALL destroy_fence(VkDevice,VkFence h,const VkAllocationCallbacks*){check(fake.fences.erase(id(h))==1,"fence destroyed once");}
 VKAPI_ATTR VkResult VKAPI_CALL submit(VkQueue,uint32_t n,const VkSubmitInfo* info,VkFence fence){check(n==1&&info->commandBufferCount==1&&fake.fences.count(id(fence)),"single owned fence submission");++fake.submissions;return fake.submit_result;}
 VKAPI_ATTR VkResult VKAPI_CALL wait(VkDevice,uint32_t n,const VkFence* fence,VkBool32 all,uint64_t){check(n==1&&all&&fake.fences.count(id(*fence)),"owned completion query");++fake.waits;return fake.complete?VK_SUCCESS:VK_TIMEOUT;}
-EyeResourceApi api(){return {create_buffer,destroy_buffer,buffer_requirements,bind_buffer,create_image,destroy_image,image_requirements,bind_image,allocate,free_memory,create_fence,destroy_fence,submit,wait};}
+VKAPI_ATTR VkResult VKAPI_CALL reset(VkDevice,uint32_t count,const VkFence* fence){check(count==1&&fake.fences.count(id(*fence))&&fake.complete,"reset only after observed completion");++fake.resets;if(fake.fail_reset)return VK_ERROR_DEVICE_LOST;fake.complete=false;return VK_SUCCESS;}
+EyeResourceApi api(){return {create_buffer,destroy_buffer,buffer_requirements,bind_buffer,create_image,destroy_image,image_requirements,bind_image,allocate,free_memory,create_fence,destroy_fence,submit,wait,reset};}
 VkPhysicalDeviceMemoryProperties properties(){VkPhysicalDeviceMemoryProperties p{};p.memoryTypeCount=1;p.memoryTypes[0]={VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,0};p.memoryHeapCount=1;p.memoryHeaps[0]={1024*1024,VK_MEMORY_HEAP_DEVICE_LOCAL_BIT};return p;}
 bool create(EyeResourcePair& p,uint64_t budget=10240){return p.create(handle<VkDevice>(1),api(),properties(),32,32,VK_FORMAT_R8G8B8A8_UNORM,1024,budget);}
 int main(){try {
@@ -54,8 +55,13 @@ int main(){try {
     fake={};{EyeResourcePair p;check(create(p),"pair created");check(p.allocated_bytes()==10240&&p.eye(0)&&p.eye(1)&&!p.eye(2),"bounded published resources");
         check(p.eye(0)->image!=p.eye(1)->image&&p.eye(0)->buffer!=p.eye(1)->buffer&&p.eye(0)->image_memory!=p.eye(1)->image_memory&&p.eye(0)->buffer_memory!=p.eye(1)->buffer_memory,"eyes have separate handles and allocations");
         check(p.submit(handle<VkQueue>(2),handle<VkCommandBuffer>(3))==VK_SUCCESS&&p.pending(),"submission pending");
-        check(!p.poll(0)&&fake.memory.size()==4,"timeout retains resources");fake.complete=true;check(p.poll(0)&&!p.pending(),"completion retires pending flag");
-        check(p.submit(handle<VkQueue>(2),handle<VkCommandBuffer>(3))!=VK_SUCCESS&&fake.submissions==1,"no accidental second replay");}
+        check(!p.poll(0)&&fake.memory.size()==4&&!p.rearm()&&fake.resets==0,"timeout retains resources and cannot rearm");fake.complete=true;check(p.poll(0)&&!p.pending(),"completion retires pending flag");
+        check(p.submit(handle<VkQueue>(2),handle<VkCommandBuffer>(3))!=VK_SUCCESS&&fake.submissions==1,"no accidental second replay");
+        fake.fail_reset=true;check(!p.rearm(),"failed reset cannot authorize reuse");
+        check(p.submit(handle<VkQueue>(2),handle<VkCommandBuffer>(3))!=VK_SUCCESS&&fake.submissions==1,"failed reset keeps submission guard");fake.fail_reset=false;
+        const auto allocation_end=fake.next;
+        for(int frame=0;frame<8;++frame){check(p.rearm(),"completed resources explicitly rearmed");check(!p.rearm(),"no duplicate rearm");check(p.submit(handle<VkQueue>(2),handle<VkCommandBuffer>(3))==VK_SUCCESS&&p.pending(),"reused submission");fake.complete=true;check(p.poll(0),"reused fence completion");check(fake.next==allocation_end&&p.allocated_bytes()==10240,"reuse makes no new allocations");}
+    }
     check(fake.empty(),"completed resources freed");
     fake={};{EyeResourcePair p;check(create(p),"pending pair");check(p.submit(handle<VkQueue>(2),handle<VkCommandBuffer>(3))==VK_SUCCESS,"pending submit");}
     check(fake.memory.size()==4&&fake.images.size()==2&&fake.buffers.size()==2&&fake.fences.size()==1&&fake.waits==1,"uncertain completion retains all resources for device teardown");

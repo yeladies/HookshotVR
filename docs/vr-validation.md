@@ -386,3 +386,43 @@ The native smoke additionally uploads two authored full eye-camera uniform paylo
 and verifies all 2048 returned bytes. The original CPU payload remains unchanged,
 including unknown fields outside the reviewed matrix region. This is synthetic
 input, not a measured game calibration and not proof of shader-wide patch safety.
+
+## Projection depth, reusable resources and compute audit (2026-11-12)
+
+The pure `projection_depth.h` helper recovers near/far endpoints and forward or
+reversed order only for the independently reviewed NVN -1..1 path. It handles an
+infinite or float-unresolved far plane explicitly; coefficients alone cannot infer
+the clip convention or world units. Authored tests include asymmetric/Y-flipped
+projections, reversed/infinite depth, float far-plane rounding and invalid inputs.
+No live camera calibration is silently created.
+
+The reusable resource smoke passes two real GPU submissions without new eye
+allocations: 4096 pixels, 4096 full-payload buffer bytes, both fences complete.
+The fake-Vulkan test covers eight reuse cycles and failed-reset guards.
+
+The first compute-only 150-second private-save run observed 31 stage-5 programs,
+56 user-UBO bindings, no missing modules, a matched scene/source camera and no
+canonical primary-camera block binding. Peak working set was 6641 MiB. This is not
+camera-independence proof. A wider submitted-matrix candidate search is now under
+validation; it reports candidate offsets without enabling semantic patch safety.
+
+## Same-process compute/resource candidate plan (2026-11-12)
+
+All 62 VR CTest cases pass. The final full inherited suite remains 357 passed,
+five documented baseline failures and 59 skipped (301 seconds, two jobs).
+Native renderer build completes in 71 seconds with zero failed units.
+
+A combined 150-second private-save compute/lineage run completes at 6515 MiB peak
+working set, with matched scene/source cameras and a verified incomplete graph.
+Same-process association hashes verify. Seventeen compute-camera programs are
+observed, 16 occur in the representative frame; conservative propagation adds
+10 seed events and 19 dependent events in the present slice. Per-eye work becomes
+847 graphics/36 compute events (baseline 847/17). Buffer references increase to
+81,242,064 bytes per eye; image allocation references remain 78,084,768 bytes per
+eye. The combined two-eye reference is 318,653,664 bytes, about 304 MiB, excluding
+alignment, resolution changes and all untracked/additional resources. No real
+scene eye allocation, replay, camera override or XR projection layer is enabled.
+
+The final default-off isolated smoke completes its 20-second bound at 3069 MiB
+peak working set, with all capture/session flags off. The 19-file stable-install
+SHA-256 baseline remains unchanged; no diagnostic game process is left running.

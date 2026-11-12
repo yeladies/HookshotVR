@@ -24,12 +24,18 @@ int main(){try {
     std::copy_n(a.uniforms.projection,16,block+0x30/4);block[0x120/4]=1280;block[0x124/4]=720;
     SceneCameraEvidence draw{1,2,3,4,5,1280,720};
     check(match_submitted_camera(&first,t+1000,draw,block,0x230/4).matched,"exact submitted camera candidate");
+    check(match_submitted_uniform(&first,t+1000,1280,720,block,0x230/4).matched,"compute uniform can match without claiming attachments");
+    check(!match_submitted_uniform(&first,t+1000,640,720,block,0x230/4).matched,"compute dimensions must agree");
+    auto missing_draw=draw;missing_draw.depth=0;
+    check(!match_submitted_camera(&first,t+1000,missing_draw,block,0x230/4).matched,"uniform match cannot fabricate scene evidence");
+    check(!match_submitted_uniform(&first,t+600000000,1280,720,block,0x230/4).matched,"compute context expires too");
     check(!match_submitted_camera(&first,t+600000000,draw,block,0x230/4).matched,"delayed context fails closed");
     check(!match_submitted_camera(&first,t-1,draw,block,0x230/4).matched,"clock reversal fails closed");
     history.observe(pair(3),t+3);auto equivalent=history.snapshot(t+4);
     check(match_submitted_camera(&equivalent,t+5,draw,block,0x230/4).equivalent==2,"stationary duplicate observations remain explicit");
     history.observe(pair(4,88),t+5);auto ambiguous=history.snapshot(t+6);
     auto m=match_submitted_camera(&ambiguous,t+7,draw,block,0x230/4);check(m.ambiguous&&!m.matched,"different camera identities cannot establish ownership");
+    check(!match_submitted_uniform(&ambiguous,t+7,1280,720,block,0x230/4).matched,"compute rejects ambiguous identities");
     history.clear();for(uint64_t i=0;i<100;++i)history.observe(pair(i+1),t+i);
     check(history.snapshot(t+101).count==16,"history bounded");
     SceneSubmissionStore store;auto pinned=std::make_shared<const SceneSubmissionSnapshot>(first);

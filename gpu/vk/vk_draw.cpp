@@ -7,6 +7,7 @@
 //
 // Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
 #include "xr_scene_camera.h"
+#include "xr_camera_submission.h"
 #include "xr_image_lineage.h"
 #include "xr_shader_uniform_audit.h"
 #include <algorithm>
@@ -6333,7 +6334,10 @@ void lineage_pair(uint64_t key,const Texture* in,const Texture* out) {
     work.reads={in->id};work.writes={out->id};work.width=out->width;work.height=out->height;
     xr_image_lineage_work(texture_frame_no(),std::move(work));
 }
-void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camera_address) {
+void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camera_address,
+                               const std::vector<uint64_t>* additional_cameras=nullptr) {
+    if(xr_shader_uniform_audit_compute_only()&&
+       std::none_of(p.stages.begin(),p.stages.end(),[](const Stage& stage){return stage.vk_stage==VK_SHADER_STAGE_COMPUTE_BIT;}))return;
     if(!xr_shader_uniform_audit_wants_program(p.key))return;
     std::vector<ShaderUniformAuditBinding> bindings;uint32_t binding=0;
     for(const auto& stage:p.stages){
@@ -6346,7 +6350,16 @@ void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camer
                 const uint64_t want=used?std::max<uint64_t>(used,16):std::max<uint64_t>(uniform.size,16);
                 const uint32_t range=uint32_t(std::min<uint64_t>(std::min<uint64_t>(want,uniform.size?std::max<uint64_t>(uniform.size,16):want),dev.props.limits.maxUniformBufferRange));
                 bindings.push_back({(uint64_t)stage.module,uint32_t(ns),uint32_t(stage.vk_stage),binding,element,bank,range,
-                    uniform.addr&&uniform.addr==camera_address});
+                    uniform.addr&&(uniform.addr==camera_address||(additional_cameras&&
+                        std::find(additional_cameras->begin(),additional_cameras->end(),uniform.addr)!=additional_cameras->end()))});
+                if(xr_shader_uniform_audit_compute_only()&&uniform.addr&&uniform.size>=48&&range>=48){
+                    std::vector<float> copied(std::min<uint64_t>(std::min<uint64_t>(uniform.size,range),65536)/4);
+                    if(ub_read(uniform.addr,copied.data(),copied.size()*4)){
+                        const auto snapshot=xr_scene_submission_current();
+                        const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+                        bindings.back().camera_candidates=scan_submitted_uniform(snapshot.get(),now,copied.data(),copied.size());
+                    }
+                }
             }
             ++binding;
         }
@@ -6354,6 +6367,32 @@ void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camer
             stage.info.image_buffer_descriptors.size()+stage.info.texture_descriptors.size()+stage.info.image_descriptors.size());
     }
     xr_shader_uniform_audit_program(p.key,bindings);
+}
+// Observe emitted native compute work separately. No fabricated render attachments,
+// no borrowing the latest host camera, and no claim about non-UBO/hidden pointers.
+void shader_uniform_compute_note(const Program& p,const NvnState& s) {
+    if(!xr_shader_uniform_audit_enabled()||!xr_shader_uniform_audit_compute_only()||
+       !xr_shader_uniform_audit_wants_program(p.key))return;
+    const auto snapshot=xr_scene_submission_current();
+    if(!snapshot||!snapshot->count)return; // Avoid exhausting the bounded capture on startup without camera context.
+    const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    std::vector<uint64_t> cameras;std::vector<uint64_t> scanned;
+    for(const auto& stage:p.stages) {
+        const int ns=std::clamp(stage.nvn_stage,0,kNvnStages-1);
+        for(const auto& descriptor:stage.info.constant_buffer_descriptors)for(uint32_t element=0;element<descriptor.count;++element) {
+            const uint32_t bank=descriptor.index+element;if(bank<3||bank>=19)continue;
+            const auto& uniform=s.ubo[ns][bank-3];
+            if(!uniform.addr||uniform.size<0x230||std::find(scanned.begin(),scanned.end(),uniform.addr)!=scanned.end())continue;
+            scanned.push_back(uniform.addr);float block[0x230/4];
+            if(!ub_read(uniform.addr,block,sizeof block))continue;
+            const float width=block[0x120/4],height=block[0x124/4];
+            if(!std::isfinite(width)||!std::isfinite(height)||width<1||height<1||width>16384||height>16384||
+               width!=float(uint32_t(width))||height!=float(uint32_t(height)))continue;
+            if(match_submitted_uniform(snapshot.get(),now,uint32_t(width),uint32_t(height),block,0x230/4).matched)
+                cameras.push_back(uniform.addr);
+        }
+    }
+    shader_uniform_audit_note(p,s,0,&cameras);
 }
 void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     PROF_HOT(PROF_DRAW);
@@ -8876,6 +8915,7 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
         gprof_end(cmd, label);
     }
     st_dispatches++;
+    shader_uniform_compute_note(p,s);
     lineage_note(p,nullptr,false,false);
     if (pass_trace_on())
         trace_line("dispatch %ux%ux%u%s prog %016llx", x, y, z, indirect ? " indirect" : "", (unsigned long long)p.key);
