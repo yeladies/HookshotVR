@@ -10,6 +10,8 @@ No new headset test is required for the completed diagnostics below.
 - Source-submission camera snapshots with guarded live host refresh and expiry/identity rejection.
 - Conservative emitted-command image/storage-range lineage; present-slice analysis and alias closure.
 - Image inventory/reference budgets and a pure per-eye buffer address layout.
+- Conservative [graphics effect inventory](vr-graphics-effect-audit.md), rejecting shared writes and unresolved effects; full program-stage coverage remains pending.
+- Validated [buffer descriptor candidates](vr-buffer-descriptor-routing.md); authored GPU checks UBO/SSBO/root agreement and detects deliberately crossed eye bindings.
 - Diagnostic [guest-page closure planner](vr-eye-guest-pages.md), with generation checks and alias/read-range expansion, plus atomic CPU address-patch encoding.
 - Standalone bounded Vulkan eye resource owner; native 32x32 image/buffer readback, disjoint buffer device addresses, authored shader reads through copied/patched full-size private guest roots with shared/original preservation and explicit reuse pass on RTX 2060 SUPER.
 - Strict VMA image/view factory; a real 1152x648 game HDR/depth probe allocates/copies/retires four images (13.5 MiB) and four views. Full scene routing is still absent.
@@ -18,7 +20,7 @@ No new headset test is required for the completed diagnostics below.
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 67 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 69 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay

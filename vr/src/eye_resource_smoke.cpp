@@ -6,6 +6,7 @@
 #include "camera_math.h"
 #include "eye_address_copy_spv.h"
 #include "eye_page_patches.h"
+#include "eye_buffer_descriptors.h"
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -26,6 +27,8 @@ struct Context {
     VkInstance instance=VK_NULL_HANDLE;VkDevice device=VK_NULL_HANDLE;VkQueue queue=VK_NULL_HANDLE;
     VkCommandPool pool=VK_NULL_HANDLE;VkBuffer staging=VK_NULL_HANDLE;VkDeviceMemory memory=VK_NULL_HANDLE;
     std::array<AddressBuffer,4> auxiliary{};uint64_t auxiliary_bytes=0;
+    VkDescriptorPool descriptor_pool=VK_NULL_HANDLE;VkDescriptorSetLayout descriptor_layout=VK_NULL_HANDLE;
+    std::array<VkDescriptorSet,2> descriptor_sets{};
     VkShaderModule shader=VK_NULL_HANDLE;VkPipelineLayout layout=VK_NULL_HANDLE;VkPipeline pipeline=VK_NULL_HANDLE;
     bool uncertain=false;
     template<class T>T global(const char* name){auto fn=get(instance,name);require(fn!=nullptr,name);return reinterpret_cast<T>(fn);}
@@ -38,8 +41,10 @@ struct Context {
                 if(buffer.buffer)fn<PFN_vkDestroyBuffer>("vkDestroyBuffer")(device,buffer.buffer,nullptr);
                 if(buffer.memory)fn<PFN_vkFreeMemory>("vkFreeMemory")(device,buffer.memory,nullptr);
             }
+            if(descriptor_pool)fn<PFN_vkDestroyDescriptorPool>("vkDestroyDescriptorPool")(device,descriptor_pool,nullptr);
             if(pipeline)fn<PFN_vkDestroyPipeline>("vkDestroyPipeline")(device,pipeline,nullptr);
             if(layout)fn<PFN_vkDestroyPipelineLayout>("vkDestroyPipelineLayout")(device,layout,nullptr);
+            if(descriptor_layout)fn<PFN_vkDestroyDescriptorSetLayout>("vkDestroyDescriptorSetLayout")(device,descriptor_layout,nullptr);
             if(shader)fn<PFN_vkDestroyShaderModule>("vkDestroyShaderModule")(device,shader,nullptr);
             if(pool)fn<PFN_vkDestroyCommandPool>("vkDestroyCommandPool")(device,pool,nullptr);
             if(staging)fn<PFN_vkDestroyBuffer>("vkDestroyBuffer")(device,staging,nullptr);
@@ -51,7 +56,7 @@ struct Context {
 };
 void address_buffer(Context& c,const EyeResourceApi& api,const VkPhysicalDeviceMemoryProperties& memory,uint64_t bytes,AddressBuffer& out){
     VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bi.size=bytes;
-    bi.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    bi.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     checked(api.create_buffer(c.device,&bi,nullptr,&out.buffer),"create auxiliary address buffer");
     VkMemoryRequirements req{};api.buffer_requirements(c.device,out.buffer,&req);
     require(req.size&&req.size<=96ull*1024*1024-c.auxiliary_bytes,"auxiliary actual-allocation budget");
@@ -67,7 +72,12 @@ void address_buffer(Context& c,const EyeResourceApi& api,const VkPhysicalDeviceM
     require(out.address&&out.address%16==0&&out.address<=UINT64_MAX-bytes,"valid auxiliary device address");
 }
 int main(int argc,char** argv){
-    if(argc!=2||std::strcmp(argv[1],"--run")){std::cerr<<"Explicit native GPU opt-in required: --run\n";return 2;}
+    const bool reject_ubo=argc==3&&!std::strcmp(argv[2],"--expect-ubo-rejection");
+    const bool reject_ssbo=argc==3&&!std::strcmp(argv[2],"--expect-ssbo-rejection");
+    if(argc<2||argc>3||std::strcmp(argv[1],"--run")||(argc==3&&!reject_ubo&&!reject_ssbo)){
+        std::cerr<<"Explicit native GPU opt-in: --run [--expect-ubo-rejection|--expect-ssbo-rejection]\n";return 2;
+    }
+    const bool expect_rejection=reject_ubo||reject_ssbo;
     try {
         Context c;
 #ifdef _WIN32
@@ -138,6 +148,33 @@ int main(int argc,char** argv){
         const auto root_before=original_root;EyePagePatchSet patches;
         require(prepare_eye_page_patches(plan,stamp,original_root.data(),original_root.size(),
             {{pair.eye(0)->address,4096},{pair.eye(1)->address,4096}},patches)&&original_root==root_before,"encode patches preserving original root");
+        const auto descriptor_usage=VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        EyeBufferDescriptors descriptor_plan;
+        const EyeDescriptorLimits descriptor_limits{props.limits.minUniformBufferOffsetAlignment,props.limits.minStorageBufferOffsetAlignment,
+            props.limits.maxUniformBufferRange,props.limits.maxStorageBufferRange};
+        require(prepare_eye_buffer_descriptors(plan.buffers(),{{1,c.auxiliary[0].buffer,8192,descriptor_usage}},
+            {{pair.eye(0)->buffer,4096,descriptor_usage},{pair.eye(1)->buffer,4096,descriptor_usage}},
+            {{1,0,4096,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,false,false},{1,0,4096,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,false,false}},
+            stamp,stamp,descriptor_limits,descriptor_plan),"prepare coherent private UBO/SSBO routes");
+        const std::array<VkDescriptorSetLayoutBinding,2> descriptor_bindings{{
+            {0,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,1,VK_SHADER_STAGE_COMPUTE_BIT,nullptr},
+            {1,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,1,VK_SHADER_STAGE_COMPUTE_BIT,nullptr}}};
+        VkDescriptorSetLayoutCreateInfo descriptor_layout_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
+        descriptor_layout_info.bindingCount=2;descriptor_layout_info.pBindings=descriptor_bindings.data();
+        checked(c.fn<PFN_vkCreateDescriptorSetLayout>("vkCreateDescriptorSetLayout")(c.device,&descriptor_layout_info,nullptr,&c.descriptor_layout),"create private descriptor layout");
+        const std::array<VkDescriptorPoolSize,2> pool_sizes{{{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,2},{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,2}}};
+        VkDescriptorPoolCreateInfo pool_info{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};pool_info.maxSets=2;pool_info.poolSizeCount=2;pool_info.pPoolSizes=pool_sizes.data();
+        checked(c.fn<PFN_vkCreateDescriptorPool>("vkCreateDescriptorPool")(c.device,&pool_info,nullptr,&c.descriptor_pool),"create private descriptor pool");
+        const std::array<VkDescriptorSetLayout,2> layouts{c.descriptor_layout,c.descriptor_layout};
+        VkDescriptorSetAllocateInfo set_info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};set_info.descriptorPool=c.descriptor_pool;set_info.descriptorSetCount=2;set_info.pSetLayouts=layouts.data();
+        checked(c.fn<PFN_vkAllocateDescriptorSets>("vkAllocateDescriptorSets")(c.device,&set_info,c.descriptor_sets.data()),"allocate per-eye descriptor sets");
+        std::array<VkWriteDescriptorSet,4> writes{};
+        for(unsigned eye=0;eye<2;++eye)for(unsigned binding=0;binding<2;++binding){auto& write=writes[eye*2+binding];
+            write.sType=VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;write.dstSet=c.descriptor_sets[eye];write.dstBinding=binding;write.descriptorCount=1;
+            write.descriptorType=binding?VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            const bool swap=(binding==0&&reject_ssbo)||(binding==1&&reject_ubo);
+            write.pBufferInfo=&descriptor_plan.eyes[swap?(eye^1):eye][binding];}
+        c.fn<PFN_vkUpdateDescriptorSets>("vkUpdateDescriptorSets")(c.device,4,writes.data(),0,nullptr);
         VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bi.size=2*(32*32*4+4096)+3*4096;bi.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;bi.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
         checked(api.create_buffer(c.device,&bi,nullptr,&c.staging),"create readback");VkMemoryRequirements req{};api.buffer_requirements(c.device,c.staging,&req);require(req.size<=1024*1024,"bounded staging allocation");
         uint32_t type=UINT32_MAX;bool coherent=false;
@@ -149,7 +186,7 @@ int main(int argc,char** argv){
         require(staging_address&&staging_address%16==0&&staging_address<=UINT64_MAX-bi.size,"valid staging device address");
         VkShaderModuleCreateInfo shader_info{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};shader_info.codeSize=sizeof kEyeAddressCopySpv;shader_info.pCode=kEyeAddressCopySpv;
         checked(c.fn<PFN_vkCreateShaderModule>("vkCreateShaderModule")(c.device,&shader_info,nullptr,&c.shader),"create authored address shader");
-        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT,0,24};VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};layout_info.pushConstantRangeCount=1;layout_info.pPushConstantRanges=&range;
+        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT,0,24};VkPipelineLayoutCreateInfo layout_info{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};layout_info.setLayoutCount=1;layout_info.pSetLayouts=&c.descriptor_layout;layout_info.pushConstantRangeCount=1;layout_info.pPushConstantRanges=&range;
         checked(c.fn<PFN_vkCreatePipelineLayout>("vkCreatePipelineLayout")(c.device,&layout_info,nullptr,&c.layout),"create address pipeline layout");
         VkComputePipelineCreateInfo pipeline_info{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};pipeline_info.layout=c.layout;
         pipeline_info.stage.sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;pipeline_info.stage.stage=VK_SHADER_STAGE_COMPUTE_BIT;pipeline_info.stage.module=c.shader;pipeline_info.stage.pName="main";
@@ -178,9 +215,9 @@ int main(int argc,char** argv){
             for(unsigned eye=0;eye<2;++eye)for(auto patch:patches.eyes[eye])
                 c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,c.auxiliary[eye+1].buffer,uint64_t(patch.index)*8,8,&patch.address);
         }
-        auto read_page=[&](VkDeviceAddress root,uint32_t page,VkDeviceAddress destination){
+        auto read_page=[&](VkDeviceAddress root,uint32_t page,VkDeviceAddress destination,bool check_descriptors=false){
             struct Parameters {VkDeviceAddress root,destination;uint32_t page,padding;};
-            const Parameters addresses{root,destination,page,0};static_assert(sizeof addresses==24);
+            const Parameters addresses{root,destination,page,check_descriptors?1u:0u};static_assert(sizeof addresses==24);
             c.fn<PFN_vkCmdBindPipeline>("vkCmdBindPipeline")(command,VK_PIPELINE_BIND_POINT_COMPUTE,c.pipeline);
             c.fn<PFN_vkCmdPushConstants>("vkCmdPushConstants")(command,c.layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof addresses,&addresses);
             c.fn<PFN_vkCmdDispatch>("vkCmdDispatch")(command,16,1,1);
@@ -192,11 +229,12 @@ int main(int argc,char** argv){
             c.fn<PFN_vkCmdClearColorImage>("vkCmdClearColorImage")(command,e.image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,&color,1,&ib.subresourceRange);
             c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,e.buffer,0,4096,payloads[eye].data());
             ib.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;ib.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;ib.oldLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;ib.newLayout=VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};mb.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;mb.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_SHADER_READ_BIT;
+            VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};mb.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;mb.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_UNIFORM_READ_BIT;
             barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,1,&mb,0,nullptr,1,&ib);
             VkBufferImageCopy copy{};copy.bufferOffset=eye*8192;copy.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};copy.imageExtent={32,32,1};
             c.fn<PFN_vkCmdCopyImageToBuffer>("vkCmdCopyImageToBuffer")(command,e.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,c.staging,1,&copy);
-            read_page(c.auxiliary[eye+1].address,*eye_guest_page_index((round+eye)%2?guest_b:guest_a),staging_address+eye*8192+4096);
+            c.fn<PFN_vkCmdBindDescriptorSets>("vkCmdBindDescriptorSets")(command,VK_PIPELINE_BIND_POINT_COMPUTE,c.layout,0,1,&c.descriptor_sets[eye],0,nullptr);
+            read_page(c.auxiliary[eye+1].address,*eye_guest_page_index((round+eye)%2?guest_b:guest_a),staging_address+eye*8192+4096,true);
             read_page(c.auxiliary[eye+1].address,1,staging_address+16384+eye*4096);
         }
         read_page(c.auxiliary[3].address,0,staging_address+24576);
@@ -207,21 +245,25 @@ int main(int argc,char** argv){
         require(pair.poll(5000000000ull),"GPU fence not complete within five seconds; resources retained");c.uncertain=false;
         void* mapped=nullptr;checked(c.fn<PFN_vkMapMemory>("vkMapMemory")(c.device,c.memory,0,VK_WHOLE_SIZE,0,&mapped),"map readback");
         if(!coherent){VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};range.memory=c.memory;range.size=VK_WHOLE_SIZE;checked(c.fn<PFN_vkInvalidateMappedMemoryRanges>("vkInvalidateMappedMemoryRanges")(c.device,1,&range),"invalidate readback");}
-        bool correct=true;auto* bytes=static_cast<const unsigned char*>(mapped);
-        for(unsigned eye=0;eye<2;++eye){for(unsigned pixel=0;pixel<1024;++pixel)for(unsigned channel=0;channel<4;++channel)correct&=bytes[eye*8192+pixel*4+channel]==((channel==(eye+round)%2||channel==3)?255:0);
-            for(unsigned offset=0;offset<4096;++offset)correct&=bytes[eye*8192+4096+offset]==std::to_integer<unsigned char>(payloads[eye][offset]);}
+        bool pixels_correct=true,original_correct=true;std::array<unsigned,2> mismatches{};
+        auto* bytes=static_cast<const unsigned char*>(mapped);
+        for(unsigned eye=0;eye<2;++eye){for(unsigned pixel=0;pixel<1024;++pixel)for(unsigned channel=0;channel<4;++channel)
+                pixels_correct&=bytes[eye*8192+pixel*4+channel]==((channel==(eye+round)%2||channel==3)?255:0);
+            for(unsigned offset=0;offset<4096;++offset)mismatches[eye]+=bytes[eye*8192+4096+offset]!=std::to_integer<unsigned char>(payloads[eye][offset]);}
         for(unsigned offset=0;offset<4096;++offset){
             const auto expected=std::to_integer<unsigned char>(source_before[offset]);
-            correct&=bytes[16384+offset]==expected&&bytes[20480+offset]==expected&&bytes[24576+offset]==expected;
+            original_correct&=bytes[16384+offset]==expected&&bytes[20480+offset]==expected&&bytes[24576+offset]==expected;
         }
-        c.fn<PFN_vkUnmapMemory>("vkUnmapMemory")(c.device,c.memory);require(correct,"eye image/buffer readback mismatch");
+        c.fn<PFN_vkUnmapMemory>("vkUnmapMemory")(c.device,c.memory);
+        require(pixels_correct&&original_correct,"image/shared/original root readback mismatch");
+        for(auto count:mismatches)require(expect_rejection?count>0:count==0,"descriptor disagreement detection did not match the requested test mode");
         if(round==0){
             require(pair.rearm(),"rearm only after completion");
             checked(c.fn<PFN_vkResetCommandPool>("vkResetCommandPool")(c.device,c.pool,0),"reset completed command pool");
             for(auto& payload:payloads)payload[0x300]^=std::byte{7};
         }
         }
-        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; auxiliary_allocation_bytes="<<c.auxiliary_bytes<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; physical_address_shader_readback=true; private_shader_words_checked=4096; shared_shader_words_checked=4096; original_root_shader_words_checked=2048; gpu_root_copy_verified=true; private_guest_roots=2; guest_table_bytes_per_eye=25165824; guest_window_aliases_checked=true; original_gpu_bytes_checked=8192; image_pixels_checked=4096; buffer_bytes_checked=16384; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
+        std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; auxiliary_allocation_bytes="<<c.auxiliary_bytes<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; physical_address_shader_readback=true; private_ubo_routes=2; private_ssbo_routes=2; descriptor_root_agreement_verified="<<(!expect_rejection?"true":"false")<<"; expected_descriptor_rejection_verified="<<(expect_rejection?"true":"false")<<"; private_shader_words_checked=4096; shared_shader_words_checked=4096; original_root_shader_words_checked=2048; gpu_root_copy_verified=true; private_guest_roots=2; guest_table_bytes_per_eye=25165824; guest_window_aliases_checked=true; original_gpu_bytes_checked=8192; image_pixels_checked=4096; buffer_bytes_checked=16384; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
         return 0;
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
 }
