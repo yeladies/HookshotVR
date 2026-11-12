@@ -3,8 +3,8 @@
 The optional adapter in `gpu/vk/vk_xr.cpp` now participates in the real renderer's initialization.
 Negotiation alone creates no XR session. The separate opt-in [session probe](vr-renderer-session.md)
 adds a bounded zero-layer session and pose mailbox. The game continues
-using flat presentation even when negotiation succeeds. The host/renderer ABI remains version 17;
-no fields or callbacks were added.
+using flat presentation even when negotiation succeeds. Negotiation itself introduced no ABI fields;
+the later [camera observation transport](vr-offline-camera.md) now uses host/renderer ABI 18.
 
 ## Build and run locally
 

@@ -8,6 +8,7 @@ param(
     [switch]$ExperimentalXrRenderer,
     [switch]$XrNegotiation,
     [switch]$XrSessionProbe,
+    [switch]$CameraCapture,
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
@@ -99,6 +100,7 @@ $env:HOS_INPUT_LIVE = Join-Path $runRoot 'input-live.txt'
 $env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
 Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
+$env:HOOKSHOT_VR_CAMERA_CAPTURE = $(if ($CameraCapture) { '1' } else { '0' })
 $env:RX_VK_XR_SESSION_PROBE = $(if ($XrSessionProbe) { '1' } else { '0' })
 $env:RX_VK_XR = $(if ($XrNegotiation) { '1' } else { '0' })
 if ($XrNegotiation) { $env:HOOKSHOT_OPENXR_LOADER = $OpenXRLoader } else { Remove-Item Env:HOOKSHOT_OPENXR_LOADER -ErrorAction SilentlyContinue }
@@ -168,7 +170,7 @@ if ($XrSessionProbe) {
     $sessionValidPoses = $log -match 'xr: renderer session probe closed; frames [1-9][0-9]*, valid head [1-9][0-9]*, valid stereo poses [1-9][0-9]*'
     if ((!$sessionClosed -or !$sessionValidPoses -or $sessionApiErrors) -and $reason -eq 'time_limit') { $reason = 'xr_session_unverified' }
 }
-[ordered]@{ xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+[ordered]@{ camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }

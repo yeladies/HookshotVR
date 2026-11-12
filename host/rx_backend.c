@@ -10,6 +10,7 @@
 
 #include "../gpu/vk/vk_api.h"
 #include "../gpu/vk/dlss_math.h"
+#include "../gpu/vk/compat/hookshot_env.h"
 #include "control.h"
 
 /* the WebGPU renderer (gpu/render, renamed) */
@@ -326,6 +327,36 @@ void rx_wait_writebacks_reading(const void *p, uint64_t n) {
 }
 void rx_nvn_finish(void) { vk ? vk->nvn_finish() : wgr_nvn_finish(); }
 static volatile LONG presents;   /* (the frames shown, for the camera jitter below) */
+static SRWLOCK camera_observation_lock = SRWLOCK_INIT;
+static uint64_t camera_observation_sequence;
+static void camera_observe(MkwVkCameraObservation *sample) {
+    if (!env_on("HOOKSHOT_VR_CAMERA_CAPTURE") || !vk || !vk->camera_observation) return;
+    sample->size = sizeof *sample;
+    sample->game_present = InterlockedCompareExchange(&presents, 0, 0);
+    sample->captured_ns = hos_now_ns();
+    AcquireSRWLockExclusive(&camera_observation_lock);
+    sample->sequence = ++camera_observation_sequence;
+    vk->camera_observation(sample); /* immutable copy, never a guest pointer */
+    ReleaseSRWLockExclusive(&camera_observation_lock);
+}
+void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3], int debug) {
+    MkwVkCameraObservation sample = {0};
+    sample.flags = MKWVK_CAMERA_PRIMARY | (debug ? MKWVK_CAMERA_DEBUG : 0);
+    sample.camera_id = camera;
+    memcpy(sample.view, rows, sizeof sample.view);
+    memcpy(sample.eye, eye, sizeof sample.eye);
+    camera_observe(&sample);
+}
+static void camera_observe_uniform(uint64_t projection, const float matrix[16]) {
+    if (!env_on("HOOKSHOT_VR_CAMERA_CAPTURE") || projection < 0x1a8) return;
+    MkwVkCameraObservation sample = {0};
+    sample.flags = MKWVK_CAMERA_UNIFORM;
+    sample.camera_id = projection - 0x1a8;
+    /* The existing, build-guarded jitter hook supplies a uniform-view object, not the camera object. */
+    memcpy(sample.view, GP(sample.camera_id), sizeof sample.view);
+    memcpy(sample.projection, matrix, sizeof sample.projection);
+    camera_observe(&sample);
+}
 void rx_nvn_present(const nvn_tex *t, const int crop[4]) {
     InterlockedIncrement(&presents);
     vk ? vk->nvn_present(t, crop) : wgr_nvn_present(t, crop);
@@ -354,6 +385,7 @@ int hos_dlss_jitter_clip(uint64_t projection, float out[2]) {
     ReleaseSRWLockExclusive(&lock);
     float p[16];
     memcpy(p, GP(projection), sizeof p);
+    camera_observe_uniform(projection, p);
     extern volatile float hos_wide_ratio;
     return dlss_jitter_clip(p, hos_wide_ratio, (unsigned)frame, (int)sample.phases, (float)sample.width, (float)sample.height, out);
 }

@@ -54,3 +54,7 @@ validated. Renderer-owned session/frame/pose integration and all per-eye game re
 
 A bounded [renderer session/pose probe](vr-renderer-session.md) now supplies internal snapshots
 with predicted time and origin generation. No game camera consumer or stereo replay is connected yet.
+
+The [offline camera stage](vr-offline-camera.md) now captures primary-camera and uniform-view
+observations through ABI 18 and correlates matching matrices diagnostically. It does not yet assign
+main-scene draw ownership or alter a game camera. Per-eye projection conventions have synthetic tests.

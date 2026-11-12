@@ -63,3 +63,6 @@ to the headset. `build-renderer.ps1` rebuilds that component without translating
 
 The opt-in [renderer session probe](../docs/vr-renderer-session.md) adds a bounded zero-layer
 OpenXR frame loop and synchronized head/eye pose mailbox. It still does not display game stereo.
+
+[Offline camera diagnostics](../docs/vr-offline-camera.md) provide ABI-18 read-only observations and
+tested per-eye projection math. They can run without a headset and do not open an XR session.

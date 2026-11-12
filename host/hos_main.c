@@ -1435,6 +1435,13 @@ void hos_oot_free_view(Ctx *c, uint64_t view) {
     static SRWLOCK lock = SRWLOCK_INIT;
     AcquireSRWLockExclusive(&lock);
     const int enabled = rx_option(HOS_OPT_CHEAT_CAMERA, 0);
+    if (env_on("HOOKSHOT_VR_CAMERA_CAPTURE")) {
+        float matrix[12]; double eye[3];
+        memcpy(matrix, A64_PTR(view + 8), sizeof matrix);
+        memcpy(eye, A64_PTR(view + 96), sizeof eye);
+        void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3], int debug);
+        rx_xr_camera_view(view, matrix, eye, enabled);
+    }
     oot_build_free_view(c, enabled ? view : 0, view + 8);
     ReleaseSRWLockExclusive(&lock);
 #else

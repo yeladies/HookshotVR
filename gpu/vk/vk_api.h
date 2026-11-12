@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 17
+#define MKWVK_API_VERSION 18
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -83,6 +83,17 @@ typedef struct MkwVkSetting {
     int restart, fixed;   /* the change applies at the next start; nothing to choose on this PC (the menu shows it greyed) */
 } MkwVkSetting;
 
+/* Opt-in, read-only camera observations. Guest IDs are opaque provenance, never host pointers.
+   The two sources are different objects; matching their matrix values is diagnostic evidence only. */
+enum { MKWVK_CAMERA_PRIMARY = 1, MKWVK_CAMERA_UNIFORM = 2, MKWVK_CAMERA_DEBUG = 4 };
+typedef struct MkwVkCameraObservation {
+    uint32_t size, flags;
+    uint64_t camera_id, sequence;
+    int64_t game_present, captured_ns;
+    double eye[3];                 /* primary camera only */
+    float view[12];                /* row-major world-to-eye 3x4 */
+    float projection[16];          /* uniform source only, before temporal jitter */
+} MkwVkCameraObservation;
 /* what the executable gives the back end */
 typedef struct MkwVkHost {
     uint32_t version;   /* MKWVK_API_VERSION */
@@ -243,6 +254,8 @@ typedef struct MkwVkRenderer {
        to choose on this PC) */
     int (*setting)(int index, MkwVkSetting *out);
     int (*setting_set)(const char *key, int value, MkwVkSetting *out);
+    /* version 18: observational diagnostics only; no camera override or game-memory access. */
+    void (*camera_observation)(const MkwVkCameraObservation *sample);
 } MkwVkRenderer;
 
 /* the DLL's one export: null when Vulkan is not usable (the executable then falls back to WebGPU) */

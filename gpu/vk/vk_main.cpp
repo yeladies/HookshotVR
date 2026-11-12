@@ -22,6 +22,7 @@
 #include "vk_menu.h"
 #include "vk_dlss.h"
 #include "vk_xr.h"
+#include "xr_camera_capture.h"
 #include "vk_fsr4.h"
 #include "vk_reflex.h"
 #include "vk_antilag.h"
@@ -1370,6 +1371,7 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     table.resize = resize;
     table.describe = describe;
     fill_replay_table(table);
+    table.camera_observation = xr_camera_observation;
     return &table;
 }
 

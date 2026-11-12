@@ -13,7 +13,8 @@ The switch implies `-XrNegotiation`. The renderer's `RX_VK_XR_SESSION_PROBE=1` o
 approximately ten-second diagnostic, which closes itself while the game can continue in flat mode.
 The existing wrapper bounds the whole game run and requires a session-close summary with nonzero
 valid head and stereo-view pose counts and no reported XR API errors. This checks live pose access,
-not visible game stereo or physical tracking accuracy. No changes to the host/renderer ABI were made.
+not visible game stereo or physical tracking accuracy. The session stage itself added no ABI fields;
+the later [camera observation transport](vr-offline-camera.md) now requires host/renderer ABI 18.
 
 ## Ownership and synchronization
 

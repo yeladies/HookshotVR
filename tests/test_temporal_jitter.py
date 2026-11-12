@@ -50,6 +50,10 @@ def main():
                       ("/* FSR_PUBLISH */", block(fsr, "void upscaled(")), ("/* REPLAY_CALLBACK */", callback),
                       ("/* HOST_TRANSPORT */", block(host, "int hos_dlss_jitter_clip("))]:
         fixture = fixture.replace(tag, text)
+    observer = "static void camera_observe_uniform(" in host
+    fixture = fixture.replace("/* HOST_CAMERA_OBSERVER_FLAG */", "#define HOST_CAMERA_OBSERVER_AVAILABLE " + str(int(observer)))
+    fixture = fixture.replace("/* HOST_CAMERA_OBSERVER */",
+        block(host, "void rx_xr_camera_view(") + "\n" + block(host, "static void camera_observe_uniform(") if observer else "")
     with tempfile.TemporaryDirectory(prefix="temporal-jitter-") as folder:
         root = Path(folder)
         cpp, exe = root / "fixture.cpp", root / "fixture.exe"
@@ -57,7 +61,9 @@ def main():
         includes = ["-I" + str(a.source), "-I" + str(ROOT)]
         subprocess.run([a.cxx, "-std=c++20", "-O2", "-Wall", "-Wextra", "-Werror", "-Wno-missing-field-initializers",
                         "-pthread", *includes, str(cpp), "-o", str(exe)], check=True)
-        for args in ([], ["off"], ["parallel-host"], ["late-host"]):
+        modes = [[], ["off"], ["parallel-host"], ["late-host"]]
+        if observer: modes.append(["camera-observer"])
+        for args in modes:
             subprocess.run([str(exe), *args], check=True, timeout=30)
 
 

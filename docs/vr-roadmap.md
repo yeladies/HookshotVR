@@ -76,3 +76,7 @@ References: [Vulkan binding](https://registry.khronos.org/OpenXR/specs/1.1/man/h
 A bounded renderer-owned [session/pose probe](vr-renderer-session.md) has passed locally with zero
 composition layers. It supplies internal predicted-time samples; game camera consumption and stereo
 images are still pending. This does not upgrade the project to playable VR.
+
+The [offline camera/projection stage](vr-offline-camera.md) adds ABI-18 read-only observations and
+a synthetic, unsubmitted per-eye plan builder. Live game-camera application and headset stereo
+remain pending; the current remote phase does not require an XR session.

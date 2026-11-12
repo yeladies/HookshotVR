@@ -195,3 +195,42 @@ The [session implementation boundary](vr-renderer-session.md) describes ownershi
 Next add a timed game-camera consumer and actual per-eye images with correct projection/culling/
 temporal state; the independent diagnostic frame loop alone does not align game and XR frames.
 Logs, captures, generated game code, saves and binaries remain local under ignored work folders.
+
+## Offline camera/projection follow-up — 2026-11-12
+
+The user was remote without headset access, so no real XR session was opened in this stage. New
+camera observations are explicit opt-in and read-only. The renderer table gained one callback and
+was bumped from ABI 17 to **18**; both experimental host and renderer were rebuilt. No instruction
+hook or translated game code was changed. All 80 translated compilation units kept their earlier
+cache keys. The final paired build completed native compilation in 66 seconds with zero failed
+units and linked successfully. Both private runtime renderer paths have identical DLL hashes.
+
+A bounded 180-second headless smoke with a fresh hash-verified copy of stable saves loaded Dodongo's
+Cavern. The last logged aggregate reported **3,204 primary-camera observations, 19,296 uniform-view
+observations, 9,402 matrix matches and zero rejected packets**. These are diagnostic observations,
+including repeated jitter sites, not unique frames or proof of main-scene GPU draw ownership. The
+smoke peaked at 6,608 MiB sampled working set. No guest matrices were modified by the observation.
+The fixture also checks the actual host observer helpers with authored memory and verifies that it
+remains unchanged. Default-off observation leaves the existing jitter outputs/locking behavior intact.
+
+An initial inherited-suite run exposed the fixture's missing declaration for the new observer call.
+The fixture now extracts the real observer helpers and adds a separate opt-in/read-only case without
+weakening any jitter assertions. The expanded fixture passes for both the current source and the
+unchanged upstream archive. A repeated full inherited suite completed **356 passed, 5 known baseline
+failures, 59 skipped** in 301 seconds. The 5 failures are the same previously classified tool/.NET/
+symlink/fixture issues; this remains a limited suite, not a fully green baseline.
+
+All **34 native VR CTest cases pass**, including the new C/C++ ABI layout/transport, capture
+correlation, per-eye FOV/projection/depth conventions and unsubmitted stereo-plan coherence checks.
+After the final conservative invalid-primary clearing adjustment and rebuild, a 20-second flat
+smoke with the final experimental renderer used Vulkan without XR log markers and peaked at
+3,027 MiB. It ended at the requested time limit and left no game process active. The 19 inventoried
+stable files retained their SHA-256 baseline hashes.
+
+The game projection uses NVN -1..1 depth, with conversion in the existing shader path. Both depth
+conventions, both depth orders, vertical flip and finite/infinite far planes now have synthetic
+projection tests. None of this implements headset game images. The diagnostic stereo-plan builder
+is pure and not connected to live camera/pose data. Actual timed camera consumption, per-eye target
+rendering, culling, temporal state, body/collision scale and visual comfort remain pending. See
+[offline camera work](vr-offline-camera.md). No raw observations, captures, saves, binaries or generated
+game source were published; all remain under ignored private work directories.

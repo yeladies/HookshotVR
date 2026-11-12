@@ -113,6 +113,17 @@ int dlss_jitter_clip(const float*, float, unsigned, int phases, float width, flo
     out[0] = out[1] = 0;
     return width && height && phases;
 }
+/* HOST_CAMERA_OBSERVER_FLAG */
+#if HOST_CAMERA_OBSERVER_AVAILABLE
+bool camera_capture_on=false;
+int camera_observation_calls=0;
+MkwVkCameraObservation camera_observation{};
+int env_on(const char*) { return camera_capture_on; }
+static void camera_observe(MkwVkCameraObservation* sample) {
+    ++camera_observation_calls;camera_observation=*sample;
+}
+#endif
+/* HOST_CAMERA_OBSERVER */
 /* HOST_TRANSPORT */
 
 bool equal(MkwVkJitter a, MkwVkJitter b) {
@@ -124,6 +135,29 @@ void host_read() {
 }
 
 int main(int argc, char** args) {
+#if HOST_CAMERA_OBSERVER_AVAILABLE
+    if(argc>1&&std::strcmp(args[1],"camera-observer")==0) {
+        alignas(16) unsigned char memory[0x1a8+16*sizeof(float)]{};
+        float rows[12]{};rows[0]=rows[5]=rows[10]=1;rows[3]=-2;
+        float projection[16]{};projection[0]=1;projection[5]=1.7f;projection[10]=-1.01f;projection[11]=-0.2f;projection[14]=-1;
+        std::memcpy(memory,rows,sizeof rows);std::memcpy(memory+0x1a8,projection,sizeof projection);
+        unsigned char before[sizeof memory];std::memcpy(before,memory,sizeof memory);
+        const auto address=(uint64_t)(uintptr_t)(memory+0x1a8);
+        camera_observe_uniform(address,projection);
+        CHECK(camera_observation_calls==0); // Disabled observation adds no callback and no memory write.
+        camera_capture_on=true;camera_observe_uniform(address,projection);
+        CHECK(camera_observation_calls==1&&camera_observation.flags==MKWVK_CAMERA_UNIFORM);
+        CHECK(camera_observation.camera_id==(uint64_t)(uintptr_t)memory);
+        CHECK(!std::memcmp(camera_observation.view,rows,sizeof rows));
+        CHECK(!std::memcmp(camera_observation.projection,projection,sizeof projection));
+        const double eye[3]={2,0,0};rx_xr_camera_view(123,rows,eye,0);
+        CHECK(camera_observation_calls==2&&camera_observation.flags==MKWVK_CAMERA_PRIMARY&&camera_observation.camera_id==123);
+        CHECK(!std::memcmp(camera_observation.eye,eye,sizeof eye));
+        rx_xr_camera_view(123,rows,eye,1);CHECK(camera_observation.flags&MKWVK_CAMERA_DEBUG);
+        CHECK(!std::memcmp(memory,before,sizeof memory)); // Actual production helpers were observational.
+        return 0;
+    }
+#endif
     env_off = argc > 1 && std::strcmp(args[1], "off") == 0;
     table.jitter_sample = callback;
     gpu::publish(1920, 1080, 1920, 1080);
