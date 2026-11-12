@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "vk_xr.h"
+#include "xr_preview_feed.h"
 namespace mkwvk { void logf(const char*, ...); }
 #ifdef HOOKSHOT_OPENXR
 #define XR_NO_PROTOTYPES
@@ -34,6 +35,10 @@ struct Bridge {
     std::thread worker;
     std::atomic<bool> stop{false};
     std::atomic<uint64_t> origin_epoch{0};
+    std::atomic<bool> preview_accepting{false},readback_only{false};
+    PreviewFeed preview_feed;
+    PFN_vkGetInstanceProcAddr vulkan_get=nullptr;
+    bool retained_gpu_work=false;
     std::mutex worker_mutex, mailbox_mutex;
     std::condition_variable worker_cv;
     bool initialized=false, start_ok=false, done=true;
@@ -47,7 +52,7 @@ struct Bridge {
     }
 
     void reset() {
-        if (!xr_vulkan_session_stop()) return;
+        if (!xr_vulkan_session_stop() || retained_gpu_work) return;
         ready = false;
         if (instance && destroy) destroy(instance);
         instance = XR_NULL_HANDLE; system = XR_NULL_SYSTEM_ID; destroy = nullptr; get = nullptr;
@@ -69,10 +74,12 @@ bool ok(XrResult result, const char* operation) {
 }
 }
 } // namespace mkwvk
+#include "vk_xr_preview.h"
 #include "vk_xr_session.h"
 namespace mkwvk {
 bool xr_vulkan_session_stop() {
     bridge.stop.store(true);
+    bridge.preview_accepting.store(false);bridge.preview_feed.clear();
     { std::lock_guard lock(bridge.mailbox_mutex);bridge.latest={}; }
     if(bridge.worker.joinable()) {
         bridge.stop.store(true);
@@ -96,13 +103,13 @@ bool xr_vulkan_latest_frame(XrFrameSnapshot* out) {
     }
     return true;
 }
-bool xr_vulkan_session_start(VkInstance instance,VkPhysicalDevice physical,VkDevice device,uint32_t queue_family,std::mutex& queue_mutex,uint32_t duration_ms) {
-    if(!bridge.ready||duration_ms==0||duration_ms>30000||!xr_vulkan_session_stop())return false;
+bool xr_vulkan_session_start(VkInstance instance,VkPhysicalDevice physical,VkDevice device,uint32_t queue_family,std::mutex& queue_mutex,uint32_t duration_ms,bool visual_preview) {
+    if(!bridge.ready||duration_ms==0||duration_ms>180000||!xr_vulkan_session_stop())return false;
     bridge.stop.store(false);
     { std::lock_guard lock(bridge.worker_mutex);bridge.initialized=false;bridge.start_ok=false;bridge.done=false; }
     try {
         bridge.worker=std::thread([=,&queue_mutex] {
-            SessionProbe probe(bridge,queue_mutex);
+            SessionProbe probe(bridge,queue_mutex,visual_preview);
             try {
                 const bool started=probe.initialize(instance,physical,device,queue_family);
                 { std::lock_guard lock(bridge.worker_mutex);bridge.start_ok=started;bridge.initialized=true; }
@@ -129,11 +136,27 @@ bool xr_vulkan_session_start(VkInstance instance,VkPhysicalDevice physical,VkDev
     }
     return bridge.start_ok;
 }
+bool xr_preview_wants_frame() {return (bridge.preview_accepting.load()||bridge.readback_only.load())&&!bridge.stop.load();}
+void xr_preview_publish(std::shared_ptr<const std::vector<uint8_t>> pixels,uint32_t width,uint32_t height,int64_t present) {
+    if(!xr_preview_wants_frame())return;
+    const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if(bridge.preview_feed.publish(std::move(pixels),width,height,present,now)&&bridge.readback_only.load()) {
+        const auto image=bridge.preview_feed.latest(now);
+        if(image.serial==1||image.serial%60==0)logf("xr-preview: readback frames %llu, %ux%u RGBA, no XR session",
+            (unsigned long long)image.serial,width,height);
+    }
+}
 void xr_vulkan_reset() { bridge.reset(); }
 bool xr_vulkan_active() { return bridge.ready; }
 bool xr_vulkan_prepare(bool requested) {
     bridge.reset();
-    if (bridge.worker.joinable()) return false;
+    if (bridge.worker.joinable() || bridge.retained_gpu_work) return false;
+    const char* readback=std::getenv("HOOKSHOT_VR_PREVIEW_READBACK_TEST");
+    bridge.readback_only.store(readback&&std::strcmp(readback,"1")==0);
+    if(bridge.readback_only.load()) {
+        if(requested){logf("xr: readback-only test cannot open an XR session");return false;}
+        bridge.stop.store(false);
+    }
     if (!requested) return true;
     const char* path = std::getenv("HOOKSHOT_OPENXR_LOADER");
     if (!path || !*path || !std::filesystem::u8path(path).is_absolute()) {
@@ -182,6 +205,7 @@ bool xr_vulkan_prepare(bool requested) {
     return true;
 }
 bool xr_vulkan_instance(PFN_vkGetInstanceProcAddr get, const VkInstanceCreateInfo& info, VkInstance* out) {
+    bridge.vulkan_get=get;
     PFN_xrCreateVulkanInstanceKHR create = nullptr;
     if (!bridge.ready || !bridge.function("xrCreateVulkanInstanceKHR",create)) return false;
     XrVulkanInstanceCreateInfoKHR request{XR_TYPE_VULKAN_INSTANCE_CREATE_INFO_KHR};
@@ -217,7 +241,9 @@ bool xr_vulkan_prepare(bool requested) {
     return !requested;
 }
 bool xr_vulkan_active() { return false; }
-bool xr_vulkan_session_start(VkInstance,VkPhysicalDevice,VkDevice,uint32_t,std::mutex&,uint32_t) { return false; }
+bool xr_preview_wants_frame() {return false;}
+void xr_preview_publish(std::shared_ptr<const std::vector<uint8_t>>,uint32_t,uint32_t,int64_t) {}
+bool xr_vulkan_session_start(VkInstance,VkPhysicalDevice,VkDevice,uint32_t,std::mutex&,uint32_t,bool) { return false; }
 bool xr_vulkan_session_stop() { return true; }
 bool xr_vulkan_latest_frame(XrFrameSnapshot* out) { if(out)*out={};return false; }
 void xr_vulkan_reset() {}

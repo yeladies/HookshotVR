@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 #include <cstdint>
 #include <mutex>
+#include <memory>
+#include <vector>
 
 namespace mkwvk {
 // Internal C++ mailbox, not the versioned host ABI. Samples are observations, not game overrides.
@@ -20,9 +22,11 @@ bool xr_vulkan_active();
 bool xr_vulkan_instance(PFN_vkGetInstanceProcAddr get, const VkInstanceCreateInfo& info, VkInstance* out);
 bool xr_vulkan_physical(VkInstance instance, VkPhysicalDevice* out);
 bool xr_vulkan_device(PFN_vkGetInstanceProcAddr get, VkPhysicalDevice physical, const VkDeviceCreateInfo& info, VkDevice* out);
-// Explicit zero-layer diagnostic; it never submits game images or application Vulkan queue work.
-bool xr_vulkan_session_start(VkInstance instance, VkPhysicalDevice physical, VkDevice device, uint32_t queue_family, std::mutex& queue_mutex, uint32_t duration_ms=10000);
+// Zero-layer diagnostic by default; visual_preview adds a flat game quad, never native game stereo.
+bool xr_vulkan_session_start(VkInstance instance, VkPhysicalDevice physical, VkDevice device, uint32_t queue_family, std::mutex& queue_mutex, uint32_t duration_ms=10000, bool visual_preview=false);
 bool xr_vulkan_session_stop();
 bool xr_vulkan_latest_frame(XrFrameSnapshot* out);
+bool xr_preview_wants_frame();
+void xr_preview_publish(std::shared_ptr<const std::vector<uint8_t>> pixels,uint32_t width,uint32_t height,int64_t present);
 void xr_vulkan_reset();
 }

@@ -1341,11 +1341,22 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
         xr_vulkan_reset();
         return nullptr;
     }
-    if (env_on("RX_VK_XR_SESSION_PROBE") &&
-        !xr_vulkan_session_start(dev.instance, dev.physical, dev.device, dev.queue_family, dev.present_mu)) {
-        logf("xr: renderer session probe could not start");
-        xr_vulkan_reset();
-        return nullptr;
+    const bool xr_preview=env_on("RX_VK_XR_PREVIEW");
+    if(xr_preview) {
+        const char* recorder=getenv("RX_VK_RECORDER");
+        if(recorder&&(!strcmp(recorder,"sync")||!strcmp(recorder,"defer")||!strcmp(recorder,"thread"))) {
+            logf("xr: preview requires the Vulkan recorder to be off");xr_vulkan_reset();return nullptr;
+        }
+    }
+    uint32_t xr_duration=xr_preview?60000u:10000u;
+    if(const char* text=(env_on("RX_VK_XR_SESSION_PROBE")||xr_preview)?getenv("RX_VK_XR_DURATION_MS"):nullptr) {
+        char* end=nullptr;const long value=strtol(text,&end,10);
+        if(!*text||*end||value<1000||value>180000){logf("xr: invalid session duration");xr_vulkan_reset();return nullptr;}
+        xr_duration=uint32_t(value);
+    }
+    if ((env_on("RX_VK_XR_SESSION_PROBE")||xr_preview) &&
+        !xr_vulkan_session_start(dev.instance, dev.physical, dev.device, dev.queue_family, dev.present_mu,xr_duration,xr_preview)) {
+        logf("xr: renderer session probe could not start");xr_vulkan_reset();return nullptr;
     }
     logf("vk: %s, Vulkan %u.%u, driver %#x; mesh shaders %s, host memory import %s, pipeline libraries %s",
          dev.props.deviceName, VK_VERSION_MAJOR(dev.props.apiVersion), VK_VERSION_MINOR(dev.props.apiVersion),

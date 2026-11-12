@@ -234,3 +234,29 @@ is pure and not connected to live camera/pose data. Actual timed camera consumpt
 rendering, culling, temporal state, body/collision scale and visual comfort remain pending. See
 [offline camera work](vr-offline-camera.md). No raw observations, captures, saves, binaries or generated
 game source were published; all remain under ignored private work directories.
+
+## Flat-quad transport preparation (2026-11-12)
+
+The experimental renderer now offers a bounded game-image quad transport. This is
+an intermediate flat screen in XR space, not native stereo gameplay. No real XR
+session was opened during the remote/offline development of this feature.
+
+A 120-second real-game readback-only test, with a private save snapshot, reported
+1,860 captured 1280x720 RGBA images by its last diagnostic sample and reached a 3D
+scene. It peaked at 6,562 MiB sampled working set. No PNG frames were written.
+This validates GPU readback and CPU feed delivery, not actual headset upload,
+compositor visibility or VR performance. Real VDXR visual testing remains pending.
+
+All 45 VR CTest cases pass, including quad uploads, reuse without a second upload,
+noncoherent flushing, unsupported formats, allocation/submit/wait failures, invalid
+image indices, unresolved-GPU resource retention, feed expiry, update-worktree
+conflicts and build compatibility guards. The inherited suite completed 357 passed,
+5 known baseline failures and 59 skipped. The same baseline limitations remain:
+fixture header/tool dependencies, missing .NET reference packs, Windows symlink
+privilege and an existing unused-variable fixture warning. Capture visibility tests
+also passed their 16 ownership/coherency combinations.
+
+Source update tooling and synthetic Git fixtures prepare isolated candidates and
+retain conflicts without promoting compatibility. The launch guards reject unknown
+game build IDs, ABI mismatch, modified binaries and stale source fingerprints.
+See [preview procedure](vr-headset-preview.md) and [upstream maintenance](vr-upstream-updates.md).

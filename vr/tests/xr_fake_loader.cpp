@@ -7,12 +7,13 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <vector>
 #include <atomic>
 #include <thread>
 #include <chrono>
 namespace {
 bool mode(const char* value) { const char* s=std::getenv("XR_FAKE_MODE");return s&&!std::strcmp(s,value); }
-std::atomic<int> counts[10]{};
+std::atomic<int> counts[20]{};
 bool (*queue_check)()=nullptr;
 int event_stage=0, frames=0;
 bool stopping=false, frame_open=false;
@@ -75,7 +76,14 @@ XrResult XRAPI_CALL begin_frame(XrSession,const XrFrameBeginInfo*) {
 }
 XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
     if(!queue_check||!queue_check())++counts[5];
-    if(!frame_open||info->layerCount||info->layers||info->displayTime!=frames*10000000)++counts[4];
+        const bool preview_mode=std::getenv("XR_FAKE_MODE")&&std::strncmp(std::getenv("XR_FAKE_MODE"),"preview_",8)==0;
+    if(!frame_open||info->displayTime!=frames*10000000||(!preview_mode&&(info->layerCount||info->layers)))++counts[4];
+    if(preview_mode&&info->layerCount) {
+        const auto* quad=reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[0]);
+        if(info->layerCount!=1||quad->type!=XR_TYPE_COMPOSITION_LAYER_QUAD||quad->eyeVisibility!=XR_EYE_VISIBILITY_BOTH||
+           quad->subImage.imageRect.extent.width!=1280||quad->size.width!=2.4f||quad->pose.position.x!=1||quad->pose.position.y!=2||quad->pose.position.z!=1)++counts[5];
+        ++counts[17];
+    }
     frame_open=false;++counts[3];return mode("session_end_error")?XR_ERROR_RUNTIME_FAILURE:XR_SUCCESS;
 }
 XrResult XRAPI_CALL locate_space(XrSpace,XrSpace,XrTime time,XrSpaceLocation* out) {
@@ -125,6 +133,7 @@ XrResult XRAPI_CALL device(XrInstance,const XrVulkanDeviceCreateInfoKHR* info,Vk
     return mode("xr_device_error")?XR_ERROR_RUNTIME_FAILURE:XR_SUCCESS;
 }
 }
+#include "xr_preview_fake.h"
 #ifdef _WIN32
 #define EXPORT __declspec(dllexport)
 #else
@@ -147,9 +156,14 @@ extern "C" EXPORT XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance,const cha
     MAP("xrRequestExitSession",exit_session) MAP("xrWaitFrame",wait_frame)
     MAP("xrBeginFrame",begin_frame) MAP("xrEndFrame",end_frame)
     MAP("xrLocateSpace",locate_space) MAP("xrLocateViews",locate_views)
+    MAP("xrEnumerateSwapchainFormats",preview_formats) MAP("xrCreateSwapchain",preview_create) MAP("xrDestroySwapchain",preview_destroy)
+    MAP("xrEnumerateSwapchainImages",preview_images) MAP("xrAcquireSwapchainImage",preview_acquire)
+    MAP("xrWaitSwapchainImage",preview_wait) MAP("xrReleaseSwapchainImage",preview_release)
 #undef MAP
     return XR_ERROR_FUNCTION_UNSUPPORTED;
 }
-extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<10?counts[key].load():-1; }
+extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<20?counts[key].load():-1; }
 
 extern "C" EXPORT void XRAPI_CALL xrTestSetQueueCheck(bool (*check)()) { queue_check=check; }
+
+extern "C" EXPORT PFN_vkVoidFunction VKAPI_CALL xrTestVulkanGetInstanceProcAddr(VkInstance instance,const char* name) {return preview_instance_proc(instance,name);}

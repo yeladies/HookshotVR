@@ -64,7 +64,8 @@ void run(int64_t current,bool fast_new,bool pending_old) {
         CHECK(waits_before_submit==int((current & 1)==0));
     } else { CHECK(captures.empty() && waits==0); }
     // Re-arming must discard a saved snapshot, not attach it to the new frame.
-    /* REARM */
+    [[maybe_unused]] const bool preview_frame=false,save_shot=true;
+/* REARM */
     CHECK(pending.on && pending.value==value && pending.presents==current);
     take(value,current);
     CHECK(captures.back().first==current);

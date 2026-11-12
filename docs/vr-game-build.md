@@ -72,3 +72,7 @@ inherited startup scripts/frame-clock overrides, and still bounds the process li
 
 A loaded scene is evidence of one local save loading, not a complete compatibility or gameplay test.
 The JSON deliberately keeps `gameplay_verified=false`; record observed actions separately.
+Current scripts also validate the reviewed game build ID and write private source/ABI/
+binary-hash receipts after successful builds. `run-game.ps1` rejects stale or mismatched
+receipts. See [update compatibility](vr-upstream-updates.md) and the opt-in
+[headset preview](vr-headset-preview.md). Build receipts belong under ignored `work/`.

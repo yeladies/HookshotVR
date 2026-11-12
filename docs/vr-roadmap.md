@@ -80,3 +80,10 @@ images are still pending. This does not upgrade the project to playable VR.
 The [offline camera/projection stage](vr-offline-camera.md) adds ABI-18 read-only observations and
 a synthetic, unsubmitted per-eye plan builder. Live game-camera application and headset stereo
 remain pending; the current remote phase does not require an XR session.
+
+## Maintainability requirement
+
+The VR adaptation must be portable across upstream Hookshot updates through reviewed
+source integration. See [the update workflow](vr-upstream-updates.md). Compatibility
+is verified per version, never presumed. The intermediate [flat-quad preview](vr-headset-preview.md)
+validates transport before changing gameplay cameras or replaying the world per eye.

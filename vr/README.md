@@ -66,3 +66,13 @@ OpenXR frame loop and synchronized head/eye pose mailbox. It still does not disp
 
 [Offline camera diagnostics](../docs/vr-offline-camera.md) provide ABI-18 read-only observations and
 tested per-eye projection math. They can run without a headset and do not open an XR session.
+
+## Game-image preview and update workflow
+
+A bounded [flat-screen headset preview](../docs/vr-headset-preview.md) is implemented
+as the next transport test. Real game readback has passed offline; actual VDXR
+visibility is pending. It does not implement native stereo or head-driven gameplay.
+
+[Upstream update tooling](../docs/vr-upstream-updates.md) prepares isolated source
+candidates for explicit review. Version profiles and private build receipts prevent
+launching unknown game builds or stale/mixed experimental binaries.

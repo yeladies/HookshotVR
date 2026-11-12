@@ -29,6 +29,8 @@ if ($OpenXRSdkRoot) {
 }
 if ([IO.DriveInfo]::new([IO.Path]::GetPathRoot($workRoot)).AvailableFreeSpace -lt 4GB) { throw 'Less than 4 GiB free.' }
 [ordered]@{source=$projectRoot; output=(Join-Path $workRoot 'sa/build'); openxr_sdk=$OpenXRSdkRoot; jobs=$Jobs; game_built=$false; game_launched=$false} | ConvertTo-Json
+. (Join-Path $PSScriptRoot 'compatibility.ps1')
+$null=Get-VrManifest $projectRoot
 if ($PlanOnly) { return }
 New-Item -ItemType Directory -Path $workRoot -Force | Out-Null
 $env:OOT_WORK = $workRoot
@@ -43,6 +45,10 @@ Remove-Item Env:HOOKSHOT_VK_PREBUILT -ErrorAction SilentlyContinue
 $env:PATH = (Join-Path $BuilderToolsRoot 'llvm-mingw/bin') + ';' + $env:PATH
 Push-Location -LiteralPath $projectRoot
 try {
-    & (Join-Path $BuilderToolsRoot 'python/python.exe') -I -B -u nx2/build.py --standalone --jobs $Jobs
+    $python=Get-VrPython $BuilderToolsRoot
+    $sourceBefore=Get-VrSourceFingerprint $projectRoot $python
+    & $python -I -B -u nx2/build.py --standalone --jobs $Jobs
     if ($LASTEXITCODE -ne 0) { throw 'Renderer compilation failed.' }
+    if((Get-VrSourceFingerprint $projectRoot $python) -ne $sourceBefore){throw 'Sources changed during compilation; no build receipt issued.'}
+    Write-VrBuildReceipt $projectRoot (Join-Path $workRoot 'build-info.json') (Join-Path $workRoot 'sa/build/hookshot_vk.dll') '' $sourceBefore ([bool]$OpenXRSdkRoot)
 } finally { Pop-Location }

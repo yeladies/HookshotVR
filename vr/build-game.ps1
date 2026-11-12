@@ -44,14 +44,8 @@ foreach ($file in @($py, (Join-Path $mingw 'bin/clang.exe'), (Join-Path $exefs '
     if (!(Test-Path -LiteralPath $file -PathType Leaf)) { throw "Required input is missing: $file" }
 }
 if (!(Test-Path -LiteralPath $romfs -PathType Container)) { throw 'Installed RomFS folder is missing.' }
-$stream = [IO.File]::OpenRead((Join-Path $exefs 'main'))
-try {
-    $stream.Position = 64
-    $id = New-Object byte[] 32
-    if ($stream.Read($id, 0, 32) -ne 32) { throw 'NSO header is truncated.' }
-    $buildId = ([BitConverter]::ToString($id)).Replace('-', '').ToLowerInvariant()
-} finally { $stream.Dispose() }
-if (!$buildId.StartsWith('e0f3ccfa')) { throw 'The installed game build is not supported by this source baseline.' }
+. (Join-Path $PSScriptRoot 'compatibility.ps1')
+$buildId=Assert-VrSupportedInstallation $projectRoot $InstallationRoot
 $drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($gameWork))
 if ($drive.AvailableFreeSpace -lt ($MinimumFreeGiB * 1GB)) {
     throw "Less than $MinimumFreeGiB GiB free on the build drive. No build started."
@@ -112,7 +106,10 @@ try {
     }
     if ($LiftOnly) { Write-Output 'Translation completed; native compilation not requested.'; return }
     if ($drive.AvailableFreeSpace -lt (8GB)) { throw 'Less than 8 GiB remain after translation. Compile not started.' }
+    $sourceBefore=Get-VrSourceFingerprint $projectRoot $py
     & $py -I -B -u nx2/build.py --standalone --jobs $Jobs
     if ($LASTEXITCODE -ne 0) { throw 'Native compilation failed; see the local build log.' }
+    if((Get-VrSourceFingerprint $projectRoot $py) -ne $sourceBefore){throw 'Sources changed during compilation; no build receipt issued.'}
+    Write-VrBuildReceipt $projectRoot (Join-Path $gameWork 'build-info.json') (Join-Path $gameWork 'sa/build/hookshot_vk.dll') (Join-Path $gameWork 'sa/build/hookshot.exe') $sourceBefore ([bool]$env:HOOKSHOT_OPENXR_SDK)
     Write-Output 'Experimental binaries built. No game was launched or installed.'
 } finally { Pop-Location }

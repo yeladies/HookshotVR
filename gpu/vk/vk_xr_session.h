@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Single-owner zero-layer session. No swapchains, Vulkan submits or game memory access.
+// Single-owner session: zero-layer probe or an explicit flat-quad transport preview.
 #pragma once
 #include <array>
 #include <algorithm>
@@ -28,7 +28,8 @@ struct SessionProbe {
     PFN_xrLocateSpace locate_space=nullptr;
     PFN_xrLocateViews locate_views=nullptr;
     XrFrameSnapshot snapshot{};
-    explicit SessionProbe(Bridge& owner,std::mutex& queue):bridge(owner),queue_mutex(queue) { generation=++bridge.origin_epoch; }
+    bool visual=false;std::unique_ptr<QuadPreview> preview;
+    explicit SessionProbe(Bridge& owner,std::mutex& queue,bool show):bridge(owner),queue_mutex(queue),visual(show) { generation=++bridge.origin_epoch; }
     bool initialize(VkInstance instance,VkPhysicalDevice physical,VkDevice device,uint32_t family) {
         PFN_xrCreateSession create=nullptr;
         PFN_xrCreateReferenceSpace create_space=nullptr;
@@ -57,7 +58,12 @@ struct SessionProbe {
         if(!ok(create_space(session,&space,&local),"create LOCAL space"))return false;
         space.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_VIEW;
         if(!ok(create_space(session,&space,&head),"create VIEW space"))return false;
-        logf("xr: renderer session created; zero-layer probe, no game stereo");
+        if(visual) {
+            preview=std::make_unique<QuadPreview>(bridge,queue_mutex);
+            if(!preview->initialize(session,instance,physical,device,family))return false;
+            bridge.preview_accepting.store(true);
+        }
+        logf("xr: renderer session created; %s, no native game stereo",visual?"flat quad preview":"zero-layer probe");
         return true;
     }
     bool events() {
@@ -117,12 +123,21 @@ struct SessionProbe {
         std::array<XrView,2> views{{{XR_TYPE_VIEW},{XR_TYPE_VIEW}}};
         const bool located=ok(locate_space(head,local,frame.predictedDisplayTime,&location),"locate renderer head")&&
             ok(locate_views(session,&locate,&state,2,&count,views.data()),"locate renderer views")&&count==2;
-        // A begun frame is always ended, even when locating poses fails. There are deliberately no layers.
+        bool quad=false,draw_ok=true;
+        constexpr auto needed=XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+        if(preview&&located&&frame.shouldRender&&frame.predictedDisplayTime>=suppress_until&&(location.locationFlags&needed)==needed) {
+            const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+            auto image=bridge.preview_feed.latest(now);
+            if(image.pixels){draw_ok=preview->frame(local,location.pose,generation,std::move(image));quad=draw_ok;}
+        }
+        // Balance every begun frame, including failures and no-image/not-visible frames.
         XrFrameEndInfo end{XR_TYPE_FRAME_END_INFO};end.displayTime=frame.predictedDisplayTime;
         end.environmentBlendMode=XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
+        const XrCompositionLayerBaseHeader* layers[1]{};
+        if(quad){layers[0]=reinterpret_cast<const XrCompositionLayerBaseHeader*>(&preview->layer);end.layerCount=1;end.layers=layers;}
         XrResult ended;
         { std::lock_guard lock(queue_mutex);ended=end_frame(session,&end); }
-        if(!ok(ended,"end renderer frame")||!located)return false;
+        if(!ok(ended,"end renderer frame")||!located||!draw_ok)return false;
         if(frame.predictedDisplayTime>=suppress_until) {
             pose(candidate.head,location.pose,location.locationFlags);
             uint64_t flags=0;
@@ -141,11 +156,13 @@ struct SessionProbe {
         }
         candidate.observed_at_monotonic_ns=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         snapshot=candidate;
-        if(sequence==1||sequence%120==0)logf("xr: zero-layer frames %llu, valid head %llu, valid stereo poses %llu",
+        if(sequence==1||sequence%120==0)logf("xr: %s frames %llu, valid head %llu, valid stereo poses %llu",
+            visual?"flat-preview session":"zero-layer",
             (unsigned long long)sequence,(unsigned long long)head_samples,(unsigned long long)stereo_samples);
         return true;
     }
     void close() {
+        bridge.preview_accepting.store(false);bridge.preview_feed.clear();
         if(session&&running&&!terminal) {
             if(ok(request_exit(session),"request renderer session exit")) {
                 // Poll for STOPPING for a bounded time; destruction is legal even if the runtime never delivers it.
@@ -155,6 +172,11 @@ struct SessionProbe {
                 }
             }
         }
+        if(preview&&!preview->close()) {
+            bridge.retained_gpu_work=true;bridge.ready=false;preview.release();
+            logf("xr: preview GPU completion failed; retaining session/runtime resources until process exit");return;
+        }
+        preview.reset();
         if(head&&destroy_space)ok(destroy_space(head),"destroy VIEW space");head=XR_NULL_HANDLE;
         if(local&&destroy_space)ok(destroy_space(local),"destroy LOCAL space");local=XR_NULL_HANDLE;
         if(session&&destroy_session)ok(destroy_session(session),"destroy renderer session");session=XR_NULL_HANDLE;

@@ -5,19 +5,29 @@ param(
     [switch]$Window,
     [switch]$PrepareAllShaders,
     [switch]$SnapshotStableSaves,
+    [switch]$LoadTestSave,
     [switch]$ExperimentalXrRenderer,
     [switch]$XrNegotiation,
     [switch]$XrSessionProbe,
+    [switch]$XrPreview,
+    [switch]$PreviewReadbackTest,
     [switch]$CameraCapture,
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+if ($LoadTestSave -and !$SnapshotStableSaves) { throw 'Scripted save loading requires a private save snapshot.' }
 function Read-ExperimentalLog {
     $stream = [IO.File]::Open((Join-Path $runRoot 'stderr.txt'), [IO.FileMode]::Open,
                               [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
     $reader = [IO.StreamReader]::new($stream)
     try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
 }
+if ($XrPreview) {
+    if ($Seconds -lt 15) { throw 'A visual preview needs at least 15 seconds for bounded session closure.' }
+    $XrSessionProbe = $true
+}
+if ($PreviewReadbackTest -and ($XrPreview -or $XrSessionProbe -or $XrNegotiation)) { throw 'Readback-only validation must not open XR.' }
+if ($PreviewReadbackTest) { $ExperimentalXrRenderer = $true }
 if ($XrSessionProbe) { $XrNegotiation = $true }
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $InstallationRoot = (Resolve-Path -LiteralPath $InstallationRoot).Path
@@ -39,6 +49,14 @@ if (($ExperimentalXrRenderer -or $XrNegotiation) -and !(Test-Path -LiteralPath $
 if ($XrNegotiation) {
     if (!$OpenXRLoader) { $OpenXRLoader = Join-Path $projectRoot 'work/vr-loader/openxr-sdk/src/loader/libopenxr_loader.dll' }
     $OpenXRLoader = (Resolve-Path -LiteralPath $OpenXRLoader).Path
+}
+. (Join-Path $PSScriptRoot 'compatibility.ps1')
+$null=Assert-VrSupportedInstallation $projectRoot $InstallationRoot
+$python=Get-VrPython ''
+$fingerprint=Get-VrSourceFingerprint $projectRoot $python
+Assert-VrBuildReceipt $projectRoot (Join-Path $projectRoot 'work/game-build/build-info.json') (Join-Path $buildRoot 'hookshot_vk.dll') (Join-Path $buildRoot 'hookshot.exe') $fingerprint $false
+if($ExperimentalXrRenderer -or $XrNegotiation) {
+    Assert-VrBuildReceipt $projectRoot (Join-Path $projectRoot 'work/renderer-build/build-info.json') $xrRenderer '' $fingerprint ([bool]($XrNegotiation -or $PreviewReadbackTest))
 }
 $image = Join-Path $projectRoot 'work/game-build/sa/image/image.bin'
 foreach ($inputFile in @((Join-Path $buildRoot 'hookshot.exe'), (Join-Path $buildRoot 'hookshot_vk.dll'),
@@ -97,10 +115,17 @@ if ($SnapshotStableSaves) {
 # No native shader-program caches, stable settings or launcher are copied.
 $env:HOS_INPUT_LIVE = Join-Path $runRoot 'input-live.txt'
 [IO.File]::WriteAllText($env:HOS_INPUT_LIVE, '')
+if ($LoadTestSave) { [IO.File]::WriteAllText($env:HOS_INPUT_LIVE, "20:A/150,30:A/150,40:A/150,60:A/150`n") }
 $env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
 Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
 $env:HOOKSHOT_VR_CAMERA_CAPTURE = $(if ($CameraCapture) { '1' } else { '0' })
+$env:RX_VK_XR_PREVIEW = $(if ($XrPreview) { '1' } else { '0' })
+$env:HOOKSHOT_VR_PREVIEW_READBACK_TEST = $(if ($PreviewReadbackTest) { '1' } else { '0' })
+if ($XrPreview) {
+    $env:RX_VK_XR_DURATION_MS = ([Math]::Min($Seconds - 5, 180) * 1000).ToString()
+    $env:RX_VK_RECORDER = 'off'
+} else { Remove-Item Env:RX_VK_XR_DURATION_MS -ErrorAction SilentlyContinue }
 $env:RX_VK_XR_SESSION_PROBE = $(if ($XrSessionProbe) { '1' } else { '0' })
 $env:RX_VK_XR = $(if ($XrNegotiation) { '1' } else { '0' })
 if ($XrNegotiation) { $env:HOOKSHOT_OPENXR_LOADER = $OpenXRLoader } else { Remove-Item Env:HOOKSHOT_OPENXR_LOADER -ErrorAction SilentlyContinue }
@@ -126,6 +151,10 @@ if (!(Test-Path -LiteralPath $options)) {
 Remove-Item Env:HOS_CONTROL -ErrorAction SilentlyContinue
 $env:RX_VK_SHOTS = Join-Path $runRoot 'shots'
 $env:RX_VK_SHOT_EVERY = '120'
+if ($XrPreview -or $PreviewReadbackTest) {
+    Remove-Item Env:RX_VK_SHOTS -ErrorAction SilentlyContinue
+    $env:RX_VK_SHOT_W = '1280'; $env:RX_VK_SHOT_H = '720'
+}
 $exe = Join-Path $runRoot 'bin/hookshot.exe'
 $argsForGame = @(('"' + (Join-Path $runRoot 'image.bin') + '"'), '--romfs',
                  ('"' + (Join-Path $InstallationRoot 'romfs') + '"'), '--user',
@@ -144,6 +173,12 @@ try {
             $xrNegotiated = $log.Contains('xr: renderer Vulkan device negotiated')
             if (!$xrNegotiated -and ($log.Contains('rx: the Vulkan back end did not start') -or $log.Contains('rx: renderer: WebGPU'))) {
                 $reason = 'xr_negotiation_failed'; break
+            }
+        }
+        if ($XrSessionProbe) {
+            $liveLog = Read-ExperimentalLog
+            if ($liveLog -match 'xr: .*failed|xr: session owner exception|xr: session startup timed out|xr: renderer session probe could not start|xr: preview requires|xr: invalid session duration') {
+                $reason = 'xr_session_failed'; break
             }
         }
         $p.Refresh()
@@ -170,7 +205,17 @@ if ($XrSessionProbe) {
     $sessionValidPoses = $log -match 'xr: renderer session probe closed; frames [1-9][0-9]*, valid head [1-9][0-9]*, valid stereo poses [1-9][0-9]*'
     if ((!$sessionClosed -or !$sessionValidPoses -or $sessionApiErrors) -and $reason -eq 'time_limit') { $reason = 'xr_session_unverified' }
 }
-[ordered]@{ camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+$previewSubmitted = $false
+$readbackObserved = $false
+if ($XrPreview -or $PreviewReadbackTest) {
+    $previewLog = Read-ExperimentalLog
+    $previewSubmitted = $previewLog -match 'xr: flat quad preview closed; quad frames [1-9][0-9]*, game images [1-9][0-9]*'
+    $readbackObserved = $previewLog -match 'xr-preview: readback frames [1-9][0-9]*'
+    if ($reason -eq 'time_limit' -and (($XrPreview -and !$previewSubmitted) -or ($PreviewReadbackTest -and !$readbackObserved))) {
+        $reason = 'preview_unverified'
+    }
+}
+[ordered]@{ flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
@@ -178,3 +223,5 @@ if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
 if ($XrNegotiation -and !$xrNegotiated) { exit 1 }
 
 if ($XrSessionProbe -and (!$sessionClosed -or !$sessionValidPoses -or $sessionApiErrors)) { exit 1 }
+
+if (($XrPreview -and !$previewSubmitted) -or ($PreviewReadbackTest -and !$readbackObserved)) { exit 1 }

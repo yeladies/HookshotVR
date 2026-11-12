@@ -51,6 +51,7 @@
 #include "vk_present_trace.h"
 
 #include "vk_internal.h"
+#include "vk_xr.h"
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
 #include "hookshot_env.h"
 #endif
@@ -3074,6 +3075,7 @@ struct PendingShot {
     uint64_t value = 0;
     int64_t presents = 0;
     std::shared_ptr<std::vector<uint8_t>> pixels;
+    bool preview=false,save=true;
 };
 std::shared_ptr<std::vector<uint8_t>> shot_pixels(uint64_t at_value, int64_t at_present) {
     wait_value(at_value);
@@ -3101,7 +3103,7 @@ void do_present(const nvn_tex* t, const int crop[4]) {
     VkImage src = VK_NULL_HANDLE;
     VkImageView direct_view = VK_NULL_HANDLE;
     uint32_t sw = 0, sh = 0;
-    bool shot = false, interpolated = false;
+    bool shot = false, interpolated = false, preview_frame=false, save_shot=false;
     VkImage made_src = VK_NULL_HANDLE;
     {
         std::lock_guard lk(replay_mu);
@@ -3183,7 +3185,7 @@ void do_present(const nvn_tex* t, const int crop[4]) {
         }
         ts_anchor_ns = host->ticks() * 32;
         dump_present(presents);
-        if (src && (dev.offscreen || shots) && offscreen_init()) {
+        if (src && (dev.offscreen || shots || xr_preview_wants_frame()) && offscreen_init()) {
             if (dev.offscreen) {
                 image_barrier(r.cmd, off_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
                 blit_crop(r.cmd, src, sw, sh, crop, off_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -3199,6 +3201,7 @@ void do_present(const nvn_tex* t, const int crop[4]) {
                 struct stat sb;
                 shot = stat(shot_go, &sb) == 0;
             }
+            save_shot=shot;preview_frame=xr_preview_wants_frame()&&(presents%2==0);shot=shot||preview_frame;
             // (RX_VK_SHOT_MENU=1, a debug aid: without a window the Insert menu is neither ticked nor drawn; this ticks it
             // at each present and draws it into the shots, for pictures of it from a headless run)
             static const bool shot_menu = env_on("RX_VK_SHOT_MENU");
@@ -3323,6 +3326,9 @@ void do_present(const nvn_tex* t, const int crop[4]) {
                           ? std::move(pending.pixels) : shot_pixels(at_value, at_present);
             // (RX_VK_DUMP_BLACK=<n>: a shot with 12-90% pure black pixels in a lit picture, or a green cast over it,
             // dumps the next frame, n times at most: the glitches some scenes show now and then)
+            const bool from_pending=pending.on&&pending.presents==at_present;
+            if(from_pending?pending.preview:preview_frame)xr_preview_publish(px,kShotW,kShotH,at_present);
+            if(!(from_pending?pending.save:save_shot))return; // Preview readbacks never encode or write PNG files.
             static int black_left = getenv("RX_VK_DUMP_BLACK") ? atoi(getenv("RX_VK_DUMP_BLACK")) : 0;
             if (black_left > 0) {
                 const uint8_t* q0 = px->data();
@@ -3466,7 +3472,7 @@ void do_present(const nvn_tex* t, const int crop[4]) {
             snprintf(path, sizeof path, "%s/vk_%06lld_made.png", shots, (long long)presents);
             write_png(path, (const uint8_t*)made_map, kShotW, kShotH);
         } else if (shot) {
-            pending = {true, value, presents, {}};
+            pending = {true, value, presents, {}, preview_frame, save_shot};
         }
         log_frame_stats();
     }

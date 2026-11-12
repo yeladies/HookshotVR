@@ -76,3 +76,6 @@ creation still needs per-eye projection/depth/Y conventions, camera-dependent re
 independent temporal history, culling and UI handling. Head/body collision and physical controller
 mechanics remain later milestones. Do not duplicate write-producing compute or simulation to get
 a second eye, or label a duplicated flat image as native stereo.
+The optional [flat-quad preview](vr-headset-preview.md) extends this session owner with
+actual game-image transport. Zero-layer probing remains the default session mode;
+quad submission does not implement native stereo gameplay.
