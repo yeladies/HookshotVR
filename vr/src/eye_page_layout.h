@@ -85,6 +85,8 @@ public:
         return {binding.route==EyeBufferRoute::Private?EyePageRoute::PrivateCandidate:EyePageRoute::SharedReadOnlyCandidate,
                 *eye_guest_page_index(guest_page),binding.allocation,binding.offset,source->second.device_address+page->offset};
     }
+    const std::vector<EyeMappedGuestPage>& pages()const{return pages_;}
+    const std::map<uint64_t,EyePageObject>& objects()const{return objects_;}
     const EyeBufferLayout& buffers()const{return layout_;}
     uint64_t bytes_per_eye_reference()const{return bytes_;}
     const EyePageStamp& stamp()const{return stamp_;}

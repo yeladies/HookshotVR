@@ -36,3 +36,25 @@ retire private resources against actual completion, and validate all accesses.
 The game-free `vr_eye_page_layout` test covers cross-page writes, aliases across
 windows, descriptor closure, alignment bias, budget limits, stale input identities,
 ambiguous native storage and rejection without replacing prior output.
+
+## CPU patch encoding
+
+`eye_page_patches.h` encodes only the changed entries for two future private roots.
+It checks the full original 24 MiB snapshot against supplied mappings and requires
+matching submission/generation stamps. Destinations use the layout's allocation-index
+order, must contain complete page spans, and must be disjoint from each other, all
+supplied source objects and every mapped source page (including omitted mappings).
+A sorted index of nonzero original addresses avoids rescanning the root per allocation.
+Preparation preserves the root and replaces the output only on success. Cross-window
+aliases receive identical private addresses within each eye.
+
+These are CPU patches, not Vulkan uploads. They do not allocate roots, copy data,
+change descriptors, execute a shader or prove inventory completeness. A future GPU
+consumer must first snapshot/copy the original root in queue order, apply patches to
+independent roots, bind the matching eye root and retire all referenced storage after
+completion. Capture identity is supplied by the caller and must be rechecked at that
+integration boundary. Both planners continue to report replay readiness as false.
+
+Upstream review now monitors `vk_memory.cpp`, `vk_bank.cpp` and the SPIR-V emit context
+in addition to replay/draw contracts, so pointer-translation changes are included in
+candidate update reports and trigger VR CI.
