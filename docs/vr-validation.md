@@ -449,3 +449,24 @@ Raw result/probe/log stay private under ignored work/validation.
 The final 20-second default-off smoke completes at 3040 MiB peak working set,
 with the eye-image probe/captures/XR disabled. The stable 19-file SHA-256 baseline
 is unchanged and no diagnostic game process remains running.
+
+## Private native image views (2026-11-12)
+
+The clone owner now supports bounded pairs of exact-format 2D/2D-array views,
+with checked source identity/mip/layer/aspect ranges, atomic outputs, partial-view
+failure cleanup and a 32-pair cap. Views are destroyed before image allocations
+under the same last-use timeline. The probe uses active Targets format/mip/layer
+metadata and verifies creation/release of four private views without installing
+them in original descriptors or targets.
+
+All 64 VR CTest cases pass, with added view failure/cap/order checks. Full inherited
+suite remains 357 passed, five known baseline failures, 59 skipped in 305 seconds.
+Native build passes in 72 seconds. A 150-second isolated no-XR probe passes with
+four views created/released and all image-copy completion/retirement checks true;
+image allocations total 14,155,776 bytes, peak working set 6578 MiB. Raw probe/log
+and result remain private. Texture/loader contracts now participate in upstream
+review and CI; their two maintenance checks pass after the manifest change.
+
+The final 20-second default-off view-build smoke completes at 3064 MiB peak
+working set. Probe/capture/session flags are off, the 19 stable-install file
+hashes remain unchanged and no diagnostic game process remains running.

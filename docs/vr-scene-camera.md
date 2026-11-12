@@ -27,7 +27,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vr/run-game.ps1 -Seconds 150
 
 The next gate is to trace the matched camera through scene render targets and later
 composites, then select camera-dependent work for independent eye targets/history.
-Compute writes and simulation must remain single-execution. Actual XR poses must be
+Simulation and writes into shared original resources must remain single-execution.
+Camera-dependent compute may repeat only into fully reviewed private eye resources;
+the current diagnostics do not establish that isolation. Actual XR poses must be
 latched coherently with the submission before enabling a head-driven camera consumer.
 
 ## Submit-time camera context

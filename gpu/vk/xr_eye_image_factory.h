@@ -13,6 +13,7 @@ struct EyeImageSource {
     bool sparse=false;VkSampleCountFlagBits samples=VK_SAMPLE_COUNT_1_BIT;
     VkImageType type=VK_IMAGE_TYPE_2D;
 };
+struct EyeImageViewPair {std::array<VkImageView,2> eyes{};};
 struct EyeImageFactoryApi {
     VkDevice device=VK_NULL_HANDLE;
     PFN_vkCreateImage create_raw=nullptr;PFN_vkDestroyImage destroy_raw=nullptr;
@@ -20,7 +21,8 @@ struct EyeImageFactoryApi {
     bool (*allocate_strict)(const VkImageCreateInfo&,VkImage&,uintptr_t&)=nullptr;
     void (*release)(VkImage,uintptr_t)=nullptr;uint64_t (*allocation_bytes)(uintptr_t)=nullptr;
     PFN_vkCmdPipelineBarrier2 barrier=nullptr;PFN_vkCmdCopyImage copy=nullptr;
-    bool valid()const{return device&&create_raw&&destroy_raw&&requirements&&allocate_strict&&release&&allocation_bytes&&barrier&&copy;}
+    PFN_vkCreateImageView create_view=nullptr;PFN_vkDestroyImageView destroy_view=nullptr;
+    bool valid()const{return device&&create_raw&&destroy_raw&&requirements&&allocate_strict&&release&&allocation_bytes&&barrier&&copy&&create_view&&destroy_view;}
 };
 inline VkImageAspectFlags eye_format_aspects(VkFormat format) {
     switch(format){
@@ -31,13 +33,16 @@ inline VkImageAspectFlags eye_format_aspects(VkFormat format) {
     }
 }
 // Strict, separate native images; never a shallow Texture copy or a guest registration.
-// No views or descriptor remapping yet. The caller owns device/allocator lifetime and
+// Exact-format 2D/array views only; no descriptor remapping. The caller owns device/allocator lifetime and
 // must retire only using the actual completed timeline of the queue that used these images.
 class EyeImageClonePair {
     EyeImageFactoryApi api_{};EyeImageSource source_{};
     std::array<VkImage,2> images_{};std::array<uintptr_t,2> allocations_{};
+    std::array<std::array<VkImageView,2>,32> views_{};uint32_t view_count_=0;
     uint64_t bytes_=0,last_use_=0;bool ready_=false,recorded_=false;
     void release() {
+        for(uint32_t i=0;i<view_count_;++i)for(auto view:views_[i])if(view)api_.destroy_view(api_.device,view,nullptr);
+        view_count_=0;
         for(unsigned i=0;i<2;++i){if(images_[i])api_.release(images_[i],allocations_[i]);images_[i]=VK_NULL_HANDLE;allocations_[i]=0;}
         bytes_=0;ready_=false;recorded_=false;
     }
@@ -71,6 +76,29 @@ public:
         }
         ready_=true;return true;
     }
+    bool create_view_pair(const VkImageViewCreateInfo& original,EyeImageViewPair& out) {
+        const auto& range=original.subresourceRange;
+        if(!ready_||view_count_>=views_.size()||original.sType!=VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO||original.pNext||original.flags||
+           original.image!=source_.image||original.format!=source_.format||
+           (original.viewType!=VK_IMAGE_VIEW_TYPE_2D&&original.viewType!=VK_IMAGE_VIEW_TYPE_2D_ARRAY)||
+           !range.aspectMask||(range.aspectMask&~source_.aspect)||range.baseMipLevel>=source_.levels||range.baseArrayLayer>=source_.layers)return false;
+        const uint32_t levels=range.levelCount==VK_REMAINING_MIP_LEVELS?source_.levels-range.baseMipLevel:range.levelCount;
+        const uint32_t layers=range.layerCount==VK_REMAINING_ARRAY_LAYERS?source_.layers-range.baseArrayLayer:range.layerCount;
+        if(!levels||levels>source_.levels-range.baseMipLevel||!layers||layers>source_.layers-range.baseArrayLayer||
+           (original.viewType==VK_IMAGE_VIEW_TYPE_2D&&layers!=1))return false;
+        for(auto swizzle:{original.components.r,original.components.g,original.components.b,original.components.a})
+            if(swizzle<VK_COMPONENT_SWIZZLE_IDENTITY||swizzle>VK_COMPONENT_SWIZZLE_A)return false;
+        std::array<VkImageView,2> created{};
+        for(unsigned eye=0;eye<2;++eye){auto ci=original;ci.image=images_[eye];VkImageView candidate=VK_NULL_HANDLE;
+            if(api_.create_view(api_.device,&ci,nullptr,&candidate)!=VK_SUCCESS){
+                for(unsigned before=0;before<eye;++before)api_.destroy_view(api_.device,created[before],nullptr);
+                return false;
+            }
+            created[eye]=candidate;
+        }
+        views_[view_count_++]=created;out.eyes=created;return true;
+    }
+    uint32_t owned_view_count()const{return view_count_*2;}
     bool record_initial_copy(VkCommandBuffer command,uint64_t value) {
         if(!ready_||recorded_||!command||!value)return false;
         std::array<VkImageMemoryBarrier2,3> barriers{};

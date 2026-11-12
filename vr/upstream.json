@@ -19,7 +19,9 @@
     "nx2/oot_patches.py",
     "nx2/oot_jitter.py",
     "gpu/vk/vk_internal.h",
-    "gpu/vk/vk_vma.cpp"
+    "gpu/vk/vk_vma.cpp",
+    "gpu/vk/vk_texture.h",
+    "gpu/vk/vk_loader.h"
   ],
   "release_policy": "unverified_until_source_review_build_tests_and_headset_validation"
 }

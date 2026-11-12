@@ -69,3 +69,30 @@ inherited suite remained 357 passed, five known baseline failures and 59 skipped
 copy-command completion and retirement, not a pixel comparison or a finished
 per-eye scene renderer. Views, descriptor routing and private culling buffers are
 still integration work.
+
+## Owned image views
+
+The image owner now creates bounded pairs of exact-format 2D or 2D-array views.
+It preserves the supplied mip/layer range and component mapping, checks source
+image identity and subresource bounds, and rejects unknown pNext/flags, cube/3D
+view types and format reinterpretation. The two handles are published atomically;
+if creation of the second fails, the first is destroyed and the previous output
+is unchanged. At most 32 view pairs are owned for an image pair.
+
+All owned views are destroyed before the corresponding image allocations and
+share their completion/last-use guard. The native probe derives view format,
+mip and layer from the actual draw Targets rather than assuming mip/layer zero.
+It creates four private views alongside the four images and reports their creation
+and release separately. These views are not installed in any original descriptor
+or framebuffer. Broader view-format/extension support and actual routing remain
+integration work. The maintenance audit/CI tracks the Texture and loader header
+contracts as well as the modified integration files.
+
+The follow-up 150-second native probe also verifies four exact-format views using
+the active draw's mip/layer selection. All four views are created and released
+before their images; the four image allocations again total 14,155,776 bytes.
+GPU completion and release pass, peak working set is 6578 MiB, source objects stay
+unreplaced and stereo remains disabled. The native build passes in 72 seconds;
+64 VR CTest cases pass and the full inherited suite remains 357 passed, five known
+baseline failures and 59 skipped (305 seconds). The changed header-maintenance
+contracts additionally pass both upstream-update and build-compatibility tests.

@@ -11,7 +11,7 @@ No new headset test is required for the completed diagnostics below.
 - Conservative emitted-command image/storage-range lineage; present-slice analysis and alias closure.
 - Image inventory/reference budgets and a pure per-eye buffer address layout.
 - Standalone bounded Vulkan eye resource owner; native 32x32 image/buffer readback and explicit reuse pass on RTX 2060 SUPER.
-- Strict VMA image-clone factory; a real 1152x648 game HDR/depth probe allocates/copies/retires four images (13.5 MiB). Full scene routing is still absent.
+- Strict VMA image/view factory; a real 1152x648 game HDR/depth probe allocates/copies/retires four images (13.5 MiB) and four views. Full scene routing is still absent.
 - Private eight-view uniform audit and representative SPIR-V read-footprint audit.
 - Separate compute-only observations, plus bounded submitted-matrix candidate search (not semantic proof).
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
@@ -30,7 +30,7 @@ in the branch. The stable installation remains read-only input.
 2. Validate CPU scene visibility and a conservative center/two-eye volume, plus
    camera-dependent compute/culling, hidden pointers, indirect geometry,
    copies/aliases and temporal resources not fully covered by the current lineage.
-3. Extend the checked image/buffer owners to the complete scene inventory, with views,
+3. Extend the checked image/buffer owners to the complete scene inventory and remaining view formats,
    initial copies and descriptor/address
    remapping and fence-based retirement. Never repeat writes into shared original storage.
 4. Replay the necessary camera-dependent work into independent eyes from one simulation

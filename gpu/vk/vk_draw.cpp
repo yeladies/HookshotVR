@@ -6338,7 +6338,9 @@ void lineage_pair(uint64_t key,const Texture* in,const Texture* out) {
 void eye_image_probe_note(VkCommandBuffer command,const Targets& targets,bool camera_seed) {
     if(!camera_seed||!xr_eye_image_probe_wants(texture_frame_no()))return;
     end_pass(command); // Copies are outside rendering; the original targets are never replaced.
-    xr_eye_image_probe_record(command,targets.color[0],targets.depth,rec_value);
+    xr_eye_image_probe_record(command,targets.color[0],targets.depth,rec_value,
+        {targets.color_level[0],targets.color_layer[0],targets.color_format[0]},
+        {targets.depth_level,targets.depth_layer,targets.depth_format});
 }
 void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camera_address,
                                const std::vector<uint64_t>* additional_cameras=nullptr) {
