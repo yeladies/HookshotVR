@@ -366,3 +366,23 @@ distinct eyes, inverse composition, complete-payload preservation and rejection
 paths. All 58 game-free VR CTest cases pass. No additional headset test is needed.
 The final default-off isolated game smoke completed its 20-second bound at
 2971 MiB peak working set, with every optional diagnostic/session flag off.
+
+## Native owned-eye resource smoke (2026-11-12)
+
+Added a standalone, one-shot Vulkan resource owner with separate eye images,
+buffers and dedicated allocations, bounded actual requirements, failure cleanup
+and completion-fence lifetime. All 59 VR CTest cases pass, including 13 injected
+creation/allocation/bind/fence failures and pending/device-loss retention.
+The explicit native smoke on RTX 2060 SUPER passed all 2048 image pixels and
+2048 buffer bytes, with 10,240 resource-allocation bytes total for both eyes plus
+staging, and a completed fence. No game or XR session was opened. This validates
+ownership/transfers only; full-scene allocation/remapping/replay is still pending.
+See [owned-eye resource scope](vr-eye-vulkan-resources.md).
+
+Commit 88080734 also reapplied cleanly onto the recorded upstream base in an
+isolated source-only worktree. This does not certify compatibility with later
+upstream versions or enable release readiness.
+The native smoke additionally uploads two authored full eye-camera uniform payloads
+and verifies all 2048 returned bytes. The original CPU payload remains unchanged,
+including unknown fields outside the reviewed matrix region. This is synthetic
+input, not a measured game calibration and not proof of shader-wide patch safety.

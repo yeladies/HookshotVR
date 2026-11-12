@@ -9,10 +9,11 @@ No new headset test is required for the completed diagnostics below.
 - Paired isolated host/renderer builds, ABI 18, reviewed game ID and source/binary receipts.
 - Source-submission camera snapshots with guarded live host refresh and expiry/identity rejection.
 - Conservative emitted-command image/storage-range lineage; present-slice analysis and alias closure.
-- Image inventory/reference budgets and a pure per-eye buffer address layout, not live Vulkan eye allocations.
+- Image inventory/reference budgets and a pure per-eye buffer address layout.
+- Standalone bounded Vulkan eye resource owner; native 32x32 image/buffer readback passes on RTX 2060 SUPER. The game does not yet allocate its scene inventory through it.
 - Private eight-view uniform audit and representative SPIR-V read-footprint audit.
 - Validated CPU-only full-payload eye uniform copies, retaining every unknown byte.
-- 58 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 59 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
 under ignored work directories. Only original source, tests and documentation belong

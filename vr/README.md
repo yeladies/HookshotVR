@@ -84,3 +84,7 @@ prepare per-eye isolation. These remain diagnostic and do not render native game
 
 The optional [SPIR-V uniform audit](../docs/vr-shader-uniform-audit.md) checks representative
 shader reads of source-checked camera bindings; modules remain private and unchanged.
+
+The [standalone owned-eye Vulkan experiment](../docs/vr-eye-vulkan-resources.md)
+checks independent allocations and transfer/fence lifetime without a game or XR
+session. It is not connected to the game's stereo replay path.
