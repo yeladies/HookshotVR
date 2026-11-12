@@ -25,12 +25,12 @@ against the stable installation, use hardlinks for mutable data, or point test s
 2. **Session and graphics negotiation (basic live test passed):** the standalone Vulkan marker
    scene displayed in Quest 3 and returned valid head/controller poses. Full Hookshot graphics
    feature compatibility and exhaustive fault handling remain pending; see `vr-validation.md`.
-3. **Isolated flat baseline (build/menu validated):** the audited source compiled and reached
-   the main menu in a private headless run. Stable file hashes remain unchanged. Gameplay and
-   save compatibility remain pending; see `vr-game-build.md` and `vr-validation.md`. The build
+3. **Isolated flat baseline (build/menu/save-load validated):** the audited source compiled and reached
+   the main menu and a 3D scene from a private save snapshot. Stable file hashes remain unchanged. Full gameplay and
+   broader save compatibility remain pending; see `vr-game-build.md` and `vr-validation.md`. The build
    avoids duplicating RomFS and uses matched experimental executable/renderer binaries.
-4. **Head-tracked stereo:** drive the main gameplay view from an XR origin, independent head pose
-   and per-eye pose/projection. Render both eyes from one simulation tick, with isolated targets.
+4. **Head-tracked stereo (camera math tested; integration pending):** drive the main gameplay view from an XR origin, independent head pose
+   and per-eye pose/projection. See `vr-camera-integration.md`. Render both eyes from one simulation tick, with isolated targets.
 5. **Player integration:** room-scale/body synchronization through real collision handling,
    calibrated world scale, child/adult eye heights, head/body separation and explicit transitions.
 6. **Hands and interaction:** controller actions, hand/weapon poses and physical aiming; find the

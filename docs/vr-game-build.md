@@ -27,7 +27,7 @@ Disk checks are conservative gates, not a prediction of peak use; monitor free s
 `vr/run-game.ps1` prepares `work/game-run` with the matching local executable/renderer and required
 local inputs, private saves/options/caches, an explicit read-only RomFS path and update checks off.
 It defaults to a muted headless 60-second smoke run, with memory/disk guards, rather than changing
-the desktop display. Use `-Window` only for a later visible test. It does not copy stable saves or
+the desktop display. Use `-Window` only for a later visible test. By default it does not copy stable saves or
 native program caches. A timeout deliberately stops only the experimental process; a smoke run
 is not proof of gameplay or save compatibility. No game-derived output is published.
 
@@ -55,3 +55,20 @@ stamps differ. Private initial options select low quality and disable fullscreen
 existing experimental options are preserved. Resource-limit termination returns 124, and an observed
 nonzero early process exit returns 1. A deliberate time limit is reported separately in JSON and
 always leaves `gameplay_verified` false.
+
+## Test with existing progress
+
+`-SnapshotStableSaves` opts into reading `user/save` from the installation and copying it to a new,
+unique experimental user directory. The runner verifies copied file hashes before launch and
+passes only this new directory as `--user`. It never writes a snapshot back to the installation
+and never overwrites an earlier snapshot. Save files and snapshot paths remain local.
+
+The runner also creates a fresh private `work/game-run/input-live.txt`. Append newline-terminated
+entries using the upstream `HOS_INPUT_LIVE` syntax, for example `0:A/150`, after observing the current
+screen. Timings are relative to the moment each appended line is read; cold shader stalls and menu
+animations make a single fixed startup sequence unreliable. Inputs run in the background and are
+sent through the game's own test interface, not global keyboard/mouse events. The wrapper clears
+inherited startup scripts/frame-clock overrides, and still bounds the process lifetime/resources.
+
+A loaded scene is evidence of one local save loading, not a complete compatibility or gameplay test.
+The JSON deliberately keeps `gameplay_verified=false`; record observed actions separately.

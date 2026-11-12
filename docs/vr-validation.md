@@ -107,3 +107,24 @@ Gameplay, save compatibility and stereo game rendering remain unverified. The st
 scene and this flat game build are still separate. Next validate a private gameplay session, then
 integrate runtime-selected Vulkan device negotiation and per-eye camera/projection without replaying
 simulation or write-producing GPU work twice. Raw logs, captures, binaries and caches stay local.
+
+## Private save-load and input follow-up — 2026-11-12
+
+The runner now offers an explicit stable-save snapshot option. Each run makes a new private user
+folder, verifies copied file hashes, and passes that folder to the game; original saves are never
+passed as writable runtime paths. The mounted save path in the local log confirmed this separation.
+
+A bounded 240-second headless run loaded a copied save into Dodongo's Cavern. Captures showed the
+3D scene, Link and HUD. A second 140-second run loaded a fresh snapshot and accepted live scripted
+left-stick movement and right-stick camera input. Inspected captures showed displacement and a
+changed view. This is a narrow load/input/render smoke, not a complete gameplay or save-compatibility
+assessment. The runner retains `gameplay_verified=false` rather than automatically certifying play.
+Both runs ended at their intended time limit. Peak sampled working sets were 6,924 and 6,771 MiB.
+Selected five-second gameplay intervals in the second run reported roughly 37–42 fps, with cold
+shader stalls also observed. This is flat headless output, not headset performance or a VR budget.
+
+The 19 inventoried stable files retained their original SHA-256 hashes. Logs, snapshots and captures
+remain local under ignored work folders. A separate synthetic `vr_camera_math` test now covers
+translation/recenter/scale, yaw/pitch/roll, stereo eye offset and invalid samples; all three standalone
+VR CTest targets pass locally. This math is not yet connected to the game's camera or renderer; see
+[camera integration](vr-camera-integration.md) for the exact boundary and next gates.

@@ -3,7 +3,8 @@ param(
     [ValidateRange(5, 300)][int]$Seconds = 60,
     [ValidateRange(4, 14)][int]$MaximumWorkingSetGiB = 11,
     [switch]$Window,
-    [switch]$PrepareAllShaders
+    [switch]$PrepareAllShaders,
+    [switch]$SnapshotStableSaves
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
@@ -50,7 +51,32 @@ foreach ($name in @('hookshot_shaders.bin', 'hookshot_computes.bin', 'language.t
         Copy-Item -LiteralPath $source -Destination $target
     }
 }
-# No stable saves, native shader-program caches, settings or launcher are copied.
+# Stable saves are read only when explicitly requested; each snapshot is a fresh private copy.
+$userRoot = Join-Path $runRoot 'user'
+if ($SnapshotStableSaves) {
+    $sourceSaves = Join-Path $InstallationRoot 'user/save'
+    if (!(Test-Path -LiteralPath $sourceSaves -PathType Container)) { throw 'Stable save directory is missing.' }
+    $sourceEntries = @(Get-Item -LiteralPath $sourceSaves -Force) + @(Get-ChildItem -LiteralPath $sourceSaves -Recurse -Force)
+    if (@($sourceEntries | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) {
+        throw 'Save snapshot source must not contain links.'
+    }
+    $userRoot = Join-Path $runRoot ('user-snapshot-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $userRoot | Out-Null
+    Copy-Item -LiteralPath $sourceSaves -Destination $userRoot -Recurse
+    foreach ($original in @($sourceEntries | Where-Object { !$_.PSIsContainer })) {
+        $relative = $original.FullName.Substring($sourceSaves.Length).TrimStart('\','/')
+        $copy = Join-Path (Join-Path $userRoot 'save') $relative
+        if ((Get-FileHash -LiteralPath $original.FullName).Hash -ne (Get-FileHash -LiteralPath $copy).Hash) {
+            throw 'Save snapshot verification failed; game not launched.'
+        }
+    }
+}
+# No native shader-program caches, stable settings or launcher are copied.
+$env:HOS_INPUT_LIVE = Join-Path $runRoot 'input-live.txt'
+[IO.File]::WriteAllText($env:HOS_INPUT_LIVE, '')
+$env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
+Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
+Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
 $env:RX_BACKEND = 'vulkan'
 $env:HOS_HEADLESS = $(if ($Window) { '0' } else { '1' })
 $env:HOS_WINDOW_NOACTIVATE = '1'
@@ -76,7 +102,7 @@ $env:RX_VK_SHOT_EVERY = '120'
 $exe = Join-Path $runRoot 'bin/hookshot.exe'
 $argsForGame = @(('"' + (Join-Path $runRoot 'image.bin') + '"'), '--romfs',
                  ('"' + (Join-Path $InstallationRoot 'romfs') + '"'), '--user',
-                 ('"' + (Join-Path $runRoot 'user') + '"'))
+                 ('"' + $userRoot + '"'))
 $p = Start-Process -FilePath $exe -ArgumentList $argsForGame -WorkingDirectory $runRoot -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $runRoot 'stdout.txt') -RedirectStandardError (Join-Path $runRoot 'stderr.txt')
 try { $p.PriorityClass = 'BelowNormal' } catch { }
@@ -95,6 +121,6 @@ try {
     if (!$p.HasExited) { Stop-Process -Id $p.Id -Force; $p.WaitForExit() }
 }
 [ordered]@{ reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
-             headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
+             user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }

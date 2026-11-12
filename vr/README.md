@@ -53,3 +53,6 @@ See [the flat baseline procedure](../docs/vr-game-build.md) for `build-game.ps1`
 `run-game.ps1`. These use a private work/runtime root and keep the stable installation as
 read-only input. Future physical interaction research uses the saved
 [reference projects](../docs/vr-reference-projects.md).
+
+See [camera integration](../docs/vr-camera-integration.md) for the tested 6DoF camera math and
+the remaining host/renderer connection. The game does not consume XR poses yet.
