@@ -49,3 +49,5 @@ remain in place. Do not substitute headset motion with mouse or right-stick delt
 body yaw, head roll, runtime eye separation/parallax direction and invalid pose rejection. It uses
 synthetic inputs only. Together with `vr_probe_contract` and `vr_scene_math`, the three native tests
 passed locally on Windows. They do not establish working in-game VR or accurate physical scale.
+The [renderer device negotiation](vr-renderer-openxr.md) part of gate 2 is implemented and locally
+validated. Renderer-owned session/frame/pose integration and all per-eye game rendering gates remain pending.

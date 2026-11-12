@@ -2,9 +2,9 @@ name: VR bootstrap (no game data)
 on:
   push:
     branches: [vr/bootstrap]
-    paths: ['vr/**', '.github/workflows/vr-bootstrap.yml']
+    paths: ['vr/**', 'gpu/vk/vk_xr.*', 'gpu/vk/vk_main.cpp', 'nx2/build.py', '.github/workflows/vr-bootstrap.yml']
   pull_request:
-    paths: ['vr/**', '.github/workflows/vr-bootstrap.yml']
+    paths: ['vr/**', 'gpu/vk/vk_xr.*', 'gpu/vk/vk_main.cpp', 'nx2/build.py', '.github/workflows/vr-bootstrap.yml']
   workflow_dispatch:
 permissions:
   contents: read

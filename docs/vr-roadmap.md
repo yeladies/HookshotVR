@@ -24,7 +24,8 @@ against the stable installation, use hardlinks for mutable data, or point test s
    Actual runtime results are local evidence, not committed personal machine reports.
 2. **Session and graphics negotiation (basic live test passed):** the standalone Vulkan marker
    scene displayed in Quest 3 and returned valid head/controller poses. Full Hookshot graphics
-   feature compatibility and exhaustive fault handling remain pending; see `vr-validation.md`.
+   feature compatibility and exhaustive fault handling remain pending. The production renderer now also
+   negotiates its Vulkan device through OpenXR on explicit opt-in; see `vr-renderer-openxr.md`.
 3. **Isolated flat baseline (build/menu/save-load validated):** the audited source compiled and reached
    the main menu and a 3D scene from a private save snapshot. Stable file hashes remain unchanged. Full gameplay and
    broader save compatibility remain pending; see `vr-game-build.md` and `vr-validation.md`. The build

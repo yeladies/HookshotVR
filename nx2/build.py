@@ -943,6 +943,16 @@ def main():
             "-I" + os.path.join(spirv_headers, "include"), "-I" + os.path.join(spirv_headers, "include", "spirv", "unified1"),
             "-I" + os.path.join(vk_headers, "include"), "-I" + os.path.join(vma_headers, "include"),
             "-I" + vk, "-I" + gen_dir]
+        # OpenXR is an explicit local SDK build option, isolated to its adapter object.
+        xr_sdk = os.environ.get("HOOKSHOT_OPENXR_SDK", "")
+        xr_flags, xr_deps = [], b""
+        if xr_sdk:
+            xr_include = os.path.join(os.path.abspath(xr_sdk), "include")
+            if not os.path.isfile(os.path.join(xr_include, "openxr", "openxr_platform.h")):
+                raise RuntimeError("HOOKSHOT_OPENXR_SDK lacks include/openxr/openxr_platform.h")
+            xr_flags = ["-DHOOKSHOT_OPENXR", "-I" + xr_include]
+            xr_deps = tree_headers(xr_include)
+            print("the Vulkan back end: optional OpenXR negotiation (runtime opt-in)", flush=True)
         # (NVIDIA DLSS, a local build's option: scripts/ngx_sdk.py. Only vk_dlss.cpp sees NVIDIA's headers; without them
         # it is the stubs that say DLSS is not there)
         ngx_flags = ["-DHOOKSHOT_NGX", "-I" + os.path.join(NGX_SDK, "include")] if NGX_SDK else []
@@ -987,10 +997,12 @@ def main():
                             ([stamp_def] if os.path.basename(src) == "vk_menu.cpp" else []) +
                             (ngx_flags if os.path.basename(src) == "vk_dlss.cpp" else []) +
                             (imgui_flags if os.path.basename(src) in imgui_users else []) +
-                            (fsr_flags if os.path.basename(src) == "vk_fsr4.cpp" else []),
+                            (fsr_flags if os.path.basename(src) == "vk_fsr4.cpp" else []) +
+                            (xr_flags if os.path.basename(src) == "vk_xr.cpp" else []),
                             vk_lib_deps if lib else vdeps + (logo_text if os.path.basename(src) == "vk_imgui.cpp" else b"") +
                             (ngx_deps if os.path.basename(src) == "vk_dlss.cpp" else b"") +
-                            (imgui_deps if os.path.basename(src) in imgui_users else b"")))
+                            (imgui_deps if os.path.basename(src) in imgui_users else b"") +
+                            (xr_deps if os.path.basename(src) == "vk_xr.cpp" else b"")))
         if NGX_SDK and not LINUX and toolchain.mingw():
             # (llvm-mingw: NVIDIA's static library was built with Microsoft's compiler for its static runtime (/MT). What it asks
             # of that runtime: the C parts as for the static FFmpeg (host/mingw_msvc_shims.c), the C++ ones in vk_ngx_msvc_rt.cpp)

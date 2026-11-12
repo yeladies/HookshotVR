@@ -56,3 +56,7 @@ read-only input. Future physical interaction research uses the saved
 
 See [camera integration](../docs/vr-camera-integration.md) for the tested 6DoF camera math and
 the remaining host/renderer connection. The game does not consume XR poses yet.
+
+The optional [renderer negotiation adapter](../docs/vr-renderer-openxr.md) now creates the actual
+renderer Vulkan device through OpenXR enable2. It remains opt-in and does not submit game frames
+to the headset. `build-renderer.ps1` rebuilds that component without translating or compiling the game.

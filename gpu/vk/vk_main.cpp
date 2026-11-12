@@ -21,6 +21,7 @@
 #include "gpu_choice.h"
 #include "vk_menu.h"
 #include "vk_dlss.h"
+#include "vk_xr.h"
 #include "vk_fsr4.h"
 #include "vk_reflex.h"
 #include "vk_antilag.h"
@@ -145,7 +146,8 @@ bool create_instance() {
     // RX_VK_VALIDATION=1: the Khronos validation layer (when installed)
     const char* layer = "VK_LAYER_KHRONOS_validation";
     if (env_on("RX_VK_VALIDATION")) ci.enabledLayerCount = 1, ci.ppEnabledLayerNames = &layer;
-    if (vkCreateInstance(&ci, nullptr, &dev.instance) != VK_SUCCESS) {
+    if (xr_vulkan_active() ? !xr_vulkan_instance(vkx::instance_proc_addr(), ci, &dev.instance) :
+        vkCreateInstance(&ci, nullptr, &dev.instance) != VK_SUCCESS) {
         logf("vk: vkCreateInstance failed");
         return false;
     }
@@ -211,6 +213,14 @@ bool pick_device() {
             if (score > best_score || (score == best_score && p.driverVersion > best_driver))
                 best = (int)i, best_score = score, best_driver = p.driverVersion;
         }
+    }
+    if (xr_vulkan_active()) {
+        VkPhysicalDevice required = VK_NULL_HANDLE;
+        if (!xr_vulkan_physical(dev.instance, &required)) return false;
+        best = -1;
+        for (uint32_t i : valid_gpus) if (all[i] == required) best = int(i);
+        if (best < 0) { logf("xr: runtime-selected GPU is not an available Vulkan 1.3 device"); return false; }
+        logf("xr: runtime-selected device %d overrides desktop GPU preference", best);
     }
     if (best < 0) {
         logf("vk: no Vulkan 1.3 GPU");
@@ -487,7 +497,8 @@ bool create_device() {
     ci.pQueueCreateInfos = qs;
     ci.enabledExtensionCount = (uint32_t)want.size();
     ci.ppEnabledExtensionNames = want.data();
-    if (vkCreateDevice(dev.physical, &ci, nullptr, &dev.device) != VK_SUCCESS) {
+    if (xr_vulkan_active() ? !xr_vulkan_device(vkx::instance_proc_addr(), dev.physical, ci, &dev.device) :
+        vkCreateDevice(dev.physical, &ci, nullptr, &dev.device) != VK_SUCCESS) {
         logf("vk: vkCreateDevice failed");
         return false;
     }
@@ -1324,7 +1335,10 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
         logf("vk: vulkan-1.dll not found");
         return nullptr;
     }
-    if (!create_instance() || !pick_device() || !create_device()) return nullptr;
+    if (!xr_vulkan_prepare(env_on("RX_VK_XR")) || !create_instance() || !pick_device() || !create_device()) {
+        xr_vulkan_reset();
+        return nullptr;
+    }
     logf("vk: %s, Vulkan %u.%u, driver %#x; mesh shaders %s, host memory import %s, pipeline libraries %s",
          dev.props.deviceName, VK_VERSION_MAJOR(dev.props.apiVersion), VK_VERSION_MINOR(dev.props.apiVersion),
          dev.props.driverVersion, dev.mesh_shader ? "yes" : "no", dev.external_memory_host ? "yes" : "no",

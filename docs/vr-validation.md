@@ -128,3 +128,35 @@ remain local under ignored work folders. A separate synthetic `vr_camera_math` t
 translation/recenter/scale, yaw/pitch/roll, stereo eye offset and invalid samples; all three standalone
 VR CTest targets pass locally. This math is not yet connected to the game's camera or renderer; see
 [camera integration](vr-camera-integration.md) for the exact boundary and next gates.
+
+## Renderer negotiation follow-up — 2026-11-12
+
+The production Vulkan renderer now has an explicit SDK build option and runtime opt-in for OpenXR
+device negotiation. Its existing Vulkan instance/device configurations are passed through enable2;
+the runtime-selected physical device overrides the desktop GPU preference. This does not change
+the version-17 host/renderer ABI or enable a session, stereo targets, game poses or frame submission.
+
+The SDK-enabled renderer compiled with zero failed units. An initial monitored smoke hit a log-file
+sharing error in the PowerShell wrapper after negotiation had succeeded; its finally block stopped
+the owned process. The wrapper now reads the live log with read/write sharing. The repeated bounded
+45-second headless smoke reported `xr_device_negotiated=true`, selected the RTX 2060 SUPER and
+continued Vulkan replay to the main menu (capture inspected). Peak sampled working set: 3,097 MiB.
+A subsequent 35-second smoke of the same adapter with XR disabled used Vulkan without XR log markers
+and peaked at 3,097 MiB. Both ended at their deliberate time limit; neither opened an XR session.
+
+All 13 native VR CTest cases pass locally, including the production adapter against synthetic loader
+errors and the no-SDK stub. The Windows renderer build also links successfully with the official
+shared loader loaded by an explicit path; driver/runtime version changes remain separate variables.
+The full inherited suite with the MinGW tools on PATH completed **356 passed, 5 failed, 59 skipped**
+in 313 seconds. All five failures reproduced with the same symptoms on a separate source-only archive
+of unchanged upstream `940eb9ef34134913d2bc2a7b3ed5cb3caea58ef3`:
+
+- `test_fpx_sticky`: the fixture compiler cannot find the C++ `algorithm` header.
+- Two Builder fixtures: .NET 8 reference/host packs unavailable to their restore/run configuration.
+- `test_nup_paths`: Windows does not grant the fixture's symlink creation privilege.
+- `test_vram_budget_row`: an existing unused-constant warning is treated as a compile error.
+
+No inherited tests were weakened or edited. The 59 skips still limit coverage; this is not a fully
+green upstream suite. The 19 inventoried stable installation files retained their SHA-256 hashes,
+and no game test process remained after the bounded runs. Raw logs and all build/game-derived output
+remain local. See [renderer negotiation](vr-renderer-openxr.md) for commands and the next boundary.

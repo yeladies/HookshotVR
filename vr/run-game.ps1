@@ -4,9 +4,18 @@ param(
     [ValidateRange(4, 14)][int]$MaximumWorkingSetGiB = 11,
     [switch]$Window,
     [switch]$PrepareAllShaders,
-    [switch]$SnapshotStableSaves
+    [switch]$SnapshotStableSaves,
+    [switch]$ExperimentalXrRenderer,
+    [switch]$XrNegotiation,
+    [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+function Read-ExperimentalLog {
+    $stream = [IO.File]::Open((Join-Path $runRoot 'stderr.txt'), [IO.FileMode]::Open,
+                              [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+    $reader = [IO.StreamReader]::new($stream)
+    try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
+}
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $InstallationRoot = (Resolve-Path -LiteralPath $InstallationRoot).Path
 $buildRoot = Join-Path $projectRoot 'work/game-build/sa/build'
@@ -19,6 +28,14 @@ foreach ($candidate in @((Join-Path $projectRoot 'work'), $runRoot, (Join-Path $
         ((Get-Item -LiteralPath $candidate -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
         throw "Runtime directory must not be a link: $candidate"
     }
+}
+$xrRenderer = Join-Path $projectRoot 'work/renderer-build/sa/build/hookshot_vk.dll'
+if (($ExperimentalXrRenderer -or $XrNegotiation) -and !(Test-Path -LiteralPath $xrRenderer -PathType Leaf)) {
+    throw 'Build the experimental renderer before requesting it.'
+}
+if ($XrNegotiation) {
+    if (!$OpenXRLoader) { $OpenXRLoader = Join-Path $projectRoot 'work/vr-loader/openxr-sdk/src/loader/libopenxr_loader.dll' }
+    $OpenXRLoader = (Resolve-Path -LiteralPath $OpenXRLoader).Path
 }
 $image = Join-Path $projectRoot 'work/game-build/sa/image/image.bin'
 foreach ($inputFile in @((Join-Path $buildRoot 'hookshot.exe'), (Join-Path $buildRoot 'hookshot_vk.dll'),
@@ -33,6 +50,9 @@ New-Item -ItemType Directory -Path $runRoot, (Join-Path $runRoot 'bin'), (Join-P
 Copy-Item -LiteralPath (Join-Path $buildRoot 'hookshot.exe') -Destination (Join-Path $runRoot 'bin/hookshot.exe')
 Get-ChildItem -LiteralPath $buildRoot -Filter '*.dll' -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $runRoot 'bin')
+}
+if ($ExperimentalXrRenderer -or $XrNegotiation) {
+    Copy-Item -LiteralPath $xrRenderer -Destination (Join-Path $runRoot 'bin/hookshot_vk.dll')
 }
 # A source checkout does not contain the Builder bundle's prebuilt SDL dependencies.
 foreach ($name in @('SDL2.dll', 'SDL3.dll')) {
@@ -77,6 +97,8 @@ $env:HOS_INPUT_LIVE = Join-Path $runRoot 'input-live.txt'
 $env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
 Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
+$env:RX_VK_XR = $(if ($XrNegotiation) { '1' } else { '0' })
+if ($XrNegotiation) { $env:HOOKSHOT_OPENXR_LOADER = $OpenXRLoader } else { Remove-Item Env:HOOKSHOT_OPENXR_LOADER -ErrorAction SilentlyContinue }
 $env:RX_BACKEND = 'vulkan'
 $env:HOS_HEADLESS = $(if ($Window) { '0' } else { '1' })
 $env:HOS_WINDOW_NOACTIVATE = '1'
@@ -108,9 +130,17 @@ $p = Start-Process -FilePath $exe -ArgumentList $argsForGame -WorkingDirectory $
 try { $p.PriorityClass = 'BelowNormal' } catch { }
 $reason = 'time_limit'
 $peakMB = 0
+$xrNegotiated = $false
 try {
     for ($elapsed = 0; $elapsed -lt $Seconds; $elapsed += 2) {
         if ($p.WaitForExit(2000)) { $reason = 'process_exited'; break }
+        if ($XrNegotiation -and !$xrNegotiated) {
+            $log = Read-ExperimentalLog
+            $xrNegotiated = $log.Contains('xr: renderer Vulkan device negotiated')
+            if (!$xrNegotiated -and ($log.Contains('rx: the Vulkan back end did not start') -or $log.Contains('rx: renderer: WebGPU'))) {
+                $reason = 'xr_negotiation_failed'; break
+            }
+        }
         $p.Refresh()
         $mb = [int]($p.WorkingSet64 / 1MB)
         $peakMB = [math]::Max($peakMB, $mb)
@@ -120,7 +150,14 @@ try {
 } finally {
     if (!$p.HasExited) { Stop-Process -Id $p.Id -Force; $p.WaitForExit() }
 }
-[ordered]@{ reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+if ($XrNegotiation -and !$xrNegotiated) {
+    $log = Read-ExperimentalLog
+    $xrNegotiated = $log.Contains('xr: renderer Vulkan device negotiated')
+    if (!$xrNegotiated -and $reason -eq 'time_limit') { $reason = 'xr_negotiation_unverified' }
+}
+[ordered]@{ experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
+
+if ($XrNegotiation -and !$xrNegotiated) { exit 1 }
