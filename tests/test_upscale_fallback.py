@@ -101,6 +101,8 @@ struct Texture {
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT;
 };
 Texture src, dst;
+unsigned lineage_pairs=0;
+void lineage_pair(uint64_t key,const Texture* in,const Texture* out){assert(key&&in==&src&&out==&dst);++lineage_pairs;}
 nvn_tex source, destination;
 bool override_view = false, movie = false, pipeline_ok = true;
 bool missing_storage = false, missing_sample = false, missing_linear = false;
@@ -273,7 +275,8 @@ def main():
         tmp = Path(tmp)
         source = tmp / 'check.cpp'
         exe = tmp / ('check.exe' if os.name == 'nt' else 'check')
-        source.write_text(PREFIX + body + SUFFIX, encoding='utf-8')
+        suffix = SUFFIX.replace('    printf("PASS:', ('    assert(lineage_pairs == 1);\n' if 'lineage_pair(' in body else '') + '    printf("PASS:')
+        source.write_text(PREFIX + body + suffix, encoding='utf-8')
         if Path(args.cxx).name.lower() in ('cl', 'cl.exe', 'clang-cl', 'clang-cl.exe'):
             command = [args.cxx, '/nologo', '/std:c++20', "/FI" + ENV_ON_H, '/EHsc', '/UNDEBUG', str(source),
                        '/Fo' + str(tmp / 'check.obj'), '/Fe' + str(exe)]

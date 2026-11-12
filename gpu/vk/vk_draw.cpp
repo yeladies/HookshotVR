@@ -7,6 +7,7 @@
 //
 // Pipelines persist in a VkPipelineCache next to the executable (mkw_vk_pipelines.bin).
 #include "xr_scene_camera.h"
+#include "xr_image_lineage.h"
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
@@ -2801,6 +2802,16 @@ struct DescWriter {
 };
 TLS_OBJECT(dw, DescWriter)
 TLS_OBJECT(draw_sampled, std::vector<const Texture*>)   // (the textures the descriptors being built sample or store)
+void lineage_resource(const Texture* texture) {
+    if(!xr_image_lineage_enabled()||!texture)return;
+    const ImageResourceDescription description{texture->id,texture->bytes,uint32_t(texture->format),texture->width,texture->height,texture->depth,
+        texture->levels,texture->layers,uint32_t(texture->samples),uint32_t(texture->aspect),uint32_t(texture->type),texture->sparse};
+    xr_image_lineage_resource(texture_frame_no(),description);
+}
+TLS_OBJECT(lineage_buffers, std::vector<BufferUse>)
+TLS_OBJECT(gfx_lineage_buffers, std::vector<BufferUse>)
+TLS_OBJECT(lineage_writes, std::vector<uint64_t>)
+TLS_OBJECT(gfx_lineage_writes, std::vector<uint64_t>)
 TLS_OBJECT(gfx_sampled, std::vector<const Texture*>)    // (the last draw's: kept while its descriptors are reused)
 
 /// Fills dw with the program's descriptors for the bound state (bindings in Eden's order). Storage the program
@@ -3005,6 +3016,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
     desc_samp_seen = sampler_registrations_generation();   // (so one registered during the build still forces the next rebuild)
     desc_destroy_seen = texture_destroy_generation();      // (an eviction retires views behind the slots' backs: it bumps only this)
     draw_sampled().clear();
+    lineage_writes().clear();lineage_buffers().clear();
     dump_written().clear();
     dump_inputs().clear();
     size_t nbuf = 0, nimg = 0, nview = 0;
@@ -3251,6 +3263,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                              "%#llx%s", (unsigned long long)p.key, ns, (unsigned)d.cbuf_index, off,
                              (unsigned long long)addr, (unsigned long long)size, d.is_written ? " (written)" : "");
                 }
+                if(xr_image_lineage_enabled()&&b)lineage_buffers().push_back({{(uint64_t)b.buffer,b.offset,n},bool(d.is_written)});
                 dw().bufs.push_back(b ? VkDescriptorBufferInfo{b.buffer, b.offset, n}
                                     : VkDescriptorBufferInfo{dev.null_descriptor ? VK_NULL_HANDLE : zero_buffer, 0,
                                                              dev.null_descriptor ? VK_WHOLE_SIZE : 16});
@@ -3363,6 +3376,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 VkImageView view = handle ? texture_view_of(handle, vt, ViewUse::Storage, image_format(d.format), &tex, &level)
                                           : VK_NULL_HANDLE;
                 if (view && tex && d.is_written) { ParLock lk; texture_written(tex, "a storage image of a draw"); }
+                if (xr_image_lineage_enabled() && view && tex && d.is_written) {lineage_writes().push_back(tex->id);lineage_resource(tex);}
                 if (view && tex) draw_sampled().push_back(tex);
                 if (log_img_wanted(p.key)) {
                     static std::atomic<int> told{0};
@@ -6293,6 +6307,31 @@ void mask_stabilize(VkCommandBuffer cmd, Texture* tex, uint32_t level, uint32_t 
     if (told++ == 0) logf("vk: tree-shadow mask blend on #%u %ux%u, weight %.2f", tex->id, w, h, weight);
 }
 
+// Observe only emitted commands. Reads are whole rendered images; buffers remain opaque.
+ImageWork lineage_work(const Program& p,const Targets* targets,bool seed,bool graphics) {
+    ImageWork work{};work.program=p.key;work.camera_seed=seed;
+    work.kind=graphics?ImageWorkKind::Graphics:ImageWorkKind::Compute;
+    for(const auto& stage:p.stages)work.opaque_buffers|=stage.info.uses_global_memory||!stage.info.storage_buffers_descriptors.empty()||
+        !stage.info.texture_buffer_descriptors.empty()||!stage.info.image_buffer_descriptors.empty();
+    const auto& sampled=graphics?gfx_sampled():draw_sampled();
+    for(const auto* texture:sampled)if(texture)work.reads.push_back(texture->id);
+    work.writes=graphics?gfx_lineage_writes():lineage_writes();
+    work.buffers=graphics?gfx_lineage_buffers():lineage_buffers();
+    if(targets){work.width=targets->width;work.height=targets->height;
+        for(int i=0;i<targets->n;++i)if(targets->color[i]){work.writes.push_back(targets->color[i]->id);lineage_resource(targets->color[i]);}
+        if(targets->depth){work.writes.push_back(targets->depth->id);lineage_resource(targets->depth);}}
+    return work;
+}
+void lineage_note(const Program& p,const Targets* targets,bool seed,bool graphics) {
+    if(xr_image_lineage_enabled())xr_image_lineage_work(texture_frame_no(),lineage_work(p,targets,seed,graphics));
+}
+void lineage_pair(uint64_t key,const Texture* in,const Texture* out) {
+    if(!xr_image_lineage_enabled()||!in||!out)return;
+    ImageWork work{};work.program=key;work.kind=ImageWorkKind::Replacement;work.opaque_buffers=true;
+    lineage_resource(in);lineage_resource(out);
+    work.reads={in->id};work.writes={out->id};work.width=out->width;work.height=out->height;
+    xr_image_lineage_work(texture_frame_no(),std::move(work));
+}
 void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     PROF_HOT(PROF_DRAW);
     FINE_N(FC_DRAWS, 1);
@@ -6330,6 +6369,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                               program_code_keys(s).c_str());
         SKIP_HERE();
     }
+    bool vr_camera_seed=false;
     // Read-only VR provenance: vertex c3 with submission overlays, never live host memory.
     if (xr_scene_capture_enabled() && at.n && at.color[0] && at.depth &&
         at.color[0]->format == VK_FORMAT_B10G11R11_UFLOAT_PACK32 && s.ubo[0][0].size >= 0x230) {
@@ -6337,7 +6377,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         if (ub_read(s.ubo[0][0].addr, camera_block, sizeof camera_block)) {
             const SceneCameraEvidence evidence{texture_frame_no(), cp->key, at.color[0]->id, at.depth->id,
                                                 s.ubo[0][0].addr, at.width, at.height};
-            xr_scene_camera_observation(evidence, camera_block, sizeof camera_block / sizeof(float));
+            vr_camera_seed=xr_scene_camera_observation(evidence, camera_block, sizeof camera_block / sizeof(float));
         }
     }
     // (ultrawide's menu sides: the world's lighting composite was asked for, even if a skip or a pipeline not yet made leaves this
@@ -6575,7 +6615,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     if (dump_on()) log_dump_draw(s, p, d);
     PROF_HOT(PROF_CMDS);
     texture_watch_prog(p.key);
-    if (!same_desc) gfx_sampled() = draw_sampled();
+    if (!same_desc) { gfx_sampled() = draw_sampled(); gfx_lineage_writes()=lineage_writes(); gfx_lineage_buffers()=lineage_buffers(); }
     static const bool barrier_every = env_on("RX_VK_BARRIER_EVERY_DRAW");   // (an experiment: a pass each)
     if (barrier_every) end_pass(cmd);
     reactive_scene_draw(cmd, p, s, at);
@@ -6764,6 +6804,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
             vkCmdDrawIndirect(cmd, fallback_draw_records, 0, 1, sizeof(VkDrawIndirectCommand));   // (its count: the records taken)
             st_mesh++;
             st_draws++, pass().draws++;
+            lineage_note(p,&at,vr_camera_seed,true);
             return;
         }
         {   // (amd-fix, diagnosis) RX_VK_LOG_MESH_PROGS=1: each mesh program's first draw and every 600th, with what its
@@ -6829,6 +6870,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                 mesh_conv_buf = VK_NULL_HANDLE;
                 st_mesh++;
                 st_draws++, pass().draws++;
+                lineage_note(p,&at,vr_camera_seed,true);
                 return;
             }
             if (d.max < 0 || d.stride < 0) SKIP_HERE();   // (hookshot: the game's ints; a negative count was ~4e9 draws)
@@ -6860,6 +6902,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         }
         st_mesh++;
         st_draws++, pass().draws++;
+        lineage_note(p,&at,vr_camera_seed,true);
         return;
     }
     // vertex streams (from their pools, strides dynamic) and the zero stream
@@ -6950,6 +6993,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         vkCmdDrawIndexed(cmd, quads * 6, (uint32_t)std::max(1, d.instances), 0, d.indexed ? d.base_vertex : 0,
                          (uint32_t)d.base_instance);
         st_draws++, pass().draws++;
+        lineage_note(p,&at,vr_camera_seed,true);
         return;
     }
     if (d.indirect) {
@@ -6987,6 +7031,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         vkCmdDraw(cmd, (uint32_t)d.count, (uint32_t)std::max(1, d.instances), (uint32_t)d.first, (uint32_t)d.base_instance);
     }
     st_draws++, pass().draws++;
+    lineage_note(p,&at,vr_camera_seed,true);
 }
 
 /// A dispatch over 2 ms is logged, 60 times, and only while RX_VK_SLOW_DISPATCH is set. Off, the clock is not read.
@@ -7150,7 +7195,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
     // offers the networks that did translate, and so is FSR 3.1, as fsr3_stand_in. It takes only the scene into the picture;
     // anything else goes on below
     if ((temporal_wanted() || temporal_off() || fsr3_inputs::wanted()) && temporal_rejected_network(cmd, key, src, &in, dst, &out))
-        return true;
+        return (lineage_pair(key,src,dst),true);
     VkFormatProperties fs{}, fd{};
     vkGetPhysicalDeviceFormatProperties(dev.physical, src->format, &fs);
     vkGetPhysicalDeviceFormatProperties(dev.physical, dst->format, &fd);
@@ -7165,7 +7210,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
         static std::atomic<bool> logged_movie_upscale{false};
         if (!logged_movie_upscale.exchange(true, std::memory_order_relaxed))
             logf("vk: movie upscaling uses the linear compute path");
-        return true;
+        return (lineage_pair(key,src,dst),true);
     }
     // Failed upscales can receive RGB9E5 bits in a shared R11 image, including the 75% gameplay TAAU.
     // Match the observed base-level 2D case only; other fallbacks keep their existing blit.
@@ -7201,7 +7246,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
                     if (!logged_gameplay_upscale.exchange(true, std::memory_order_relaxed))
                         logf("vk: gameplay RGB9E5 upscale uses the typed fallback");
                 }
-                return true;
+                return (lineage_pair(key,src,dst),true);
             }
         }
     }
@@ -7231,7 +7276,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
              "into %#llx %ux%u (vk %d)", (unsigned long long)key, (unsigned long long)in.gpu, in.d.width, in.d.height,
              (int)src->format, (unsigned long long)out.gpu, out.d.width, out.d.height, (int)dst->format);
     (void)in_h, (void)out_h;
-    return true;
+    return (lineage_pair(key,src,dst),true);
 }
 
 /// (hookshot) OoT's gameplay TAAU network (fd029a317a9a4b94) stood in for: its input upscaled into its output
@@ -8711,9 +8756,13 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
             logf("%s", line);
         }
     }
-    if (fsr3_stand_in(cmd, s, p)) return void(st_dispatches++);
-    if (temporal_stand_in(cmd, s, p)) return void(st_dispatches++);
-    if (taau_stand_in(cmd, s, p)) return void(st_dispatches++);
+    // Freeze resolved image identities before stand-ins change descriptor state internally.
+    ImageWork lineage_replacement;
+    if(xr_image_lineage_enabled()){lineage_replacement=lineage_work(p,nullptr,false,false);lineage_replacement.kind=ImageWorkKind::Replacement;}
+    auto replaced=[&]{if(xr_image_lineage_enabled())xr_image_lineage_work(texture_frame_no(),std::move(lineage_replacement));++st_dispatches;};
+    if (fsr3_stand_in(cmd, s, p)) return replaced();
+    if (temporal_stand_in(cmd, s, p)) return replaced();
+    if (taau_stand_in(cmd, s, p)) return replaced();
     if (!p.compute_pipeline) SKIP_HERE();
     dump_ssbos(cmd, p, "before");
     if (!p.dispatched.exchange(true, std::memory_order_relaxed)) compute_note(p.key);
@@ -8799,6 +8848,7 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
         gprof_end(cmd, label);
     }
     st_dispatches++;
+    lineage_note(p,nullptr,false,false);
     if (pass_trace_on())
         trace_line("dispatch %ux%ux%u%s prog %016llx", x, y, z, indirect ? " indirect" : "", (unsigned long long)p.key);
     if (probe_on())

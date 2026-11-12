@@ -11,6 +11,7 @@
 // Without a window (HOS_HEADLESS) presents render into an image of their own; RX_VK_SHOTS=<dir> writes every
 // RX_VK_SHOT_EVERY-th one (default 300) there as a PNG.
 #include "xr_camera_submission.h"
+#include "xr_image_lineage.h"
 #include <algorithm>
 #include <sys/stat.h>
 #include <atomic>
@@ -3124,6 +3125,7 @@ void do_present(const nvn_tex* t, const int crop[4]) {
         Recording& r = begin_recording(value);
         memory_begin_submission();
         Texture* tex = t ? texture_for_present(t) : nullptr;
+        xr_image_lineage_present(texture_frame_no(),tex?tex->id:0);
         static int logged_p;
         if (logged_p++ < 4)
             logf("vk: present texture %#llx %ux%u format %#x: %s", (unsigned long long)(t ? t->gpu : 0),

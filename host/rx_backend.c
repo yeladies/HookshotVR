@@ -3,6 +3,7 @@
    (hookshot_vk.so) beside the executable. Decided at rx_start, before any other rx_* call; a DLL that is missing or finds no usable Vulkan
    device leaves the WebGPU renderer in place (logged). */
 #include "hos.h"
+#include "vr_camera_read.h"
 #include <stdlib.h>
 #include <string.h>
 #define WIN32_LEAN_AND_MEAN
@@ -310,9 +311,10 @@ const char *rx_describe(void) { return vk ? vk->describe() : wgr_describe(); }
 void rx_stats(int64_t *draws, int64_t *skipped, int64_t *pipelines) {
     vk ? vk->stats(draws, skipped, pipelines) : wgr_stats(draws, skipped, pipelines);
 }
-void rx_nvn_submit(const uint64_t *handles, int n) { vk ? vk->nvn_submit(handles, n) : wgr_nvn_submit(handles, n); }
+static void camera_observe_submit(void);
+void rx_nvn_submit(const uint64_t *handles, int n) { camera_observe_submit();vk ? vk->nvn_submit(handles, n) : wgr_nvn_submit(handles, n); }
 void rx_nvn_submit_q(const uint64_t *handles, int n, uint64_t queue) {
-    if (vk && vk->nvn_submit_q) vk->nvn_submit_q(handles, n, queue);
+    if (vk && vk->nvn_submit_q) {camera_observe_submit();vk->nvn_submit_q(handles, n, queue);}
     else rx_nvn_submit(handles, n);
 }
 uint64_t rx_nvn_fence(void) { return vk ? vk->nvn_fence() : wgr_nvn_fence(); }
@@ -339,8 +341,24 @@ static void camera_observe(MkwVkCameraObservation *sample) {
     vk->camera_observation(sample); /* immutable copy, never a guest pointer */
     ReleaseSRWLockExclusive(&camera_observation_lock);
 }
+static HostVrCameraCache camera_cache;
+static uint64_t camera_uniform_candidates[16];static size_t camera_uniform_candidates_count;
+static SRWLOCK camera_cache_lock=SRWLOCK_INIT;
+static void camera_cache_primary(uint64_t camera,const float* rows,int debug) {
+    AcquireSRWLockExclusive(&camera_cache_lock);host_vr_cache_primary(&camera_cache,camera,rows,debug);
+    if(!camera||debug)camera_uniform_candidates_count=0;
+    ReleaseSRWLockExclusive(&camera_cache_lock);
+}
+static void camera_cache_uniform(uint64_t address,const float* rows) {
+    AcquireSRWLockExclusive(&camera_cache_lock);host_vr_cache_uniform(&camera_cache,address,rows);
+    int found=0;for(size_t i=0;i<camera_uniform_candidates_count;++i)if(camera_uniform_candidates[i]==address)found=1;
+    if(address&&!found){if(camera_uniform_candidates_count==16){memmove(camera_uniform_candidates,camera_uniform_candidates+1,15*sizeof(uint64_t));--camera_uniform_candidates_count;}
+        camera_uniform_candidates[camera_uniform_candidates_count++]=address;}
+    ReleaseSRWLockExclusive(&camera_cache_lock);
+}
 void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3], int debug) {
     MkwVkCameraObservation sample = {0};
+    if(env_on("HOOKSHOT_VR_CAMERA_CAPTURE"))camera_cache_primary(camera,rows,debug);
     sample.flags = MKWVK_CAMERA_PRIMARY | (debug ? MKWVK_CAMERA_DEBUG : 0);
     sample.camera_id = camera;
     memcpy(sample.view, rows, sizeof sample.view);
@@ -354,6 +372,7 @@ static void camera_observe_uniform(uint64_t projection, const float matrix[16]) 
     sample.camera_id = projection - 0x1a8;
     /* The existing, build-guarded jitter hook supplies a uniform-view object, not the camera object. */
     memcpy(sample.view, GP(sample.camera_id), sizeof sample.view);
+    camera_cache_uniform(sample.camera_id,sample.view);
     memcpy(sample.projection, matrix, sizeof sample.projection);
     camera_observe(&sample);
 }
@@ -388,6 +407,55 @@ int hos_dlss_jitter_clip(uint64_t projection, float out[2]) {
     camera_observe_uniform(projection, p);
     extern volatile float hos_wide_ratio;
     return dlss_jitter_clip(p, hos_wide_ratio, (unsigned)frame, (int)sample.phases, (float)sample.width, (float)sample.height, out);
+}
+/* Refresh cached game views at submit boundaries; the matrix-construction hook need not run every frame. */
+static int camera_read_guest(uint64_t address,void* out,size_t bytes,void* context) {
+    (void)context;const uint64_t extent=hos_guest_size();uint8_t* base=hos_guest_base();
+    if(!base||!address||address>=extent||bytes>extent-address)return 0;
+#ifdef _WIN32
+    SIZE_T copied=0;
+    return ReadProcessMemory(GetCurrentProcess(),base+address,out,bytes,&copied)&&copied==bytes;
+#else
+    size_t done=0;
+    while(done<bytes){MEMORY_BASIC_INFORMATION region;const uintptr_t at=(uintptr_t)(base+address+done);
+        if(!VirtualQuery((const void*)at,&region,sizeof region)||region.State!=MEM_COMMIT||
+           (region.Protect&(PAGE_GUARD|PAGE_NOACCESS))||!(region.Protect&(PAGE_READONLY|PAGE_READWRITE|PAGE_WRITECOPY|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE)))return 0;
+        const uintptr_t start=(uintptr_t)region.BaseAddress;
+        if(at<start||at-start>=region.RegionSize)return 0;
+        const size_t available=region.RegionSize-(at-start);done+=available<bytes-done?available:bytes-done;
+    }
+    memcpy(out,base+address,bytes);return 1;
+#endif
+}
+static void camera_observe_submit(void) {
+    if(!env_on("HOOKSHOT_VR_SCENE_CAPTURE")||!env_on("HOOKSHOT_VR_CAMERA_CAPTURE")||!vk||!vk->camera_observation)return;
+    static SRWLOCK refresh_lock=SRWLOCK_INIT;static int64_t last_check;static LONG last_present=-1;
+    AcquireSRWLockExclusive(&refresh_lock);
+    const int64_t now=hos_now_ns();
+    const LONG present=InterlockedCompareExchange(&presents,0,0);
+    if(last_present==present&&last_check&&now>=last_check&&now-last_check<30000000){ReleaseSRWLockExclusive(&refresh_lock);return;}
+    last_check=now;last_present=present;
+    int rx_option(int,int);
+    HostVrPrimary current;
+    if(rx_option(HOS_OPT_CHEAT_CAMERA,0)||!host_vr_primary(camera_read_guest,NULL,&current)) {
+        camera_cache_primary(0,NULL,1);
+        MkwVkCameraObservation invalid={0};invalid.flags=MKWVK_CAMERA_PRIMARY;camera_observe(&invalid);
+        ReleaseSRWLockExclusive(&refresh_lock);return;
+    }
+    rx_xr_camera_view(current.camera,current.rows,current.eye,0);
+    uint64_t candidates[17];size_t candidate_count=0;
+    AcquireSRWLockExclusive(&camera_cache_lock);
+    if(camera_cache.uniform)candidates[candidate_count++]=camera_cache.uniform;
+    for(size_t i=0;i<camera_uniform_candidates_count;++i)if(camera_uniform_candidates[i]!=camera_cache.uniform)candidates[candidate_count++]=camera_uniform_candidates[i];
+    ReleaseSRWLockExclusive(&camera_cache_lock);
+    for(size_t i=0;i<candidate_count;++i){const uint64_t object=candidates[i];
+        MkwVkCameraObservation sample={0};sample.flags=MKWVK_CAMERA_UNIFORM;sample.camera_id=object;
+        if(!camera_read_guest(object,sample.view,sizeof sample.view,NULL)||object>UINT64_MAX-0x1a8||
+           !camera_read_guest(object+0x1a8,sample.projection,sizeof sample.projection,NULL))continue;
+        HostVrCameraCache check={0};host_vr_cache_primary(&check,current.camera,current.rows,0);host_vr_cache_uniform(&check,object,sample.view);
+        if(check.uniform==object)camera_observe(&sample);
+    }
+    ReleaseSRWLockExclusive(&refresh_lock);
 }
 static void forward(const early_call *c) {
     switch (c->kind) {

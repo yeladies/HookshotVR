@@ -65,3 +65,7 @@ The optional [scene-camera diagnostic](vr-scene-camera.md) now compares immutabl
 submitted uniform blocks with the fresh host camera candidate, including VP=P*V.
 This is a read-only prerequisite for main-scene ownership, not a camera override or
 native stereo renderer.
+
+The [private uniform-layout audit](vr-camera-uniform-audit.md) prepares inverse-matrix
+provenance checks across distinct views. A guarded host refresh checks the current
+main-camera chain at submissions; it does not relax expiration or write matrices.

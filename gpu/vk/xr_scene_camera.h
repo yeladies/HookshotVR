@@ -31,5 +31,5 @@ inline SceneCameraMatch match_scene_camera(const float* c,size_t count,const Sce
     return SceneCameraMatch::Match;
 }
 bool xr_scene_capture_enabled();
-void xr_scene_camera_observation(const SceneCameraEvidence&,const float*,size_t);
+bool xr_scene_camera_observation(const SceneCameraEvidence&,const float*,size_t);
 }

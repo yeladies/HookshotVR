@@ -78,3 +78,6 @@ launching unknown game builds or stale/mixed experimental binaries.
 
 [Submitted scene-camera diagnostics](../docs/vr-scene-camera.md) now compare actual
 recorded draw uniforms with the host camera without overriding any matrices.
+
+[Resource lineage](../docs/vr-image-lineage.md) and [private uniform audits](../docs/vr-camera-uniform-audit.md)
+prepare per-eye isolation. These remain diagnostic and do not render native game stereo.

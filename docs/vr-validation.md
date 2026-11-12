@@ -322,3 +322,12 @@ camera binding reserves no timeline values. It then passed against both the modi
 source and the original upstream source. The other five are the previously recorded
 baseline failures. The full suite was not repeated after this fixture-only correction.
 The update-worktree fixtures also passed after their source allowlist was extended.
+
+## Resource lineage, live host refresh and matrix audit (2026-11-12)
+
+See [resource lineage](vr-image-lineage.md) and [private camera audit](vr-camera-uniform-audit.md)
+for the measured captures, limits and field candidates. All 53 VR CTest cases pass.
+The inherited suite remains 357 passed, 5 classified baseline failures, 59 skipped.
+The upscale fallback fixture retains every prior behavior assertion and passes its
+23 cases against both this source and unchanged upstream. No real XR session was
+opened by these diagnostics. Stereo game images and camera writes are still absent.

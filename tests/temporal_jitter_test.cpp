@@ -123,6 +123,7 @@ static void camera_observe(MkwVkCameraObservation* sample) {
     ++camera_observation_calls;camera_observation=*sample;
 }
 #endif
+/* HOST_CAMERA_CACHE_FLAG */
 /* HOST_CAMERA_OBSERVER */
 /* HOST_TRANSPORT */
 
@@ -153,7 +154,19 @@ int main(int argc, char** args) {
         const double eye[3]={2,0,0};rx_xr_camera_view(123,rows,eye,0);
         CHECK(camera_observation_calls==2&&camera_observation.flags==MKWVK_CAMERA_PRIMARY&&camera_observation.camera_id==123);
         CHECK(!std::memcmp(camera_observation.eye,eye,sizeof eye));
+
+#if HOST_CAMERA_CACHE_AVAILABLE
+        CHECK(camera_cache.uniform==0); // A uniform observed before the primary view cannot establish provenance.
+        camera_observe_uniform(address,projection);CHECK(camera_cache.uniform==(uint64_t)(uintptr_t)memory);
+        float other_rows[12];std::memcpy(other_rows,rows,sizeof rows);other_rows[3]+=3;
+        camera_cache_uniform(777,other_rows);CHECK(camera_cache.uniform==(uint64_t)(uintptr_t)memory);
+        for(uint64_t i=0;i<32;++i)camera_cache_uniform(1000+i,other_rows);
+        CHECK(camera_uniform_candidates_count==16&&camera_cache.uniform==(uint64_t)(uintptr_t)memory);
+#endif
         rx_xr_camera_view(123,rows,eye,1);CHECK(camera_observation.flags&MKWVK_CAMERA_DEBUG);
+#if HOST_CAMERA_CACHE_AVAILABLE
+        CHECK(camera_cache.uniform==0&&camera_cache.primary==0&&camera_uniform_candidates_count==0);
+#endif
         CHECK(!std::memcmp(memory,before,sizeof memory)); // Actual production helpers were observational.
         return 0;
     }

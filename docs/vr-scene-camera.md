@@ -58,3 +58,7 @@ and the separate recorder: workers without an explicitly supplied context remain
 unassociated. Async queue support preserves the submit-time snapshot, but has not
 yet had a live-game validation. Benchmark replays do not synthesize a fresh context.
 All future per-eye work must respect these unsupported paths until implemented.
+
+The [frame resource-lineage observer](vr-image-lineage.md) now follows emitted commands
+from the matched camera toward the image presented. It remains a conservative,
+incomplete diagnostic and never enables automatic stereo replay.

@@ -13,10 +13,13 @@ param(
     [switch]$PreviewReadbackTest,
     [switch]$CameraCapture,
     [switch]$SceneCapture,
+    [switch]$ImageLineage,
+    [switch]$CameraUniformAudit,
     [switch]$Audio,
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+if ($ImageLineage -or $CameraUniformAudit) { $SceneCapture = $true }
 if ($SceneCapture) { $CameraCapture = $true }
 if ($LoadTestSave -and !$SnapshotStableSaves) { throw 'Scripted save loading requires a private save snapshot.' }
 function Read-ExperimentalLog {
@@ -123,6 +126,13 @@ $env:HOS_INPUT_SCRIPT_BACKGROUND = '1'
 Remove-Item Env:HOS_INPUT_SCRIPT -ErrorAction SilentlyContinue
 Remove-Item Env:HOS_INPUT_FRAME_CLOCK -ErrorAction SilentlyContinue
 if ($SceneCapture) { $env:RX_VK_PARALLEL = '0'; $env:RX_VK_RECORDER = 'off' }
+if ($CameraUniformAudit) {
+    $env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE = Join-Path $runRoot 'camera-uniform-blocks.jsonl'
+    Remove-Item -LiteralPath $env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath ($env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE + '.armed') -ErrorAction SilentlyContinue
+} else { Remove-Item Env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE -ErrorAction SilentlyContinue }
+$env:HOOKSHOT_VR_IMAGE_LINEAGE = $(if ($ImageLineage) { '1' } else { '0' })
+if ($ImageLineage) { $env:HOOKSHOT_VR_LINEAGE_FILE = Join-Path $runRoot 'image-lineage.json'; Remove-Item -LiteralPath $env:HOOKSHOT_VR_LINEAGE_FILE -ErrorAction SilentlyContinue } else { Remove-Item Env:HOOKSHOT_VR_LINEAGE_FILE -ErrorAction SilentlyContinue }
 $env:HOOKSHOT_VR_SCENE_CAPTURE = $(if ($SceneCapture) { '1' } else { '0' })
 $env:HOOKSHOT_VR_CAMERA_CAPTURE = $(if ($CameraCapture) { '1' } else { '0' })
 $env:RX_VK_XR_PREVIEW = $(if ($XrPreview) { '1' } else { '0' })
@@ -231,7 +241,29 @@ if ($SceneCapture) {
     $submissionObserved = (Read-ExperimentalLog) -match 'vr-submit-camera: candidates [1-9][0-9]*, matched [1-9][0-9]*,'
     if (!$submissionObserved -and $reason -eq 'time_limit') { $reason = 'scene_submission_unverified' }
 }
-[ordered]@{ audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+$lineageVerified = $false
+if ($ImageLineage -and (Test-Path -LiteralPath $env:HOOKSHOT_VR_LINEAGE_FILE -PathType Leaf)) {
+    $summaryPath = Join-Path $runRoot 'image-lineage-summary.json'
+    & $python -I -B (Join-Path $PSScriptRoot 'analyze_lineage.py') $env:HOOKSHOT_VR_LINEAGE_FILE > $summaryPath
+    if ($LASTEXITCODE -eq 0) {
+        $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
+        $lineageVerified = $summary.camera_seed_events_in_slice -gt 0 -and $summary.camera_dependent_events_in_slice -gt 0 -and !$summary.replay_ready
+    }
+}
+if ($ImageLineage -and !$lineageVerified -and $reason -eq 'time_limit') { $reason = 'image_lineage_unverified' }
+$uniformAuditCaptured = $false
+$uniformAuditMultipleViews = $false
+if ($CameraUniformAudit -and (Test-Path -LiteralPath $env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE -PathType Leaf)) {
+    $auditPath = Join-Path $runRoot 'camera-uniform-audit.json'
+    & $python -I -B (Join-Path $PSScriptRoot 'audit_camera_uniforms.py') $env:HOOKSHOT_VR_CAMERA_BLOCKS_FILE > $auditPath
+    if ($LASTEXITCODE -eq 0) {
+        $audit = Get-Content -LiteralPath $auditPath -Raw | ConvertFrom-Json
+        $uniformAuditCaptured = $audit.samples -gt 0 -and !$audit.safe_to_patch
+        $uniformAuditMultipleViews = [bool]$audit.multiple_view_confirmation
+    }
+}
+if ($CameraUniformAudit -and (!$uniformAuditCaptured -or !$uniformAuditMultipleViews) -and $reason -eq 'time_limit') { $reason = 'camera_uniform_audit_unverified' }
+[ordered]@{ camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
@@ -243,3 +275,7 @@ if ($XrSessionProbe -and (!$sessionClosed -or !$sessionValidPoses -or $sessionAp
 if (($XrPreview -and !$previewSubmitted) -or ($PreviewReadbackTest -and !$readbackObserved)) { exit 1 }
 
 if ($SceneCapture -and !$submissionObserved) { exit 1 }
+
+if ($ImageLineage -and !$lineageVerified) { exit 1 }
+
+if ($CameraUniformAudit -and (!$uniformAuditCaptured -or !$uniformAuditMultipleViews)) { exit 1 }
