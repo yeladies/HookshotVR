@@ -81,3 +81,29 @@ Before this retry, the user reported that the desktop monitor had previously bec
 signal and required reconnecting HDMI. The cause is undetermined; this was not described as a
 Windows blue-screen crash. The issue did not recur in this retry according to the user. Do not
 infer that all display/driver failure cases have been resolved. Raw poses and logs remain local.
+
+## Isolated native game build and menu smoke — 2026-11-12
+
+The audited source baseline built locally using the supported private game inputs and Builder
+optimization metadata. The profiled native compile completed in 3,394 seconds with zero failed
+compilation units, then linked a matched game executable and Vulkan renderer. This establishes
+buildability in this Windows toolchain, not a clean inherited test suite or game correctness.
+
+The first 60-second headless smoke was spent preparing shaders. The stable native program cache
+has a different compatibility stamp and was not reused. A second 120-second smoke used the
+renderer-supported on-demand shader mode (`RX_VK_PRECOMPILE=0`), private low-quality options,
+1280x720 game output, muted audio and private user/cache paths. It reached the Spanish main menu;
+the final inspected capture shows the title and New Game/Options entries. More than 6,300 presents
+were logged. The final interval reported about 59.8 fps and zero failed shader programs; these are
+menu observations, not gameplay or VR performance. Cold pipeline compilation caused long stalls.
+Peak sampled process working set was 3,349 MiB; this excludes total system/GPU memory.
+
+The wrapper stopped its own process at the requested time limit; this was not a natural game exit.
+No test game process remained. The 19 previously inventoried stable executable, library, configuration
+and save files still matched their SHA-256 baseline. Application-controlled state stayed under
+ignored experimental work directories; graphics-driver-managed caches may live elsewhere.
+
+Gameplay, save compatibility and stereo game rendering remain unverified. The standalone OpenXR
+scene and this flat game build are still separate. Next validate a private gameplay session, then
+integrate runtime-selected Vulkan device negotiation and per-eye camera/projection without replaying
+simulation or write-producing GPU work twice. Raw logs, captures, binaries and caches stay local.

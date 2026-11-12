@@ -40,3 +40,18 @@ Once the flat baseline has been validated, connect the OpenXR session/device wor
 own Vulkan device creation. Preserve the source's submit-time captures and synchronization.
 Physical mechanics follow later; the saved [reference projects](vr-reference-projects.md) are
 part of that research, not dependencies of the baseline build.
+
+## Observed result and shader startup
+
+The native build and an isolated main-menu smoke passed on 2026-11-12; details and limitations are
+in [validation](vr-validation.md). Full gameplay remains to be checked before treating this as a
+playable baseline. This build is not yet connected to OpenXR.
+
+The runner defaults to the renderer's supported on-demand shader mode. This avoids waiting for the
+entire shader corpus before reaching the menu but can cause severe first-use stalls. Use
+`-PrepareAllShaders` to request upfront preparation; the smoke timeout still applies and may expire
+before preparation finishes. Stable native shader caches must not be copied when compatibility
+stamps differ. Private initial options select low quality and disable fullscreen, HDR and microphone;
+existing experimental options are preserved. Resource-limit termination returns 124, and an observed
+nonzero early process exit returns 1. A deliberate time limit is reported separately in JSON and
+always leaves `gameplay_verified` false.

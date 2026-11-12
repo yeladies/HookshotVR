@@ -2,7 +2,8 @@ param(
     [string]$InstallationRoot = (Join-Path $env:USERPROFILE 'Games/Hookshot'),
     [ValidateRange(5, 300)][int]$Seconds = 60,
     [ValidateRange(4, 14)][int]$MaximumWorkingSetGiB = 11,
-    [switch]$Window
+    [switch]$Window,
+    [switch]$PrepareAllShaders
 )
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
@@ -59,11 +60,16 @@ $env:HOS_DISCORD = '0'
 $env:HOS_OUTPUT_RES = '1280x720'
 $env:HOS_HANDHELD = '1'
 $env:RX_VK_FRAMEGEN = '0'
+$env:RX_VK_PRECOMPILE = $(if ($PrepareAllShaders) { '1' } else { '0' })
 $env:HOOKSHOT_NO_UPDATE_CHECK = '1'
 $env:HOS_MODS = Join-Path $runRoot 'mods'
 $env:HOS_FS_OVERLAY = Join-Path $runRoot 'overlay'
 $env:HOS_ENV_FILE = Join-Path $runRoot 'test_env.txt'
 [IO.File]::WriteAllText($env:HOS_ENV_FILE, '# Isolated flat baseline; process environment controls this run.')
+$options = Join-Path $runRoot 'hookshot_options.ini'
+if (!(Test-Path -LiteralPath $options)) {
+    [IO.File]::WriteAllText($options, "options_version=4`nquality_preset=1`nfullscreen=0`nhdr=0`nmicrophone=0`n")
+}
 Remove-Item Env:HOS_CONTROL -ErrorAction SilentlyContinue
 $env:RX_VK_SHOTS = Join-Path $runRoot 'shots'
 $env:RX_VK_SHOT_EVERY = '120'
@@ -89,4 +95,6 @@ try {
     if (!$p.HasExited) { Stop-Process -Id $p.Id -Force; $p.WaitForExit() }
 }
 [ordered]@{ reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
-             headless = !$Window; gameplay_verified = $false } | ConvertTo-Json
+             headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
+if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
+if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }

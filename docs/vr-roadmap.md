@@ -25,11 +25,10 @@ against the stable installation, use hardlinks for mutable data, or point test s
 2. **Session and graphics negotiation (basic live test passed):** the standalone Vulkan marker
    scene displayed in Quest 3 and returned valid head/controller poses. Full Hookshot graphics
    feature compatibility and exhaustive fault handling remain pending; see `vr-validation.md`.
-3. **Isolated flat baseline:** build the audited Hookshot source separately; verify saves, options,
-   logs, caches and update checks stay in the experimental root. Check disk space first: this PC
-   has about 34 GB free on C:, below the installer build guidance of about 60 GB. The direct
-   build in `vr-game-build.md` avoids duplicating RomFS. Local translation/native compilation
-   is now being exercised separately from the stable installation.
+3. **Isolated flat baseline (build/menu validated):** the audited source compiled and reached
+   the main menu in a private headless run. Stable file hashes remain unchanged. Gameplay and
+   save compatibility remain pending; see `vr-game-build.md` and `vr-validation.md`. The build
+   avoids duplicating RomFS and uses matched experimental executable/renderer binaries.
 4. **Head-tracked stereo:** drive the main gameplay view from an XR origin, independent head pose
    and per-eye pose/projection. Render both eyes from one simulation tick, with isolated targets.
 5. **Player integration:** room-scale/body synchronization through real collision handling,
