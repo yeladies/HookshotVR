@@ -129,3 +129,29 @@ its base address, or that a single successful draw establishes full scene replay
 culling, temporal histories or world scale. Keep synthetic camera changes isolated
 and prove routing/completion before any headset presentation. A visor test is not
 needed yet; no new stereo scene is presented by this milestone.
+
+## 2026-11-13: frozen 3D game-scene headset build prepared
+
+A private build is ready at work/headset-preview/Probar-en-Quest.cmd. It is a depth-
+reconstructed FROZEN game scene with true per-eye projection and room-space head
+movement, not live native game stereo. It is intended to check world scale, orientation
+and parallax before extending the native eye renderer. No game updates/physics/input
+run in the viewer, and hidden/out-of-capture surfaces are missing. User readiness for
+the Quest/Virtual Desktop test was requested; do not launch an XR session until the
+user says the headset is connected and can be worn.
+
+Capture source fingerprint 38d6a5db, ABI18: same-frame matched primary HDR/D32 inputs
+at the known upscale boundary; actual sampled RGB9E5 view format123 recorded in V2.
+The first B10 interpretation was visually wrong and corrected after confirming the
+actual view format. Viewer GPU smoke without XR: 583489 non-black pixels, 257604
+stereo-different pixels. Both images inspected locally; 77/77 VR tests pass. Inherited
+suite 357 passed, the same 5 known failures, 59 skipped in294 seconds. Default-off
+startup checked; all19 stable installation hashes unchanged. Active runtime registry
+points to Virtual Desktop's virtualdesktop-openxr.json. New headset perception still
+pending; do not claim playable/native full-scene VR.
+
+See docs/vr-frozen-depth-preview.md for exact scope and reproduction. Private evidence:
+work/game-build/depth-scene-format-capture-result.txt; work/validation/depth-mesh-build.json;
+work/validation/depth-scene-offscreen.json; work/vr-depth-scene-tests.log;
+work/game-build/inherited-depth-preview-tests.log. Captures, mesh, PPM/PNG, binaries
+and launch package stay ignored/private and must not be published.

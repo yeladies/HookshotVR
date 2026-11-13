@@ -6,6 +6,7 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 #include "scene_math.h"
+#include "depth_scene_renderer.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -90,6 +91,7 @@ struct Vulkan {
 #endif
     }
 };
+#include "depth_scene_smoke.h"
 struct Eye {
     XrSwapchain swapchain=XR_NULL_HANDLE;
     uint32_t width=0,height=0;
@@ -100,6 +102,7 @@ struct Eye {
 struct Marker { XrVector3f position; float radius; std::array<float,4> color; };
 struct Scene {
     Vulkan vk;
+    hookshot::vr::DepthSceneRenderer depth_scene;XrPosef depth_anchor{};bool depth_anchored=false,depth_head_valid=false;XrTime depth_origin_change=0;
     XrInstance instance=XR_NULL_HANDLE;
     XrSystemId system=XR_NULL_SYSTEM_ID;
     XrSession session=XR_NULL_HANDLE;
@@ -234,8 +237,12 @@ struct Scene {
         attachment.initialLayout=VK_IMAGE_LAYOUT_UNDEFINED;attachment.finalLayout=VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         VkAttachmentReference reference{0,VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL};
         VkSubpassDescription subpass{};subpass.pipelineBindPoint=VK_PIPELINE_BIND_POINT_GRAPHICS;subpass.colorAttachmentCount=1;subpass.pColorAttachments=&reference;
-        VkRenderPassCreateInfo pass{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};pass.attachmentCount=1;pass.pAttachments=&attachment;pass.subpassCount=1;pass.pSubpasses=&subpass;
+        VkAttachmentDescription attachments[2]={attachment,attachment};VkAttachmentReference depth_ref{1,VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL};
+        attachments[1].format=VK_FORMAT_D32_SFLOAT;attachments[1].storeOp=VK_ATTACHMENT_STORE_OP_DONT_CARE;attachments[1].finalLayout=VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        if(depth_scene.enabled())subpass.pDepthStencilAttachment=&depth_ref;
+        VkRenderPassCreateInfo pass{VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO};pass.attachmentCount=depth_scene.enabled()?2:1;pass.pAttachments=attachments;pass.subpassCount=1;pass.pSubpasses=&subpass;
         vk_check(vk.CreateRenderPass(vk.device,&pass,nullptr,&render_pass),"vkCreateRenderPass");
+        if(depth_scene.enabled())depth_scene.initialize(vk.device,vk.physical,vk.get_device,vk.function<PFN_vkGetPhysicalDeviceMemoryProperties>("vkGetPhysicalDeviceMemoryProperties"),render_pass);
         for(size_t i=0;i<2;++i) {
             auto& eye=eyes[i];
             eye.width=std::min(1200u,config[i].recommendedImageRectWidth);eye.height=std::min(1300u,config[i].recommendedImageRectHeight);
@@ -247,11 +254,12 @@ struct Scene {
             eye.images.assign(count,{XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
             xr_check(xrEnumerateSwapchainImages(eye.swapchain,count,&count,reinterpret_cast<XrSwapchainImageBaseHeader*>(eye.images.data())),"enumerate swapchain images");
             eye.views.resize(count);eye.frames.resize(count);
+            const auto depth_view=depth_scene.enabled()?depth_scene.depth(unsigned(i),eye.width,eye.height):VK_NULL_HANDLE;
             for(uint32_t j=0;j<count;++j) {
                 VkImageViewCreateInfo view{VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};view.image=eye.images[j].image;view.viewType=VK_IMAGE_VIEW_TYPE_2D;view.format=format;
                 view.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
                 vk_check(vk.CreateImageView(vk.device,&view,nullptr,&eye.views[j]),"vkCreateImageView");
-                VkFramebufferCreateInfo framebuffer{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};framebuffer.renderPass=render_pass;framebuffer.attachmentCount=1;framebuffer.pAttachments=&eye.views[j];
+                VkFramebufferCreateInfo framebuffer{VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};framebuffer.renderPass=render_pass;VkImageView attachments[2]={eye.views[j],depth_view};framebuffer.attachmentCount=depth_scene.enabled()?2:1;framebuffer.pAttachments=attachments;
                 framebuffer.width=eye.width;framebuffer.height=eye.height;framebuffer.layers=1;
                 vk_check(vk.CreateFramebuffer(vk.device,&framebuffer,nullptr,&eye.frames[j]),"vkCreateFramebuffer");
             }
@@ -271,6 +279,9 @@ struct Scene {
                 } else if(state==XR_SESSION_STATE_STOPPING && running) {
                     xr_check(xrEndSession(session),"xrEndSession");running=false;exiting=true;
                 } else if(state==XR_SESSION_STATE_EXITING || state==XR_SESSION_STATE_LOSS_PENDING) exiting=true;
+            } else if(event.type==XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING){
+                const auto& change=*reinterpret_cast<const XrEventDataReferenceSpaceChangePending*>(&event);
+                if(change.session==session&&change.referenceSpaceType==XR_REFERENCE_SPACE_TYPE_LOCAL){depth_anchored=false;depth_origin_change=std::max(depth_origin_change,change.changeTime);}
             } else if(event.type==XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING) exiting=true;
             event={XR_TYPE_EVENT_DATA_BUFFER};
         }
@@ -279,7 +290,8 @@ struct Scene {
     void poses(XrTime time) {
         XrSpaceLocation position{XR_TYPE_SPACE_LOCATION};
         xr_check(xrLocateSpace(head,local,time,&position),"locate head");
-        if(hookshot::vr::pose_valid(position.locationFlags)) {
+        depth_head_valid=hookshot::vr::pose_valid(position.locationFlags);
+        if(depth_head_valid) {
             ++head_samples;
             last_head=position.pose;
             const auto p=position.pose.position;
@@ -309,8 +321,13 @@ struct Scene {
         vk_check(vk.BeginCommandBuffer(command,&begin),"vkBeginCommandBuffer");
         VkClearValue background{};background.color={{0.015f,0.025f,0.05f,1}};
         VkRenderPassBeginInfo pass{VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO};pass.renderPass=render_pass;pass.framebuffer=eye.frames.at(image);
-        pass.renderArea={{0,0},{eye.width,eye.height}};pass.clearValueCount=1;pass.pClearValues=&background;
+        VkClearValue clears[2]={background,{}};clears[1].depthStencil={1,0};
+        pass.renderArea={{0,0},{eye.width,eye.height}};pass.clearValueCount=depth_scene.enabled()?2:1;pass.pClearValues=clears;
         vk.CmdBeginRenderPass(command,&pass,VK_SUBPASS_CONTENTS_INLINE);
+        if(depth_scene.enabled()){
+            if(!depth_anchored){const auto q=last_head.orientation;const float yaw=std::atan2(2*(q.x*q.z+q.w*q.y),1-2*(q.x*q.x+q.y*q.y));depth_anchor.orientation={0,std::sin(yaw/2),0,std::cos(yaw/2)};depth_anchor.position=last_head.position;depth_anchored=true;}
+            depth_scene.draw(command,eye.width,eye.height,hookshot::vr::depth_scene_mvp(view.pose,depth_anchor,view.fov));
+        }else{
         std::vector<Marker> markers;
         for(int x=-4;x<=4;++x) for(int z=1;z<=9;++z) markers.push_back({{x*0.4f,-1.2f,-z*0.4f},0.018f,{0.07f,0.25f,0.32f,1}});
         markers.push_back({{-0.5f,0,-2},0.09f,{0.9f,0.08f,0.05f,1}});
@@ -330,6 +347,7 @@ struct Scene {
             VkClearRect rect{{{p.rect.x,p.rect.y},{p.rect.width,p.rect.height}},0,1};
             vk.CmdClearAttachments(command,1,&clear,1,&rect);
         }
+        }
         vk.CmdEndRenderPass(command);vk_check(vk.EndCommandBuffer(command),"vkEndCommandBuffer");
         vk_check(vk.ResetFences(vk.device,1,&fence),"vkResetFences");
         VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};submit.commandBufferCount=1;submit.pCommandBuffers=&command;
@@ -348,7 +366,7 @@ struct Scene {
         XrViewState view_state{XR_TYPE_VIEW_STATE};uint32_t n=0;
         std::array<XrView,2> views{{{XR_TYPE_VIEW},{XR_TYPE_VIEW}}};
         xr_check(xrLocateViews(session,&locate,&view_state,2,&n,views.data()),"xrLocateViews");
-        const bool valid=n==2 && (view_state.viewStateFlags&(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT))==(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT);
+        const bool valid=(!depth_scene.enabled()||(depth_head_valid&&state.predictedDisplayTime>=depth_origin_change)) && n==2 && (view_state.viewStateFlags&(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT))==(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT);
         if(valid) ++view_samples;
         std::array<XrCompositionLayerProjectionView,2> projection{{{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW},{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}}};
         XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};layer.space=local;layer.viewCount=2;layer.views=projection.data();
@@ -411,6 +429,7 @@ struct Scene {
             for(auto v:eye.views) if(v && vk.DestroyImageView) vk.DestroyImageView(vk.device,v,nullptr);
             if(eye.swapchain) xrDestroySwapchain(eye.swapchain);
         }
+        depth_scene.close();
         for(auto s:hand_spaces) if(s) xrDestroySpace(s);
         if(head) xrDestroySpace(head);
         if(local) xrDestroySpace(local);
@@ -428,13 +447,15 @@ struct Scene {
 };
 } // namespace
 int main(int argc,char** argv) {
-    int seconds=15;
+    if(argc==5&&std::string(argv[1])=="--mesh-check"&&std::string(argv[3])=="--output"){try{return depth_scene_smoke(argv[2],argv[4]);}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 2;}}
+    int seconds=15;std::string mesh;
+    if(argc==5&&std::string(argv[1])=="--mesh"&&std::string(argv[3])=="--seconds"){mesh=argv[2];argv+=2;argc-=2;}
     if(argc==3 && std::string(argv[1])=="--seconds") {
         try {size_t used=0;seconds=std::stoi(argv[2],&used);if(used!=std::strlen(argv[2]) || seconds<1 || seconds>90) throw std::runtime_error("range");}
         catch(...) {std::cerr<<"--seconds must be 1..90\n";return 2;}
     } else if(argc!=1) {std::cerr<<"Usage: hookshot_vr_scene [--seconds 1..90]\n";return 2;}
     try {
-        Scene scene;scene.init();scene.run(seconds);scene.report();
+        Scene scene;if(!mesh.empty()){scene.depth_scene.load(mesh);std::cerr<<"FROZEN GAME DEPTH SCENE: calibration preview, not live native stereo; vertices="<<scene.depth_scene.vertices()<<"\n";}scene.init();scene.run(seconds);scene.report();
         return scene.rendered && scene.head_samples?0:3;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 2;}
 }

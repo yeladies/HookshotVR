@@ -41,6 +41,7 @@
 #include "xr_eye_uniform_probe.h"
 #include "xr_baseline_preflight.h"
 #include "xr_baseline_draw.h"
+#include "xr_depth_capture.h"
 #include "xr_uniform_copy_source.h"
 #include "xr_descriptor_snapshot.h"
 #include "vk_menu.h"          // (opts.anisotropy: the Anisotropic filtering row; resolution_scale)
@@ -3346,6 +3347,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 VkImageView view = handle ? texture_view_of(handle, vt, ViewUse::Sample, VK_FORMAT_UNDEFINED, &tex)
                                           : VK_NULL_HANDLE;
                 upload_defer_ok = false;
+                if(view&&tex)xr_depth_capture_view(tex,last_view_format);
                 if (dump_on()) dump_input('t', (uint32_t)(dw().imgs.size() - 0), handle, view ? tex : nullptr);
                 if (view && tex && trace_tex_wanted(tex)) trace_tex_hit = tex;
                 if (log_img_wanted(p.key)) {
@@ -6502,6 +6504,7 @@ void baseline_draw_preflight(VkCommandBuffer command,const Program& p,const NvnS
     if(std::strcmp(note.reason,"live_state_candidate_requires_shader_review")==0&&xr_baseline_draw_selected(p))xr_baseline_draw_prepare(replay);
 }
 void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+    xr_depth_capture_tick(texture_frame_no());
     if(xr_baseline_draw_enabled()){if(++baseline_draw_serial==0)++baseline_draw_serial;xr_baseline_draw_tick(texture_frame_no(),baseline_draw_serial);}
     PROF_HOT(PROF_DRAW);
     FINE_N(FC_DRAWS, 1);
@@ -6548,6 +6551,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
             const SceneCameraEvidence evidence{texture_frame_no(), cp->key, at.color[0]->id, at.depth->id,
                                                 s.ubo[0][0].addr, at.width, at.height};
             vr_camera_seed=xr_scene_camera_observation(evidence, camera_block, sizeof camera_block / sizeof(float));
+            if(vr_camera_seed)xr_depth_capture_note(at.color[0],at.depth,camera_block,sizeof camera_block/sizeof(float));
         }
     }
     // (ultrawide's menu sides: the world's lighting composite was asked for, even if a skip or a pipeline not yet made leaves this
@@ -8942,6 +8946,7 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
     ImageWork lineage_replacement;
     if(xr_image_lineage_enabled()){lineage_replacement=lineage_work(p,nullptr,false,false);lineage_replacement.kind=ImageWorkKind::Replacement;}
     auto replaced=[&]{if(xr_image_lineage_enabled())xr_image_lineage_work(texture_frame_no(),std::move(lineage_replacement));++st_dispatches;};
+    xr_depth_capture_network(cmd,rec_value,p.key,draw_sampled());
     if (fsr3_stand_in(cmd, s, p)) return replaced();
     if (temporal_stand_in(cmd, s, p)) return replaced();
     if (taau_stand_in(cmd, s, p)) return replaced();

@@ -85,5 +85,9 @@ class UpdateTests(unittest.TestCase):
         self.assertTrue(update.allowed_patch("docs/tested-configurations.md"))
         self.assertTrue(update.allowed_patch("vr/src/mod.cpp"))
         self.assertTrue(update.allowed_patch("vr/shaders/eye_address_copy.comp"))
+        self.assertTrue(update.allowed_patch("vr/shaders/depth_scene.vert"))
+        self.assertTrue(update.allowed_patch("vr/shaders/depth_scene.frag"))
+        self.assertFalse(update.allowed_patch("vr/shaders/game.vert"))
+        self.assertFalse(update.allowed_patch("vr/shaders/game.frag"))
 
 if __name__ == "__main__": unittest.main()
