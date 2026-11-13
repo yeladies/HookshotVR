@@ -14,6 +14,8 @@
 #include <chrono>
 namespace {
 bool mode(const char* value) { const char* s=std::getenv("XR_FAKE_MODE");return s&&!std::strcmp(s,value); }
+bool preview_hd(){const char* h=std::getenv("RX_VK_XR_PREVIEW_HD");const char* m=std::getenv("XR_FAKE_MODE");return h&&!std::strcmp(h,"1")&&m&&std::strstr(m,"preview_immersive");}
+uint32_t preview_w(){return preview_hd()?1920u:1280u;}uint32_t preview_h(){return preview_hd()?1080u:720u;}
 std::atomic<int> counts[22]{};
 bool (*queue_check)()=nullptr;
 int event_stage=0, frames=0;
@@ -85,13 +87,13 @@ XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
             const auto* p=reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[0]);
             if(info->layerCount!=1||p->type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION||p->viewCount!=2||!p->views)++counts[5];
             else for(unsigned eye=0;eye<2;++eye){const auto& v=p->views[eye];
-                if(v.type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW||v.subImage.imageRect.extent.width!=1280||v.subImage.imageRect.extent.height!=720||
-                   v.pose.orientation.w!=1||std::abs(v.pose.position.x-(mode("preview_immersive_stereo")?(eye?1.032f:.968f):1.f))>.0001f||v.pose.position.y!=2||v.pose.position.z!=3||v.subImage.imageRect.offset.x!=(mode("preview_immersive_stereo")&&eye?1280:0)||v.fov.angleLeft>=0||v.fov.angleRight<=0||v.fov.angleUp<=0||v.fov.angleDown>=0)++counts[5];}
+                if(v.type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW||v.subImage.imageRect.extent.width!=int32_t(preview_w())||v.subImage.imageRect.extent.height!=int32_t(preview_h())||
+                   v.pose.orientation.w!=1||std::abs(v.pose.position.x-(mode("preview_immersive_stereo")?(eye?1.032f:.968f):1.f))>.0001f||v.pose.position.y!=2||v.pose.position.z!=3||v.subImage.imageRect.offset.x!=(mode("preview_immersive_stereo")&&eye?int32_t(preview_w()):0)||v.fov.angleLeft>=0||v.fov.angleRight<=0||v.fov.angleUp<=0||v.fov.angleDown>=0)++counts[5];}
         }else{
             ++counts[20];
             const auto* quad=reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[0]);
             if(info->layerCount!=1||quad->type!=XR_TYPE_COMPOSITION_LAYER_QUAD||quad->eyeVisibility!=XR_EYE_VISIBILITY_BOTH||
-               quad->subImage.imageRect.extent.width!=1280||quad->size.width!=2.4f||quad->pose.position.x!=1||quad->pose.position.y!=2||quad->pose.position.z!=1)++counts[5];
+               quad->subImage.imageRect.extent.width!=int32_t(preview_w())||quad->size.width!=2.4f||quad->pose.position.x!=1||quad->pose.position.y!=2||quad->pose.position.z!=1)++counts[5];
         }
         ++counts[17];
     }

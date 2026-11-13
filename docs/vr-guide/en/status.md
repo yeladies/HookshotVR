@@ -34,3 +34,5 @@ The user subsequently confirmed a persistent moving depth scene, apparently corr
 ## Remote eye-image inspection — 2026-11-13
 
 A real-game offscreen run now saves bounded, private left/right eye samples. The source lens is 110° horizontal / 100° vertical with synthetic tracking; temporal eye images are distinct. One inventory image was captured, but continuous menu delivery still needs correction. Wide-view edge geometry needs culling review. This does not establish perceived stereo, comfort, audio or performance in Quest. No XR session is opened while the user is remote. See the [current experiment and capture instructions](../../vr-temporal-stereo-preview.md).
+
+After the first wide/temporal headset comparison, [preview quality and continuity work](../../vr-preview-quality.md) adds opt-in HD mono, lens margin and bounded stereo-pair retention. Human validation remains pending; HD temporal stereo failed the actual freshness check and is not an accepted headset profile.

@@ -349,3 +349,13 @@ All 92 VR tests pass, including protocol separation, native argument forwarding,
 Castellano: primer dibujo real de profundidad desde el mismo estado con dos referencias exactas y dos lentes desplazadas ±4 píxeles. 811 píxeles en las tres máscaras, uniforme completo de 13568 bytes validado, fuente intacta y recursos liberados. Pasan 92 pruebas VR. No se repitió la simulación ni se abrió el visor. Sigue pendiente la escena completa y el paralaje de cámaras trasladadas; el modo jugable continúa siendo temporal.
 
 Inherited regression for the final D32 implementation: 357 passed / 5 known failures / 59 skipped in 298 seconds. Default-off startup passed its bounded 20-second run at 3063 MiB, XR disabled.
+
+## 2026-11-13 — Quest feedback, preview margin/quality and pair diagnostics
+
+The user tested both modes: temporal stereo flickered black, mono stayed visible but looked pixelated, and both retained rectangular black boundaries. Source reports observed ~108° horizontal / 110° vertical; the old transport was 1280×720. Added opt-in 1080p transport, a bounded tangent-space FOV margin, requested fixed render-resolution profile, per-run native log archival and atomic retention of still-fresh complete pairs. Age/present/origin gates remain unchanged. See [preview quality and continuity](vr-preview-quality.md).
+
+All 94 VR tests pass. Actual mono HD +25% margin passed (6618 MiB peak); actual temporal 720p +25% margin produced accepted distinct pairs and closed normally. HD temporal stereo failed freshness and is not accepted for headset use. Diagnostics in the 720p run observed expired poses/images, including a maximum evaluated 701 ms pose that was rejected. The new visual result is still pending human validation. No new XR session was opened by the agent for this work.
+
+Castellano: el usuario observó negros intermitentes en estéreo, poca nitidez en mono y bordes rectangulares en ambos. Se añadieron perfiles optativos HD/margen, conservación acotada de pares y registros por ejecución. Pasan 94 pruebas; mono HD y estéreo 720p con margen pasaron sin visor. Estéreo HD no pasó frescura y no se entrega como validado. Se detectaron poses/imágenes antiguas rechazadas; no se ampliaron los límites para ocultar el problema. Falta comprobar la nueva imagen en Quest.
+
+Final quality build `748b4bb4`: 94 VR tests pass; inherited 357 passed / 5 known failures / 59 skipped in 341 seconds. Default-off startup passed at 3032 MiB, XR off; 19 stable hashes match. New private launchers separate mono HD + margin from temporal 720p + margin. Human retest requested only after build/source checks completed.

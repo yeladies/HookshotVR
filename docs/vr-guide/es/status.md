@@ -34,3 +34,5 @@ El usuario confirmó después una escena de profundidad persistente y en movimie
 ## Inspección remota de ojos — 2026-11-13
 
 Un ensayo real sin visor ya guarda muestras privadas y acotadas de ambos ojos. La lente fuente es de 110° horizontal / 100° vertical con seguimiento sintético e imágenes temporales distintas. Se capturó una imagen del inventario, pero falta corregir su entrega continua. La geometría de los bordes requiere revisar el culling. Esto no valida profundidad percibida, comodidad, audio ni rendimiento en Quest. No se abre XR mientras el usuario está en remoto. Consulta el [experimento actual y las instrucciones de captura](../../vr-temporal-stereo-preview.md).
+
+Tras la primera comparación de FOV/estéreo, el [trabajo de calidad y continuidad](../../vr-preview-quality.md) añade mono HD optativo, margen de lente y conservación acotada de pares. Falta comprobarlo en Quest. El estéreo HD no pasó frescura y no se da por listo para el visor.

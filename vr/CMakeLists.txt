@@ -403,3 +403,8 @@ if(MINGW)
     target_link_options(hookshot_vr_shifted_draw_check_tests PRIVATE -static)
 endif()
 add_test(NAME vr_shifted_draw_check COMMAND hookshot_vr_shifted_draw_check_tests)
+
+foreach(hd_mode immersive immersive_stereo)
+    add_test(NAME vr_preview_${hd_mode}_hd COMMAND hookshot_vr_preview_tests $<TARGET_FILE:hookshot_vr_fake_loader>)
+    set_tests_properties(vr_preview_${hd_mode}_hd PROPERTIES ENVIRONMENT "XR_FAKE_MODE=preview_${hd_mode};RX_VK_XR_PREVIEW_HD=1" TIMEOUT 20)
+endforeach()

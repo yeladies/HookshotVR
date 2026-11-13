@@ -45,13 +45,14 @@ int xr_immersive_head_camera(uint64_t id,float rows[12],int64_t present){
 int xr_immersive_head_lens(float* vertical,float* aspect){
     if(!enabled()||!vertical||!aspect)return 0;
     const char* wide=std::getenv("RX_VK_XR_WIDE_FOV");if(!wide||std::strcmp(wide,"1"))return 0;
-    float fov=0,ratio=0;
+    float fov=0,ratio=0;float margin=1.f;
+    if(const char* value=std::getenv("RX_VK_XR_FOV_TANGENT_SCALE")){char* end=nullptr;const float parsed=std::strtof(value,&end);if(end==value||*end||!std::isfinite(parsed)||parsed<1||parsed>1.25f)return 0;margin=parsed;}
     if(synthetic()){
         if(xr_vulkan_active())return 0;
         constexpr float radians=.017453292519943295f;const float a[4]={-55*radians,55*radians,50*radians,-50*radians};
-        if(!immersive_lens_from_fovs(a,a,fov,ratio))return 0;
+        if(!immersive_lens_from_fovs(a,a,fov,ratio,margin))return 0;
     }else{
-        XrFrameSnapshot frame;if(!xr_vulkan_latest_frame(&frame)||!frame.focused||!frame.should_render||(frame.eyes[0].pose.flags&3)!=3||(frame.eyes[1].pose.flags&3)!=3||!immersive_lens_from_fovs(frame.eyes[0].fov,frame.eyes[1].fov,fov,ratio))return 0;
+        XrFrameSnapshot frame;if(!xr_vulkan_latest_frame(&frame)||!frame.focused||!frame.should_render||(frame.eyes[0].pose.flags&3)!=3||(frame.eyes[1].pose.flags&3)!=3||!immersive_lens_from_fovs(frame.eyes[0].fov,frame.eyes[1].fov,fov,ratio,margin))return 0;
     }
     {auto& s=state();std::lock_guard lock(s.mutex);++s.lens_updates;s.requested_vertical=fov;s.requested_aspect=ratio;}
     *vertical=fov;*aspect=ratio;return 1;

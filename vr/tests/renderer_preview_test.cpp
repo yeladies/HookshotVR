@@ -21,6 +21,8 @@ bool locked(){bool result=false;std::thread t([&]{if(queue.try_lock())queue.unlo
 int main(int argc,char** argv){using namespace mkwvk;try {
     check(argc==2,"fake path");
     const char* initial_mode=std::getenv("XR_FAKE_MODE");
+    const char* hd_value=std::getenv("RX_VK_XR_PREVIEW_HD");const bool hd=hd_value&&!std::strcmp(hd_value,"1");
+    const uint32_t pixel_width=hd?1920:1280,pixel_height=hd?1080:720;
     const bool immersive=initial_mode&&std::strstr(initial_mode,"preview_immersive");
     const bool stereo=initial_mode&&(!std::strcmp(initial_mode,"preview_immersive_stereo")||!std::strcmp(initial_mode,"preview_immersive_stereo_missing"));
     const bool stereo_missing=initial_mode&&!std::strcmp(initial_mode,"preview_immersive_stereo_missing");
@@ -59,7 +61,7 @@ int main(int argc,char** argv){using namespace mkwvk;try {
     const bool runtime_error=!std::strcmp(mode,"preview_invalid_index")||!std::strcmp(mode,"preview_submit_error")||!std::strcmp(mode,"preview_image_timeout")||!std::strcmp(mode,"preview_gpu_timeout");
     check(xr_vulkan_session_start(instance,physical,device,7,queue,1000,true)!=init_error,"preview startup");
     if(!init_error) {
-        auto pixels=std::make_shared<std::vector<uint8_t>>(1280*720*4,0);
+        auto pixels=std::make_shared<std::vector<uint8_t>>(pixel_width*pixel_height*4,0);
         (*pixels)[0]=17;(*pixels)[1]=34;(*pixels)[2]=51;(*pixels)[3]=255;
         if(immersive){
             XrFrameSnapshot snapshot;bool ready=false;for(int i=0;i<100;++i){if(xr_vulkan_latest_frame(&snapshot)&&snapshot.focused){ready=true;break;}std::this_thread::sleep_for(std::chrono::milliseconds(2));}check(ready,"fresh fake head pose");
@@ -77,14 +79,14 @@ int main(int argc,char** argv){using namespace mkwvk;try {
             xr_immersive_note_scene_candidate(77);xr_immersive_note_camera(77,block,0x230/4);xr_immersive_tag_present(12,77);
             }
         }
-        xr_preview_publish(pixels,1280,720,12);
+        xr_preview_publish(pixels,pixel_width,pixel_height,12);
         if(stereo&&!stereo_missing){
             float vfov=0,aspect=0;check(xr_immersive_head_lens(&vfov,&aspect)&&vfov>=1.79f,"runtime lens covers both eyes");
             float view[12]={1,0,0,0,0,1,0,0,0,0,1,0};check(xr_immersive_head_camera(7,view,2),"tracked right camera");
             float block[0x230/4]{};std::memcpy(block,view,sizeof view);const float p[16]={1,0,0,0,0,2,0,0,0,0,-1,-.2f,0,0,-1,0};std::memcpy(block+0x70/4,p,sizeof p);
             xr_immersive_note_scene_candidate(79);xr_immersive_note_camera(79,block,0x230/4);xr_immersive_tag_present(14,79);
-            auto right=std::make_shared<std::vector<uint8_t>>(1280*720*4,0);(*right)[0]=85;(*right)[1]=102;(*right)[2]=119;(*right)[3]=255;
-            xr_preview_publish(right,1280,720,14);
+            auto right=std::make_shared<std::vector<uint8_t>>(pixel_width*pixel_height*4,0);(*right)[0]=85;(*right)[1]=102;(*right)[2]=119;(*right)[3]=255;
+            xr_preview_publish(right,pixel_width,pixel_height,14);
         }
         bool reached=false;
         for(int i=0;i<1000;++i) {
@@ -94,12 +96,12 @@ int main(int argc,char** argv){using namespace mkwvk;try {
         check(reached,"preview work reached");
         if(transition){
             check(count(19)>=2,"world starts as projection");
-            xr_immersive_tag_present(13,78);xr_preview_publish(pixels,1280,720,13);
+            xr_immersive_tag_present(13,78);xr_preview_publish(pixels,pixel_width,pixel_height,13);
             bool menu_seen=false;for(int i=0;i<100;++i){if(count(20)>=2){menu_seen=true;break;}std::this_thread::sleep_for(std::chrono::milliseconds(2));}check(menu_seen,"UI-only present switches to quad");
             const int previous=count(19);
             float view[12]={1,0,0,0,0,1,0,0,0,0,1,0};check(xr_immersive_head_camera(7,view),"fresh return camera");
             float block[0x230/4]{};std::memcpy(block,view,sizeof view);const float p[16]={1,0,0,0,0,2,0,0,0,0,-1,-.2f,0,0,-1,0};std::memcpy(block+0x70/4,p,sizeof p);
-            xr_immersive_note_scene_candidate(79);xr_immersive_note_camera(79,block,0x230/4);xr_immersive_tag_present(14,79);xr_preview_publish(pixels,1280,720,14);
+            xr_immersive_note_scene_candidate(79);xr_immersive_note_camera(79,block,0x230/4);xr_immersive_tag_present(14,79);xr_preview_publish(pixels,pixel_width,pixel_height,14);
             bool world_seen=false;for(int i=0;i<100;++i){if(count(19)>=previous+2){world_seen=true;break;}std::this_thread::sleep_for(std::chrono::milliseconds(2));}check(world_seen,"closing menu restores projection");
         }
     }

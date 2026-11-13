@@ -32,6 +32,9 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         self.reject(['-GpuEyeMatrixProbe'],'GPU matrix transport probe requires the isolated non-XR draw baseline')
     def test_gpu_matrix_probe_cannot_open_xr(self):
         self.reject(['-GpuEyeMatrixProbe','-IsolatedDrawProbe','-XrPreview'],'requires its own non-XR run')
+    def test_quality_options_require_isolated_immersive_mode(self):
+        for args in (['-PreviewResolution','1080p'],['-FovMarginPercent','25']):
+            self.reject(args,'Preview quality and FOV margin require an isolated immersive mode')
     def test_private_capture_cannot_open_xr(self):
         self.reject(['-Seconds','180','-ImmersivePreview','-PreviewCaptureDirectory','unused'],'Private image capture requires the non-XR immersive readback test')
     def test_private_capture_cannot_escape_work(self):

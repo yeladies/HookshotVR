@@ -1,4 +1,4 @@
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$Audio,[switch]$WideFov,[switch]$TemporalStereo)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$Audio,[switch]$WideFov,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $mutex=[Threading.Mutex]::new($false,'Local\HookshotVR-Immersive-Preview')
@@ -17,10 +17,12 @@ try{
     Write-Host 'Prueba giros pequenos y desplazamientos leves. Se cerrara automaticamente.'
     Write-Host ('Registros privados: '+$scope)
     $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'run-game.ps1')+'"'),'-ImmersivePreview','-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
+    $arguments+=@('-PreviewResolution',$PreviewResolution,'-FovMarginPercent',$FovMarginPercent.ToString())
     if($Window){$arguments+='-Window'}
     if($Audio){$arguments+='-Audio'}
     if($WideFov){$arguments+='-WideFov'}
     if($TemporalStereo){$arguments+='-TemporalStereo'}
+    $started=[DateTime]::UtcNow
     $child=Start-Process powershell -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $scope 'result.json') -RedirectStandardError (Join-Path $scope 'errors.txt')
     $null=$child.Handle
     # Keep console writes outside the active child lifetime: console selection must
@@ -35,11 +37,15 @@ try{
             if(Test-Path -LiteralPath $infoPath){
                 $info=Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
                 $process=Get-Process -Id $info.native_pid -ErrorAction SilentlyContinue
-                if($process -and $process.Path -eq $native -and $process.StartTime.ToUniversalTime().Ticks -eq ([DateTime]::Parse($info.started_utc)).ToUniversalTime().Ticks){Stop-Process -Id $process.Id -Force}
+                if($process -and $process.Path -eq $native -and $process.StartTime.ToUniversalTime().Ticks -eq ([DateTime]$info.started_utc).ToUniversalTime().Ticks){Stop-Process -Id $process.Id -Force}
             }
             if(!$child.HasExited){Stop-Process -Id $child.Id -Force}
         }
     }
+    try{if($scope -and $started){foreach($name in @('stderr.txt','stdout.txt','immersive-result.json')){
+        $source=Join-Path $project ('work/game-run/'+$name)
+        if((Test-Path -LiteralPath $source) -and (Get-Item -LiteralPath $source).LastWriteTimeUtc -ge $started){Copy-Item -LiteralPath $source -Destination (Join-Path $scope ('native-'+$name))}
+    }}}catch{}
     $mutex.ReleaseMutex();$mutex.Dispose()
 }
 Get-Content -LiteralPath (Join-Path $scope 'result.json')

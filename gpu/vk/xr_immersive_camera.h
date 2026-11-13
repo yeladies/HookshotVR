@@ -69,7 +69,8 @@ public:
         return out;
     }
 };
-inline bool immersive_lens_from_fovs(const float left[4],const float right[4],float& vertical,float& aspect){
+inline bool immersive_lens_from_fovs(const float left[4],const float right[4],float& vertical,float& aspect,float tangent_scale=1.f){
+    if(!std::isfinite(tangent_scale)||tangent_scale<1||tangent_scale>1.25f)return false;
     double horizontal=0,height=0;
     for(const auto* eye:{left,right}){
         if(!eye)return false;
@@ -78,7 +79,7 @@ inline bool immersive_lens_from_fovs(const float left[4],const float right[4],fl
         horizontal=std::max(horizontal,std::max(-std::tan(double(eye[0])),std::tan(double(eye[1]))));
         height=std::max(height,std::max(std::tan(double(eye[2])),-std::tan(double(eye[3]))));
     }
-    const double fov=2*std::atan(height),ratio=horizontal/height;
+    const double fov=2*std::atan(height*tangent_scale),ratio=horizontal/height;
     if(!std::isfinite(ratio)||fov<.2||fov>2.8||ratio<.5||ratio>2.5)return false;
     vertical=float(fov);aspect=float(ratio);return true;
 }

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Manual local-game check. Never opens XR; never a CI test or a game-data publisher.
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$CaptureImages)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$CaptureImages,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if(Get-Process -Name hookshot -ErrorAction SilentlyContinue){throw 'Close the existing game before the isolated check.'}
@@ -20,6 +20,7 @@ function Read-CurrentReport {
 }
 try{
     $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $project 'vr/run-game.ps1')+'"'),'-ImmersiveReadbackTest','-TemporalStereo','-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
+    $arguments+=@('-PreviewResolution',$PreviewResolution,'-FovMarginPercent',$FovMarginPercent.ToString())
     if($CaptureImages){$arguments+=@('-PreviewCaptureDirectory',('"'+(Join-Path $project ('work/stereo-images-'+[Guid]::NewGuid().ToString('N')))+'"'))}
     $child=Start-Process powershell -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $scope 'result.json') -RedirectStandardError (Join-Path $scope 'errors.txt')
     $null=$child.Handle
@@ -46,7 +47,7 @@ try{
             $info=Get-Content -LiteralPath $infoPath -Raw | ConvertFrom-Json
             $native=Get-Process -Id $info.native_pid -ErrorAction SilentlyContinue
             $expected=Join-Path $project 'work/game-run/bin/hookshot.exe'
-            if($native -and $native.Path -eq $expected -and $native.StartTime.ToUniversalTime().Ticks -eq ([DateTime]::Parse($info.started_utc)).ToUniversalTime().Ticks){Stop-Process -Id $native.Id -Force}
+            if($native -and $native.Path -eq $expected -and $native.StartTime.ToUniversalTime().Ticks -eq ([DateTime]$info.started_utc).ToUniversalTime().Ticks){Stop-Process -Id $native.Id -Force}
         }
         if(!$child.HasExited){Stop-Process -Id $child.Id -Force}
     }
@@ -55,7 +56,7 @@ $log=Get-Content -LiteralPath (Join-Path $project 'work/game-run/stderr.txt') -R
 $distinct=$log -match 'xr-preview: temporal stereo pairs [1-9][0-9]*, distinct images 1'
 $menu=$during -and $after -and $during.menu_images -gt $before.menu_images -and $after.matched_draws -gt $during.matched_draws
 Copy-Item -LiteralPath $reportPath -Destination (Join-Path $scope 'camera-report.json')
-$result=[ordered]@{schema=1;scope=$scope;stereo_ready=[bool]($before -and $distinct);distinct_pair_verified=$distinct;menu_transition_verified=[bool]$menu;before=$before;during=$during;after=$after;producer_exit_code=$child.ExitCode;headset_tested=$false}
+$result=[ordered]@{schema=1;scope=$scope;preview_resolution=$PreviewResolution;fov_margin_percent=$FovMarginPercent;stereo_ready=[bool]($before -and $distinct);distinct_pair_verified=$distinct;menu_transition_verified=[bool]$menu;before=$before;during=$during;after=$after;producer_exit_code=$child.ExitCode;headset_tested=$false}
 $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $scope 'summary.json') -Encoding UTF8
 $result | ConvertTo-Json -Depth 5
 if(!$result.stereo_ready -or $child.ExitCode -ne 0){exit 1}
