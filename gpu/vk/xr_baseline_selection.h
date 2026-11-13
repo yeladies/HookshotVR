@@ -23,10 +23,10 @@ inline bool xr_selection_number(std::istringstream& input,uint64_t& out,bool hex
 }
 // Selection scopes a baseline-only experiment. It is not permission for camera/scene
 // replay; live state and module identities must still be checked at the actual draw.
-inline bool parse_xr_baseline_selection(std::string_view text,std::string_view nonce,std::string_view source,XrBaselineSelection& out){
+inline bool parse_xr_baseline_selection(std::string_view text,std::string_view nonce,std::string_view source,XrBaselineSelection& out,bool lens_shift=false){
     if(text.size()>8192||!xr_lower_hex(nonce,32)||!xr_lower_hex(source,8))return false;
     std::istringstream input{std::string(text)};std::string magic;XrBaselineSelection next;
-    if(!(input>>magic>>next.nonce>>next.source)||magic!="HSVR_BASELINE_DRAW_V1"||next.nonce!=nonce||next.source!=source)return false;
+    if(!(input>>magic>>next.nonce>>next.source)||magic!=(lens_shift?"HSVR_LENS_SHIFT_DRAW_V1":"HSVR_BASELINE_DRAW_V1")||next.nonce!=nonce||next.source!=source)return false;
     uint64_t count=0;if(!xr_selection_number(input,count)||!count||count>32)return false;
     for(uint64_t i=0;i<count;++i){XrBaselineProgram program;uint64_t stages=0;
         if(!xr_selection_number(input,program.program,true)||!program.program||!xr_selection_number(input,stages)||stages!=2)return false;

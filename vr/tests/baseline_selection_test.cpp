@@ -30,5 +30,9 @@ int main(int argc,char** argv){try{
     check(!parse_xr_baseline_selection(header+"1\n"+body,std::string(32,'b'),source,out),"wrong run nonce rejected");
     check(!parse_xr_baseline_selection(header+"1\n"+body,nonce,"abcdef12",out),"wrong build source rejected");
     check(parse(header+"1\r\n"+body),"normal Windows line endings accepted");
+    const auto lens=std::string("HSVR_LENS_SHIFT_DRAW_V1\n")+nonce+" "+source+" 1\n"+body;
+    check(!parse(lens),"baseline mode rejects lens-shift selection");
+    check(parse_xr_baseline_selection(lens,nonce,source,out,true),"explicit lens mode accepts its own protocol");
+    check(!parse_xr_baseline_selection(header+"1\n"+body,nonce,source,out,true),"lens mode rejects unchanged baseline selection");
     std::cout<<"Baseline selection is bounded, run/build scoped and atomic on malformed identities\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

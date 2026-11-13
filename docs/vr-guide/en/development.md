@@ -46,3 +46,5 @@ The inherited suite needs its documented compiler and fixture dependencies. Reco
 For the complete update rules see [upstream compatibility](../../vr-upstream-updates.md). These bilingual guide pages are part of the allowed source-only patch and travel with update candidates.
 
 The separate [same-state eye patch audit](../../vr-same-state-eye-patch.md) now identifies which observed shader reads fit the private matrix patch extent and which require further review. This is offline preparation for native stereo; temporal stereo remains the current playable diagnostic.
+
+The [same-state isolated lens draw](../../vr-same-state-isolated-draw.md) has now passed on actual game D32 data: two exact controls and two opposite four-pixel mask shifts from one submitted draw. It remains a private diagnostic; playable headset output still uses temporal stereo.

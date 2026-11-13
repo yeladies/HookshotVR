@@ -1,6 +1,9 @@
 """Reject unsafe mode combinations before reading game files or opening XR."""
 from pathlib import Path
 import shutil
+import json
+import sys
+import tempfile
 import subprocess
 import unittest
 ROOT=Path(__file__).resolve().parents[2]
@@ -10,6 +13,21 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'vr/run-game.ps1'),*args],capture_output=True,text=True,timeout=20)
         self.assertNotEqual(result.returncode,0)
         self.assertIn(message,result.stdout+result.stderr)
+    def test_lens_selection_flag_is_forwarded_as_one_native_argument(self):
+        source=(ROOT/'vr/run-game.ps1').read_text(encoding='utf-8-sig')
+        assignment=next(line for line in source.splitlines() if 'shiftSelectionArgs=if(' in line)
+        with tempfile.TemporaryDirectory(prefix='vr-native-arguments-') as directory:
+            root=Path(directory);capture=root/'arguments.py';capture.write_text('import sys, json; print(json.dumps(sys.argv[1:]))',encoding='utf-8')
+            quote=lambda path: "'"+str(path).replace("'","''")+"'"
+            for enabled in (False,True):
+                script=root/'forward.ps1';script.write_text('$ShiftedDrawProbe=$'+str(enabled).lower()+'\n'+assignment+'\n& '+quote(sys.executable)+' '+quote(capture)+' @shiftSelectionArgs\n',encoding='utf-8-sig')
+                result=subprocess.run(['powershell','-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=20)
+                self.assertEqual(result.returncode,0,result.stderr)
+                self.assertEqual(json.loads(result.stdout),['--lens-shift-selection'] if enabled else [])
+    def test_shifted_draw_requires_isolated_baseline(self):
+        self.reject(['-ShiftedDrawProbe'],'Lens-shift draw probe requires the isolated non-XR baseline')
+    def test_shifted_draw_cannot_open_xr(self):
+        self.reject(['-ShiftedDrawProbe','-IsolatedDrawProbe','-XrPreview'],'requires its own non-XR run')
     def test_gpu_matrix_probe_requires_isolated_baseline(self):
         self.reject(['-GpuEyeMatrixProbe'],'GPU matrix transport probe requires the isolated non-XR draw baseline')
     def test_gpu_matrix_probe_cannot_open_xr(self):

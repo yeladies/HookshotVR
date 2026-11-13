@@ -6458,7 +6458,11 @@ void baseline_draw_preflight(VkCommandBuffer command,const Program& p,const NvnS
             for(const auto& descriptor:stage.info.image_buffer_descriptors)if(descriptor.is_written)return "texel_buffer_write";
         }
         if(mask!=17)return "unsupported_stages";
-        if(!target_write_mask(p,s,0))return "no_primary_color_write";
+        if(!target_write_mask(p,s,0)){
+            if(!env_on("RX_VK_XR_SHIFTED_DRAW_PROBE"))return "no_primary_color_write";
+            if(sw().no_depth||!s.ds.dt||!s.ds.dw)return "no_depth_reference_write";
+            replay.depth_reference=true;
+        }
         if(d.mesh||d.indirect||d.count_addr||d.prim!=NVN_DRAW_PRIMITIVE_TRIANGLES||d.count<=0||d.count>1048576||d.instances<0||d.instances>1024||d.first<0||d.base_instance<0||s.restart||
            (d.indexed&&(d.itype<1||d.itype>2)))return "unsupported_geometry";
         if(at.n!=1||!at.color[0]||!at.depth||!at.color_view[0]||!at.depth_view||at.has_block_images||at.samples!=1||!at.width||!at.height||at.width>4096||at.height>4096||
@@ -6496,7 +6500,7 @@ void baseline_draw_preflight(VkCommandBuffer command,const Program& p,const NvnS
         replay.serial=baseline_draw_serial;replay.recording=rec_value;replay.program=p.key;replay.command=command;replay.layout=p.layout;
         auto describe=[](const Texture& t){EyeImageSource image;image.image=t.image;image.identity=t.id;image.format=t.format;image.aspect=t.aspect;
             image.flags=t.create_flags;image.usage=t.usage;image.width=t.width;image.height=t.height;image.levels=t.levels;image.layers=t.layers;image.sparse=t.sparse;image.samples=t.samples;image.type=t.type;return image;};
-        replay.color=describe(*at.color[0]);replay.depth=describe(*at.depth);replay.camera=camera;replay.writes=dw().writes;
+        replay.color=describe(*at.color[0]);replay.depth=describe(*at.depth);replay.camera=camera;replay.writes=dw().writes;replay.camera_object_bytes=s.ubo[0][0].size;
         replay.geometry={d.indexed,uint32_t(d.count),uint32_t(std::max(1,d.instances)),d.indexed?0u:uint32_t(d.first),uint32_t(d.base_instance),d.base_vertex};
         return "live_state_candidate_requires_shader_review";
     };

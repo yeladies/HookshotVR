@@ -4,14 +4,14 @@
 layout(local_size_x=1) in;
 layout(buffer_reference, std430, buffer_reference_align=16) readonly buffer Source { uint words[]; };
 layout(buffer_reference, std430, buffer_reference_align=16) writeonly buffer Destination { uint words[]; };
-layout(push_constant, std430) uniform Parameters { Source source; Destination destination; uint bytes; float shift; } parameters;
+layout(push_constant, std430) uniform Parameters { Source source; Destination destination; uint bytes; float shift; uint mode; uint reserved; } parameters;
 bool finiteValue(float x) { return !isnan(x) && !isinf(x); }
 bool closeValue(float a,float b) { return finiteValue(a)&&finiteValue(b)&&abs(a-b)<=0.02+abs(a)*0.0001; }
 void main() {
     if(parameters.bytes<0x230 || parameters.bytes>65536 || parameters.bytes%4!=0) return;
     // Copy the actual submitted GPU bytes, including fields whose semantics are unknown.
     for(uint i=0;i<parameters.bytes/4;++i) parameters.destination.words[i]=parameters.source.words[i];
-    if(!finiteValue(parameters.shift)||abs(parameters.shift)>0.05) return;
+    if(!finiteValue(parameters.shift)||abs(parameters.shift)>0.05||parameters.mode>1) return;
     float b[56]; for(uint i=0;i<56;++i) { b[i]=uintBitsToFloat(parameters.source.words[i]); if(!finiteValue(b[i])) return; }
     // Reviewed affine rigid-view and perspective prefix only. Invalid source remains unchanged.
     for(int r=0;r<3;++r) for(int s=0;s<3;++s) {
@@ -31,7 +31,8 @@ void main() {
         float t=0;for(int k=0;k<3;++k)t-=b[4*k+r]*b[4*k+3];
         if(!closeValue(t,b[44+4*r+3]))return;
     }
-    b[3]+=parameters.shift; // Diagnostic displacement in game units, not a calibrated IPD.
+    if(parameters.mode==0)b[3]+=parameters.shift; // Uncalibrated view displacement.
+    else b[30]+=parameters.shift; // Bounded lens-center shift for a raster displacement test.
     for(int r=0;r<4;++r)for(int c=0;c<4;++c) {
         float v=0;for(int k=0;k<4;++k)v+=b[28+4*r+k]*(k==3?(c==3?1.0:0.0):b[4*k+c]);
         b[12+4*r+c]=v;

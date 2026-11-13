@@ -63,6 +63,18 @@ class ProgramTests(unittest.TestCase):
         self.record["stages"][0]["module"]=self.vertex;self.record["bindings"][0]["module"]=self.vertex
         report=self.analyze();self.assertTrue(report["programs"][0]["vertex_camera_transform_reads_observed"])
         self.assertEqual(report["shader_candidates_with_vertex_transform_reads"],1)
+    def test_lens_selection_requires_resolved_vertex_matrix_prefix(self):
+        op=fixture.op;self.vertex=self.write_module(fixture.module([op(32,9,2,2),op(59,9,50,2),op(71,50,33,0),op(71,50,34,0),op(61,2,51,50)]))
+        self.record["stages"][0]["module"]=self.vertex;self.record["bindings"][0]["module"]=self.vertex
+        report=self.analyze();text=audit.baseline_selection_text(report,"a"*32,"1234abcd",True)
+        self.assertTrue(text.startswith("HSVR_LENS_SHIFT_DRAW_V1\n"))
+        program=report["programs"][0];program["eye_patch_preflight"]["status"]="unreviewed_preserved_fields"
+        with self.assertRaises(ValueError):audit.baseline_selection_text(report,"a"*32,"1234abcd",True)
+    def test_lens_selection_rejects_primary_fragment_matrix_reads(self):
+        binding=self.record["bindings"][0]
+        program={"program":7,"shader_subset_candidate":True,"vertex_camera_transform_reads_observed":True,
+            "eye_patch_preflight":audit.eye_patch_footprint([({**binding,"vk_stage":16},{"static_subset_resolved":True,"static_read_word_offsets":[0]})])}
+        with self.assertRaises(ValueError):audit.baseline_selection_text({"safe_to_replay":False,"programs":[program]},"a"*32,"1234abcd",True)
     def test_baseline_selection_requires_actual_vertex_transform_reads(self):
         with self.assertRaises(ValueError):audit.baseline_selection_text(self.analyze(),"a"*32,"1234abcd")
     def test_baseline_selection_is_bounded_and_run_scoped(self):

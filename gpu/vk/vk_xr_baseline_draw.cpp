@@ -23,10 +23,15 @@ void report(const State& p,const char* status){
     if(attempts)attempts<<"{\"program\":\""<<std::hex<<p.current_program<<std::dec<<"\",\"status\":\""<<status<<"\",\"changed_pixels\":"<<p.result.changed_pixels<<",\"left_mismatched_pixels\":"<<p.result.mismatched_pixels[0]<<",\"right_mismatched_pixels\":"<<p.result.mismatched_pixels[1]<<"}\n";
     std::ofstream file(std::filesystem::u8path(output()),std::ios::trunc);
     if(file)file<<"{\"schema\":1,\"status\":\""<<status<<"\",\"attempts\":"<<p.attempted.size()<<",\"completed_attempts\":"<<p.completed
+        <<",\"reference_attachment\":\""<<(p.result.depth_reference?"depth":"color")<<"\""
         <<",\"changed_original_pixels\":"<<p.result.changed_pixels<<",\"left_mismatched_pixels\":"<<p.result.mismatched_pixels[0]
         <<",\"right_mismatched_pixels\":"<<p.result.mismatched_pixels[1]<<",\"resources_released\":"<<(!p.current?"true":"false")
         <<",\"matrix_probe_requested\":"<<(p.result.matrix_probe_requested?"true":"false")<<",\"matrix_probe_validated\":"<<(p.result.matrix_probe_validated?"true":"false")
-        <<",\"matrix_source_unchanged\":"<<(p.result.matrix_source_unchanged?"true":"false")<<",\"matrix_payload_bytes\":"<<p.result.matrix_payload_bytes<<",\"patched_buffers_bound_to_draw\":false"
+        <<",\"matrix_source_unchanged\":"<<(p.result.matrix_source_unchanged?"true":"false")<<",\"matrix_payload_bytes\":"<<p.result.matrix_payload_bytes<<",\"patched_buffers_bound_to_draw\":"<<(p.result.shifted_draw_requested?"true":"false")
+        <<",\"shifted_draw_requested\":"<<(p.result.shifted_draw_requested?"true":"false")<<",\"shifted_draw_verified\":"<<(p.result.shifted_draw_verified?"true":"false")
+        <<",\"changed_mask_pixels\":["<<p.result.shifted_changed_pixels[0]<<","<<p.result.shifted_changed_pixels[1]<<","<<p.result.shifted_changed_pixels[2]<<"]"
+        <<",\"mask_centroid_x\":["<<p.result.shifted_centroid_x[0]<<","<<p.result.shifted_centroid_x[1]<<","<<p.result.shifted_centroid_x[2]<<"]"
+        <<",\"mask_centroid_y\":["<<p.result.shifted_centroid_y[0]<<","<<p.result.shifted_centroid_y[1]<<","<<p.result.shifted_centroid_y[2]<<"]"
         <<",\"unchanged_camera_baseline\":true,\"full_scene_stereo\":false,\"headset_presentation\":false}\n";
 }
 void selection(State& p){
@@ -34,7 +39,7 @@ void selection(State& p){
     if(!path||!nonce||!source)return;
     std::ifstream file(std::filesystem::u8path(path),std::ios::binary);if(!file)return;
     std::string text(8193,'\0');file.read(text.data(),text.size());const auto size=file.gcount();if(size<=0||size>8192)return;text.resize(size);
-    XrBaselineSelection next;if(parse_xr_baseline_selection(text,nonce,source,next))p.selection=std::move(next);
+    XrBaselineSelection next;if(parse_xr_baseline_selection(text,nonce,source,next,env_on("RX_VK_XR_SHIFTED_DRAW_PROBE")))p.selection=std::move(next);
 }
 bool selected(const State& p,const Program& program){
     for(const auto& candidate:p.selection.programs)if(candidate.program==program.key){
@@ -58,7 +63,13 @@ void xr_baseline_draw_tick(uint64_t frame,uint64_t serial){
         if(p.last_poll_frame!=frame){p.last_poll_frame=frame;
         if(xr_baseline_recorder_retire(p.current,result)){
             p.result=result;++p.completed;
-            if(result.result==XrBaselineComparison::Result::Match){p.stopped=true;report(p,result.matrix_probe_requested&&!result.matrix_probe_validated?"matrix_patch_unverified":"baseline_matched");}
+            if(result.result==XrBaselineComparison::Result::Match){
+                if(result.shifted_draw_requested){
+                    if(!result.matrix_source_unchanged){p.stopped=true;report(p,"matrix_source_changed");}
+                    else if(result.matrix_probe_validated&&result.shifted_draw_verified){p.stopped=true;report(p,"lens_shift_matched");}
+                    else report(p,"lens_shift_inconclusive");
+                }else{p.stopped=true;report(p,result.matrix_probe_requested&&!result.matrix_probe_validated?"matrix_patch_unverified":"baseline_matched");}
+            }
             else if(result.result==XrBaselineComparison::Result::Mismatch){p.stopped=true;report(p,"baseline_mismatch");}
             else report(p,"attempt_inconclusive");
         }}
@@ -74,7 +85,7 @@ bool xr_baseline_draw_selected(const Program& program){
 void xr_baseline_draw_prepare(const XrBaselineRecorderInput& input){
     if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);
     if(p.stopped||p.current||p.attempted.size()>=8||p.attempted.count(input.program))return;
-    auto requested=input;requested.matrix_probe=env_on("RX_VK_XR_MATRIX_PATCH_PROBE");
+    auto requested=input;requested.shifted_draw_probe=env_on("RX_VK_XR_SHIFTED_DRAW_PROBE");requested.matrix_probe=requested.shifted_draw_probe||env_on("RX_VK_XR_MATRIX_PATCH_PROBE");
     p.current=xr_baseline_recorder_create(requested);if(!p.current)return;
     p.attempted.insert(input.program);p.current_program=input.program;
     if(!xr_baseline_recorder_prepare(p.current))xr_baseline_recorder_abandon(p.current);

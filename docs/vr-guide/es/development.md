@@ -46,3 +46,5 @@ La batería heredada necesita el compilador y dependencias de sus fixtures. Regi
 Consulta [las reglas completas de actualización](../../vr-upstream-updates.md). Estas guías bilingües forman parte del parche permitido y acompañan a los candidatos de actualización.
 
 La [auditoría de cámara desde un mismo estado](../../vr-same-state-eye-patch.md) identifica qué lecturas observadas de los shaders cubre el prefijo privado de matrices y cuáles requieren revisión. Es preparación sin visor para el estéreo nativo; el diagnóstico jugable actual sigue siendo temporal.
+
+El [dibujo aislado desde un mismo estado](../../vr-same-state-isolated-draw.md) ya pasó sobre D32 real del juego: dos referencias exactas y dos desplazamientos de máscara opuestos de cuatro píxeles desde un único dibujo. Es un diagnóstico privado; el modo jugable del visor sigue usando estéreo temporal.

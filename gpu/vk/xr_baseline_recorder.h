@@ -15,10 +15,10 @@ struct XrBaselineGeometry {
 struct XrBaselineRecorderInput {
     uint64_t serial=0,recording=0,program=0;VkCommandBuffer command=VK_NULL_HANDLE;
     VkPipelineLayout layout=VK_NULL_HANDLE;EyeImageSource color{},depth{};
-    VkDescriptorBufferInfo camera{};
+    VkDescriptorBufferInfo camera{};uint64_t camera_object_bytes=0; // Declared canonical NVN uniform extent, not shader used-size.
     std::vector<XrBaselineCameraSlot> camera_slots;
     std::vector<VkWriteDescriptorSet> writes;
-    XrBaselineGeometry geometry{};bool matrix_probe=false;
+    XrBaselineGeometry geometry{};bool matrix_probe=false,shifted_draw_probe=false,depth_reference=false;
 };
 struct XrBaselineRecorder;
 // Allocation/snapshot only: failure records no commands and leaves source state intact.

@@ -39,6 +39,9 @@ struct XrBaselineComparison {
     enum class Result {Invalid,Invisible,Match,Mismatch};
     Result result=Result::Invalid;
     bool matrix_probe_requested=false,matrix_probe_validated=false,matrix_source_unchanged=false;
+    bool depth_reference=false;
+    bool shifted_draw_requested=false,shifted_draw_verified=false;
+    std::array<double,3> shifted_centroid_x{},shifted_centroid_y{};std::array<uint64_t,3> shifted_changed_pixels{};
     uint64_t matrix_payload_bytes=0;
     uint64_t changed_pixels=0;
     std::array<uint64_t,2> mismatched_pixels{};
