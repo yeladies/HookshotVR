@@ -13,14 +13,14 @@ bool temporal(){static const bool v=[] {const auto* s=std::getenv("RX_VK_XR_TEMP
 bool synthetic(){static const bool v=[] {const auto* s=std::getenv("HOOKSHOT_VR_IMMERSIVE_TEST");return s&&std::strcmp(s,"1")==0;}();return v;}
 int64_t now_ns(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 struct State {
-    std::mutex mutex;ImmersiveCamera camera;ImmersiveTag scene;uint64_t scene_frame=UINT64_MAX,candidate_frame=UINT64_MAX;uint32_t scene_width=0,scene_height=0;
+    std::mutex mutex;ImmersiveCamera camera;ImmersiveTag scene;uint64_t scene_frame=UINT64_MAX,candidate_frame=UINT64_MAX;uint32_t scene_width=0,scene_height=0,world_width=0,world_height=0,world_camera_width=0,world_camera_height=0;
     struct Present {int64_t id=-1;ImmersiveTag tag;};std::array<Present,32> presents{};
     uint64_t applied=0,matched=0,tagged=0,published=0,menu_images=0,eye_images[2]{},lens_updates=0;float horizontal_fov=0,vertical_fov=0,requested_vertical=0,requested_aspect=0;int64_t epoch=0;
 };
 State& state(){static auto* p=new State;return *p;}
 void report(State& s){
     if(const char* path=std::getenv("HOOKSHOT_VR_IMMERSIVE_REPORT_FILE")){
-        std::ofstream out(path);if(out)out<<"{\"schema\":1,\"camera_overrides\":"<<s.applied<<",\"matched_draws\":"<<s.matched<<",\"tagged_presents\":"<<s.tagged<<",\"published_images\":"<<s.published<<",\"menu_images\":"<<s.menu_images<<",\"left_images\":"<<s.eye_images[0]<<",\"right_images\":"<<s.eye_images[1]<<",\"lens_updates\":"<<s.lens_updates<<",\"horizontal_fov_rad\":"<<s.horizontal_fov<<",\"vertical_fov_rad\":"<<s.vertical_fov<<",\"requested_vertical_fov_rad\":"<<s.requested_vertical<<",\"requested_aspect\":"<<s.requested_aspect<<",\"synthetic_pose\":"<<(synthetic()?"true":"false")<<",\"monoscopic\":"<<(temporal()?"false":"true")<<",\"temporal_stereo\":"<<(temporal()?"true":"false")<<",\"native_stereo\":false}\n";
+        std::ofstream out(path);if(out)out<<"{\"schema\":1,\"camera_overrides\":"<<s.applied<<",\"matched_draws\":"<<s.matched<<",\"tagged_presents\":"<<s.tagged<<",\"published_images\":"<<s.published<<",\"menu_images\":"<<s.menu_images<<",\"left_images\":"<<s.eye_images[0]<<",\"right_images\":"<<s.eye_images[1]<<",\"lens_updates\":"<<s.lens_updates<<",\"world_target_width\":"<<s.world_width<<",\"world_target_height\":"<<s.world_height<<",\"world_camera_width\":"<<s.world_camera_width<<",\"world_camera_height\":"<<s.world_camera_height<<",\"horizontal_fov_rad\":"<<s.horizontal_fov<<",\"vertical_fov_rad\":"<<s.vertical_fov<<",\"requested_vertical_fov_rad\":"<<s.requested_vertical<<",\"requested_aspect\":"<<s.requested_aspect<<",\"synthetic_pose\":"<<(synthetic()?"true":"false")<<",\"monoscopic\":"<<(temporal()?"false":"true")<<",\"temporal_stereo\":"<<(temporal()?"true":"false")<<",\"native_stereo\":false}\n";
     }
 }
 }
@@ -56,6 +56,10 @@ int xr_immersive_head_lens(float* vertical,float* aspect){
     }
     {auto& s=state();std::lock_guard lock(s.mutex);++s.lens_updates;s.requested_vertical=fov;s.requested_aspect=ratio;}
     *vertical=fov;*aspect=ratio;return 1;
+}
+void xr_immersive_note_world_target(uint64_t frame,uint32_t width,uint32_t height){
+    if(!enabled()||!width||!height||width>16384||height>16384)return;
+    auto& s=state();std::lock_guard lock(s.mutex);s.world_width=width;s.world_height=height;if(s.scene_frame==frame){s.world_camera_width=s.scene_width;s.world_camera_height=s.scene_height;}
 }
 void xr_immersive_note_scene_candidate(uint64_t frame,uint32_t width,uint32_t height){
     if(!enabled())return;auto& s=state();std::lock_guard lock(s.mutex);

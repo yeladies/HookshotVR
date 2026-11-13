@@ -24,6 +24,7 @@ int main(){try{
     tag.eye=0;tag.observed_ns=t+30000000;check(feed.publish(left,4,2,24,t+30000000,tag),"distant present");check(!feed.latest(t+30000001).pixels,"distant game presents cannot pair");
     ImmersiveTag menu;menu.menu=true;menu.generation=2;check(feed.publish(left,4,2,25,t+40000000,menu),"menu frame");check(feed.latest(t+40000001).immersive.menu,"menu can display without stereo provenance");
     tag.eye=1;tag.observed_ns=t+50000000;feed.publish(right,4,2,26,t+50000000,tag);check(!feed.latest(t+50000001).pixels,"closing menu requires two new eye images");
+    const auto commits=feed.stats().committed;feed.clear();check(!feed.latest(t+50000001).pixels&&feed.stats().committed==commits,"shutdown clears images while retaining diagnostics");feed.clear(true);check(feed.stats().committed==0,"new session resets diagnostics explicitly");
     const float view0[12]={1,0,0,0,0,1,0,0,0,0,1,0};float view[12];std::memcpy(view,view0,sizeof view);ImmersiveCamera camera;ImmersivePose anchor;anchor.generation=1;anchor.observed_ns=t;
     ImmersivePose eye=anchor;eye.temporal_stereo=true;eye.p[0]=-.032f;
     check(camera.apply(7,view,eye,t,&anchor)&&std::abs(view[3]-.032f)<.00001,"left camera uses tracked eye position relative to head centre");

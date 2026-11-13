@@ -1,4 +1,4 @@
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$Audio,[switch]$WideFov,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$Audio,[switch]$WideFov,[switch]$LowLatencyPreview,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $mutex=[Threading.Mutex]::new($false,'Local\HookshotVR-Immersive-Preview')
@@ -18,6 +18,7 @@ try{
     Write-Host ('Registros privados: '+$scope)
     $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'run-game.ps1')+'"'),'-ImmersivePreview','-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
     $arguments+=@('-PreviewResolution',$PreviewResolution,'-FovMarginPercent',$FovMarginPercent.ToString())
+    if($LowLatencyPreview){$arguments+='-LowLatencyPreview'}
     if($Window){$arguments+='-Window'}
     if($Audio){$arguments+='-Audio'}
     if($WideFov){$arguments+='-WideFov'}

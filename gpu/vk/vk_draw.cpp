@@ -6560,7 +6560,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     }
     // (ultrawide's menu sides: the world's lighting composite was asked for, even if a skip or a pipeline not yet made leaves this
     // draw out below: the world is drawn, it is no menu. vk_framegen.cpp wide_sides)
-    if (cp->key == 0x1a7482c0ec9991eaULL) world_drawn_at.store(presents_now, std::memory_order_relaxed);
+    if (cp->key == 0x1a7482c0ec9991eaULL) {world_drawn_at.store(presents_now, std::memory_order_relaxed);xr_immersive_note_world_target(texture_frame_no(),at.width,at.height);}
     if (cp->key == 0x02ff9920c2571cc2ULL) wheel_drawn_at.store(presents_now, std::memory_order_relaxed);
     if (skip_live(cp->key)) return;   // (EvilOOT, RX_VK_SKIP_FILE)
     {   // (hookshot, RX_VK_SKIP_PROG=<key prefix,...>: draws too, their native code keys logged once; =-: none)

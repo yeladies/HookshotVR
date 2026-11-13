@@ -159,6 +159,7 @@ bool xr_vulkan_active() { return bridge.ready; }
 bool xr_vulkan_prepare(bool requested) {
     bridge.reset();
     if (bridge.worker.joinable() || bridge.retained_gpu_work) return false;
+    bridge.preview_feed.clear(true);
     const char* readback=std::getenv("HOOKSHOT_VR_PREVIEW_READBACK_TEST");
     bridge.readback_only.store(readback&&std::strcmp(readback,"1")==0);
     if(bridge.readback_only.load()) {

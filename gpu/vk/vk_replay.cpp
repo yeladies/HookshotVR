@@ -3077,6 +3077,14 @@ void frame_info(int64_t* replayed, int64_t* draws, int* width, int* height) {
 }
 
 uint64_t present_value = 0;   // (the present job's value, handed out as it came; 0: the next one)
+// Opt-in preview delivery only: bounded GPU wait after the current submission.
+// A timeout retains the ordinary deferred ownership path; never read before ready.
+VkResult preview_readback_wait(uint64_t value) {
+    if(!timeline||!value)return VK_NOT_READY;
+    queue_flush_for(FR_VALUE);
+    VkSemaphoreWaitInfo info{VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO};info.semaphoreCount=1;info.pSemaphores=&timeline;info.pValues=&value;
+    return vkWaitSemaphores(dev.device,&info,20000000ull);
+}
 struct PendingShot {
     bool on = false;
     uint64_t value = 0;
@@ -3474,13 +3482,22 @@ void do_present(const nvn_tex* t, const int crop[4]) {
             }).detach();
         };
         if (pending.on && (shot || completed() >= pending.value)) take(pending.value, pending.presents), pending.on = false;
+        bool preview_taken=false;
+        if(preview_frame&&!save_shot&&!made_src&&env_on("RX_VK_XR_LOW_LATENCY_READBACK")){
+            static uint64_t immediate=0,deferred=0,failed=0;
+            const auto ready=preview_readback_wait(value);
+            if(ready==VK_SUCCESS){take(value,presents);preview_taken=true;++immediate;}
+            else if(ready==VK_TIMEOUT||ready==VK_NOT_READY){++deferred;}
+            else{preview_taken=true;++failed;logf("xr-preview: immediate transfer failed (%d), frame discarded",int(ready));}
+            if((immediate+deferred+failed)%60==0)logf("xr-preview: low-latency readback immediate %llu deferred %llu failed %llu, wait budget 20ms",(unsigned long long)immediate,(unsigned long long)deferred,(unsigned long long)failed);
+        }
         if (shot && made_src && made_map) {
             take(value, presents);
             invalidate_mapped(made_buf_alloc, (uint64_t)kShotW * kShotH * 4);
             char path[1024];
             snprintf(path, sizeof path, "%s/vk_%06lld_made.png", shots, (long long)presents);
             write_png(path, (const uint8_t*)made_map, kShotW, kShotH);
-        } else if (shot) {
+        } else if (shot&&!preview_taken) {
             pending = {true, value, presents, {}, preview_frame, save_shot};
         }
         log_frame_stats();

@@ -36,6 +36,7 @@ inline SceneCameraMatch match_scene_camera(const float* c,size_t count,const Sce
     if(!draw.color||!draw.depth||!draw.uniform_address||!draw.program)return SceneCameraMatch::Invalid;
     return match_camera_uniform(c,count,draw.width,draw.height,pair);
 }
+void xr_immersive_note_world_target(uint64_t frame,uint32_t width,uint32_t height);
 bool xr_scene_capture_enabled();
 bool xr_scene_camera_observation(const SceneCameraEvidence&,const float*,size_t);
 }

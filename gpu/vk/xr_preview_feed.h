@@ -70,6 +70,6 @@ public:
         return frame_;
     }
     PreviewFeedStats stats(){std::lock_guard lock(mutex_);return stats_;}
-    void clear() {std::lock_guard lock(mutex_);frame_={};eyes_={};committed_pair_={};committed_right_received_=0;stats_={};}
+    void clear(bool reset_stats=false) {std::lock_guard lock(mutex_);frame_={};eyes_={};committed_pair_={};committed_right_received_=0;if(reset_stats)stats_={};}
 };
 }

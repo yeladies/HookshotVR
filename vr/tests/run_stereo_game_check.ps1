@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Manual local-game check. Never opens XR; never a CI test or a game-data publisher.
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$CaptureImages,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$CaptureImages,[switch]$LowLatencyPreview,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 if(Get-Process -Name hookshot -ErrorAction SilentlyContinue){throw 'Close the existing game before the isolated check.'}
@@ -21,6 +21,7 @@ function Read-CurrentReport {
 try{
     $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $project 'vr/run-game.ps1')+'"'),'-ImmersiveReadbackTest','-TemporalStereo','-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
     $arguments+=@('-PreviewResolution',$PreviewResolution,'-FovMarginPercent',$FovMarginPercent.ToString())
+    if($LowLatencyPreview){$arguments+='-LowLatencyPreview'}
     if($CaptureImages){$arguments+=@('-PreviewCaptureDirectory',('"'+(Join-Path $project ('work/stereo-images-'+[Guid]::NewGuid().ToString('N')))+'"'))}
     $child=Start-Process powershell -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $scope 'result.json') -RedirectStandardError (Join-Path $scope 'errors.txt')
     $null=$child.Handle

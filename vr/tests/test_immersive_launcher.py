@@ -32,8 +32,14 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         self.reject(['-GpuEyeMatrixProbe'],'GPU matrix transport probe requires the isolated non-XR draw baseline')
     def test_gpu_matrix_probe_cannot_open_xr(self):
         self.reject(['-GpuEyeMatrixProbe','-IsolatedDrawProbe','-XrPreview'],'requires its own non-XR run')
+    def test_hd_profile_selects_docked_output_mode(self):
+        source=(ROOT/'vr/run-game.ps1').read_text(encoding='utf-8-sig')
+        assignment=next(line for line in source.splitlines() if line.startswith('$env:HOS_HANDHELD ='))
+        for hd,expected in ((False,'1'),(True,'0')):
+            result=subprocess.run(['powershell','-NoProfile','-Command','$previewHD=$'+str(hd).lower()+'; '+assignment+'; Write-Output $env:HOS_HANDHELD'],capture_output=True,text=True,timeout=20)
+            self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout.strip(),expected)
     def test_quality_options_require_isolated_immersive_mode(self):
-        for args in (['-PreviewResolution','1080p'],['-FovMarginPercent','25']):
+        for args in (['-PreviewResolution','1080p'],['-FovMarginPercent','25'],['-LowLatencyPreview']):
             self.reject(args,'Preview quality and FOV margin require an isolated immersive mode')
     def test_private_capture_cannot_open_xr(self):
         self.reject(['-Seconds','180','-ImmersivePreview','-PreviewCaptureDirectory','unused'],'Private image capture requires the non-XR immersive readback test')
