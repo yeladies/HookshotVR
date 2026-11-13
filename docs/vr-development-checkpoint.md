@@ -52,3 +52,37 @@ collision, controller weapons and comfort remain development work. The classic
 `oot-vr` reference remains recorded for the later mechanics stage.
 
 See [visibility and replay gates](vr-culling-and-replay.md) before enabling a game camera override.
+
+## 2026-11-13: isolated-draw preflight checkpoint
+
+Native source fingerprint `9fa74f11`, ABI18, upstream base unchanged. The 150-second
+headless/muted private-save run verified primary camera submission, lineage and shader
+capture in one process. Its 149 bounded native preflight records produced 18 programs
+that also pass full-stage shader-subset and actual vertex-transform-read review.
+Source mirror transfer usage and camera UBO aliases are now checked without another
+buffer resolution. Seven target-feedback programs and one unresolved-image-read case
+were rejected. These counts are distinct program/reason pairs, not draw counts.
+
+Validation: native build 74 seconds, zero failed translation units; all 74 VR tests
+pass (22 program-inventory cases after the Windows SHA-256 case fix). The inherited
+suite reports 357 passed, 5 known environment/baseline failures and 59 skipped in
+298 seconds. Failures remain fpx_sticky, builder_details_hitbox, builder_dlss_update,
+nup_paths and vram_budget_row. A separate 20-second default-off headless startup
+completed its time limit with a 3000 MiB peak; no gameplay validation. All 19 stable
+installation hashes still match. Linux/AMD and headset visuals remain untested here.
+
+Private evidence: work/game-build/baseline-preflight-live-result.txt,
+work/validation/baseline-preflight-programs-2026-11-13.json,
+work/game-build/inherited-baseline-preflight-tests.log,
+work/vr-baseline-preflight-final-tests.log and baseline-preflight-default-off-result.txt.
+Raw reports/captures/binaries remain ignored and are not publication inputs.
+
+Next: implement the baseline-only GPU recorder described in vr-isolated-draw-probe-plan.md.
+Use the current-process nonce/source selection protocol and exact exported stage
+identities, then the live eligibility predicate. Copy source GPU uniform bytes and
+pre-draw color/depth into owned resources before the original pass. Finish only the
+same draw serial, issue the exact direct native geometry twice, and explicitly restore
+the owning full descriptor snapshot. Compare original before/after and both private
+outputs only after known queue completion. XrBaselineAttempt and the four-frame
+comparator are implemented/tested, but no extra game draw is implemented or enabled
+by this checkpoint. No headset test is needed for this next baseline experiment.

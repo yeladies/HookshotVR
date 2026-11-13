@@ -35,6 +35,51 @@ class ProgramTests(unittest.TestCase):
         self.record["stages"][0]["module"]=self.vertex;self.record["bindings"][0]["module"]=self.vertex
         report=self.analyze();self.assertTrue(report["programs"][0]["vertex_camera_transform_reads_observed"])
         self.assertEqual(report["shader_candidates_with_vertex_transform_reads"],1)
+    def test_baseline_selection_requires_actual_vertex_transform_reads(self):
+        with self.assertRaises(ValueError):audit.baseline_selection_text(self.analyze(),"a"*32,"1234abcd")
+    def test_baseline_selection_is_bounded_and_run_scoped(self):
+        op=fixture.op;self.vertex=self.write_module(fixture.module([op(32,9,2,2),op(59,9,50,2),op(71,50,33,0),op(71,50,34,0),op(61,2,51,50)]))
+        self.record["stages"][0]["module"]=self.vertex;self.record["bindings"][0]["module"]=self.vertex
+        report=self.analyze();text=audit.baseline_selection_text(report,"a"*32,"1234abcd")
+        self.assertTrue(text.startswith("HSVR_BASELINE_DRAW_V1\n"+"a"*32+" 1234abcd 1\n0000000000000007 2\n"))
+        self.assertLessEqual(len(text),8192)
+        with self.assertRaises(ValueError):audit.baseline_selection_text(report,"wrong","1234abcd")
+        report["programs"][0]["stages"][0]["effects"]["supported_read_only_subset"]=False
+        with self.assertRaises(ValueError):audit.baseline_selection_text(report,"a"*32,"1234abcd")
+    def preflight_fixture(self):
+        self.row={"schema":1,"program":"7","recording":9,"frame":1,"width":64,"height":64,"uniform_bytes":560,"camera_bindings":1,"read_images":3,
+            "reason":"live_state_candidate_requires_shader_review","extra_draw_recorded":False,"shader_effects_reviewed":False,"safe_to_replay":False}
+        self.programs=[{"program":7,"shader_subset_candidate":True,"vertex_camera_transform_reads_observed":True}]
+        self.write_preflight()
+    def write_preflight(self):
+        data=(json.dumps(self.row)+"\n").encode();(self.path/"baseline-preflight.jsonl").write_bytes(data)
+        (self.path/"capture-association.json").write_text(json.dumps({"same_process_capture":True,"baseline_preflight_sha256":hashlib.sha256(data).hexdigest()}))
+    def test_preflight_joins_only_shader_and_live_candidates(self):
+        self.preflight_fixture();report=audit.baseline_preflight(self.path,self.programs)
+        self.assertEqual(report["shader_and_live_state_candidates"],[7]);self.assertFalse(report["safe_to_replay"])
+        self.programs[0]["vertex_camera_transform_reads_observed"]=False
+        self.assertEqual(audit.baseline_preflight(self.path,self.programs)["shader_and_live_state_candidates"],[])
+    def test_preflight_unknown_program_or_rejection_cannot_select(self):
+        self.preflight_fixture();self.assertEqual(audit.baseline_preflight(self.path,[])["shader_and_live_state_candidates"],[])
+        self.row["reason"]="camera_source_not_current_mirror";self.write_preflight()
+        self.assertEqual(audit.baseline_preflight(self.path,self.programs)["shader_and_live_state_candidates"],[])
+    def test_preflight_accepts_windows_hash_case_but_not_wrong_hash_type(self):
+        self.preflight_fixture();path=self.path/"capture-association.json";manifest=json.loads(path.read_text())
+        manifest["baseline_preflight_sha256"]=manifest["baseline_preflight_sha256"].upper();path.write_text(json.dumps(manifest))
+        self.assertEqual(audit.baseline_preflight(self.path,self.programs)["shader_and_live_state_candidates"],[7])
+        manifest["baseline_preflight_sha256"]=123;path.write_text(json.dumps(manifest))
+        with self.assertRaises(ValueError):audit.baseline_preflight(self.path,self.programs)
+    def test_preflight_stale_or_mutated_capture_rejected(self):
+        self.preflight_fixture();(self.path/"baseline-preflight.jsonl").write_text("{}")
+        with self.assertRaises(ValueError):audit.baseline_preflight(self.path,self.programs)
+    def test_preflight_requires_diagnostic_flags_and_typed_bounds(self):
+        self.preflight_fixture()
+        for field,value in (("extra_draw_recorded",True),("safe_to_replay",True),("shader_effects_reviewed",True),("width",True),("uniform_bytes",65540),("camera_bindings",0)):
+            original=self.row[field];self.row[field]=value;self.write_preflight()
+            with self.assertRaises(ValueError):audit.baseline_preflight(self.path,self.programs)
+            self.row[field]=original
+    def test_preflight_optional_for_legacy_capture(self):
+        self.assertIsNone(audit.baseline_preflight(self.path,[]))
     def test_missing_unbound_fragment_cannot_be_called_complete(self):
         (self.path/(self.fragment+".spv")).unlink();report=self.analyze()
         self.assertEqual(report["uniform_binding_summary"]["missing_observed_modules"],0)

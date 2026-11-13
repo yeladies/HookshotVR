@@ -19,6 +19,7 @@ bool xr_shader_uniform_audit_enabled();
 bool xr_shader_uniform_audit_compute_only();
 bool xr_shader_uniform_audit_module(uint64_t module,const uint32_t* words,size_t count);
 bool xr_shader_uniform_audit_wants_program(uint64_t program);
+bool xr_shader_uniform_audit_identity(uint64_t module,uint64_t& fingerprint,size_t& words);
 bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUniformAuditBinding>&,
                                     const std::vector<ShaderUniformAuditStage>& stages={});
 }

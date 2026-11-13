@@ -51,3 +51,36 @@ Only after this baseline passes should camera changes be introduced. Complete so
 payload identity, alias routing and matrix semantics still apply. A single-draw probe
 must not be presented as a full stereo world or used to bypass compute, culling,
 temporal-history and calibration gates.
+
+## Read-only native preflight
+
+`vr/run-game.ps1 -BaselineDrawPreflight -SnapshotStableSaves -LoadTestSave`
+adds a bounded, default-off native eligibility check. It implies the same-process
+shader inventory, image lineage and pinned source-camera capture, with parallel
+replay and the recorder disabled. It does not open XR or record extra GPU commands.
+The default runner remains headless and muted.
+
+At the ordinary descriptor-build boundary it checks direct triangles, program
+stage/write declarations, exact single-sample HDR/D32 targets, all resolved sampled
+and storage image reads, owning descriptor snapshots and every primary-camera UBO
+alias. It examines existing mirror metadata without importing, rebinding or syncing
+memory. Unsupported stream-backed camera descriptors are rejected. A fresh ordinary
+descriptor build is required; the check never forces an extra build.
+
+The JSONL report is limited to 256 distinct program/reason pairs. The runner copies
+it beside that process's shader inventory and hashes it in capture-association.json.
+The offline program audit checks the hash and reports the intersection of native
+live-state candidates with reviewed full-stage shader subsets and actual vertex
+camera-transform reads. Native eligibility alone does not review shader instructions,
+prove physical allocation alias freedom or authorize replay. Every report continues
+to declare safe_to_replay=false.
+
+Supporting code now owns complete bounded pushed-descriptor payloads independently
+of the renderer writer. A move-only snapshot allows per-eye UBO replacement and a
+full explicit source restore. The attempt tracker associates preparation and finish
+with the exact draw serial, recording, program, device and command buffer: a skipped
+original invalidates preparation before the next draw. Submitted storage can retire
+only after known completion on the original device; unknown completion is retained.
+The four-frame comparator requires visible original changes and exact pixel equality
+for both private outputs, with mismatches taking precedence over invisible output.
+These components do not yet issue the private draws.

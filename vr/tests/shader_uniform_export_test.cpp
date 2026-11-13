@@ -20,6 +20,9 @@ int main(int argc,char** argv){try{
     check(std::filesystem::weakly_canonical(path.parent_path())==std::filesystem::canonical(std::filesystem::current_path()),"test output stays inside build directory");
     std::filesystem::create_directories(path);
     check(xr_shader_uniform_audit_module(1,words,6)&&xr_shader_uniform_audit_module(2,words,6),"bounded authored modules exported");
+    uint64_t identity=0;size_t count=0;
+    check(xr_shader_uniform_audit_identity(1,identity,count)&&count==6,"live module identity available only after successful export");
+    const auto original_identity=identity;check(!xr_shader_uniform_audit_identity(999,identity,count)&&identity==original_identity&&count==6,"missing identity preserves output");
     check(!xr_shader_uniform_audit_module(3,nullptr,6)&&!xr_shader_uniform_audit_module(3,words,0),"invalid payload rejected");
     std::vector<ShaderUniformAuditBinding> bindings{{1,0,1,6,0,3,560,true},{2,1,16,9,0,4,64,false}};
     const std::vector<ShaderUniformAuditStage> stages{{1,0,1,false,false,false,false},{2,1,16,false,false,false,false}};

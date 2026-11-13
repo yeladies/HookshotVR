@@ -34,6 +34,12 @@ bool xr_shader_uniform_audit_module(uint64_t module,const uint32_t* words,size_t
     }
     s.modules[module]={digest,count,written};return written;
 }
+bool xr_shader_uniform_audit_identity(uint64_t module,uint64_t& fingerprint,size_t& words){
+    if(!xr_shader_uniform_audit_enabled()||!module)return false;
+    auto& s=state();std::lock_guard lock(s.mutex);const auto found=s.modules.find(module);
+    if(found==s.modules.end()||!found->second.written)return false;
+    fingerprint=found->second.digest;words=found->second.words;return true;
+}
 bool xr_shader_uniform_audit_wants_program(uint64_t program){
     if(!xr_shader_uniform_audit_enabled()||!program)return false;
     auto& s=state();std::lock_guard lock(s.mutex);return s.programs.size()<64&&!s.programs.count(program);

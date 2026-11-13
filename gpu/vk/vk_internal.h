@@ -109,6 +109,9 @@ struct BufferRef {
         return buffer != VK_NULL_HANDLE;
     }
 };
+struct XrUniformCopySource;
+// Read-only mirror description; no lookup/import/sync or lifetime stamp mutation.
+bool memory_xr_uniform_copy_source(VkBuffer buffer,uint64_t recording,XrUniformCopySource& out);
 bool memory_init();                                   // vk_memory.cpp
 void memory_cpu_owned(uint64_t guest, uint64_t size);   // (hookshot: words the replay writes on the CPU, left out of write-backs)
 // (hookshot) The replay's own CPU writes of guest memory, by GPU address: every one goes through guest_cpu_write (or, for a

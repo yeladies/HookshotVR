@@ -26,6 +26,7 @@
 #include <windows.h>
 
 #include "vk_internal.h"
+#include "xr_uniform_copy_source.h"
 #include "vk_texture.h"   // (upload_command_buffer)
 #include "vk_gprof.h"      // (RX_VK_PASS_TIMING)
 #include "import_hold.h"
@@ -3667,5 +3668,21 @@ void memory_end_submission(VkCommandBuffer cmd) {
 void memory_stats(int64_t* mirrors, uint64_t* mirror_mb, int64_t* sync_bytes, int64_t* sync_copies, int64_t* wb_bytes) {
     *mirrors = st_mirrors, *mirror_mb = mirror_bytes >> 20, *sync_bytes = st_sync_bytes, *sync_copies = st_sync_copies;
     *wb_bytes = st_wb_bytes;
+}
+// Only already-bound current mirrors qualify. In particular this never calls
+// pool_of, gpu_buffer_bind, mirror_make/sync or any Vulkan function.
+bool memory_xr_uniform_copy_source(VkBuffer buffer,uint64_t recording,XrUniformCopySource& out) {
+    if(!buffer||!recording||par_active.load(std::memory_order_relaxed))return false;
+    std::lock_guard lock(pools_mu);
+    const uint64_t generation=pools_gen.load(std::memory_order_acquire),capture=memory_capture_view();
+    if(mem_rec_value!=recording||!generation||!capture)return false;
+    XrUniformCopySource candidate{};bool found=false;
+    for(const auto& entry:imported){const auto& p=entry.second;
+        if(p.mirror!=buffer)continue;
+        if(found||p.mstate!=Pool::MIRROR_ON||!p.mirror_alloc||p.retired_value||p.inherit_pending||p.hi<=p.lo||
+           p.last_value<recording||p.synced_epoch!=mirror_epoch||p.sync_seg>texture_segment())return false;
+        candidate={buffer,p.hi-p.lo,kUsage,XrUniformSourceKind::Mirror,{recording,generation,capture}};found=true;
+    }
+    if(!found)return false;out=candidate;return true;
 }
 } // namespace mkwvk
