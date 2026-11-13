@@ -1435,6 +1435,11 @@ void hos_oot_free_view(Ctx *c, uint64_t view) {
     static SRWLOCK lock = SRWLOCK_INIT;
     AcquireSRWLockExclusive(&lock);
     const int enabled = rx_option(HOS_OPT_CHEAT_CAMERA, 0);
+    if (!enabled && env_on("RX_VK_XR_IMMERSIVE")) {
+        float tracked[12];memcpy(tracked,A64_PTR(view+8),sizeof tracked);
+        int rx_xr_head_camera(uint64_t camera,float rows[12]);
+        if(rx_xr_head_camera(view,tracked))for(int i=0;i<12;++i){uint32_t bits;memcpy(&bits,&tracked[i],sizeof bits);recomp_store32(c,view+8+4*i,bits);}
+    }
     if (env_on("HOOKSHOT_VR_CAMERA_CAPTURE")) {
         float matrix[12]; double eye[3];
         memcpy(matrix, A64_PTR(view + 8), sizeof matrix);

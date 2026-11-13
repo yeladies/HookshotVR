@@ -18,6 +18,7 @@ Experimental PCVR research for **Hookshot**, targeting Quest 3 on Windows throug
 | Flat cinema screen | Image and world-fixed screen confirmed in Quest; audio unresolved. |
 | Frozen depth reconstruction | Independent eye projections and head poses implemented; offscreen GPU check passed; headset perception pending. |
 | Moving depth reconstruction | Moving scene confirmed in Quest; scale/depth apparently correct; pixelation observed. Native stereo remains pending. |
+| [Live game head camera](../../vr-immersive-game-preview.md) | New monoscopic immersive prototype; native camera follows head poses; headset check pending. |
 | Native full-scene stereo | Research in progress; an unchanged isolated draw was reproduced, not a complete stereo scene. |
 
 The depth modes reconstruct visible surfaces from one game camera. They cannot recover hidden geometry and are not equivalent to native rendering. The source camera is still third person. VR gameplay controls, physical weapons and audio routing remain unfinished.

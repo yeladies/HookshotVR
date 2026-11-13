@@ -225,3 +225,45 @@ work/game-build/native-alias-default-off-result.txt,
 work/game-build/inherited-native-alias-tests.log,
 work/vr-native-alias-tests.log and work/validation/native-alias-stable-hashes.json.
 No captures, game shaders, binaries or game files are publication inputs.
+
+## 2026-11-13: live game head-camera headset test prepared
+
+A separate private launcher is ready at
+work/headset-immersive-preview/Probar-juego-inmersivo.cmd. It uses the running game,
+a guarded main-camera override and a monoscopic OpenXR projection layer. It is not
+a depth reconstruction and is not native stereo: both eyes receive one source
+camera image/pose/FOV. Third-person anchoring, limited FOV, culling/transition issues,
+head collision, VR controller actions, audio routing and headset comfort remain
+unverified or unfinished. No new XR session was opened during this development run.
+The first headset perception test is pending user readiness.
+
+The host/renderer interface intentionally advances to ABI19 for head_camera. Old
+binaries/receipts must not be mixed. Guarded gameplay camera writes retain the known
+vtable/camera-zero checks and exclude debug free camera. The pose helper preserves
+pitch/yaw/roll and translation, bounds pose age and motion, handles origin changes
+and avoids feedback accumulation. Each image requires a matched submitted camera
+and exact present tag; missing/stale/changed-origin metadata suppresses projection.
+No game update is repeated per eye. This does not establish full stereo replay.
+
+Final native fingerprint 8e6576af builds. A 120-second synthetic-pose test ran the
+real game without XR: immersive_camera_verified=true, 725 camera overrides, 491208
+matched draw observations, 719 tagged presents and 360 associated published images,
+6550 MiB peak. These counts are not headset FPS or latency. The earlier 150-second
+implementation run recorded 1206 overrides/600 associated images at 6677 MiB peak.
+
+All82 VR tests pass, including actual projection-layer submission against a fake
+runtime, rejection of images without matching metadata, native camera math and
+launcher guards preventing synthetic/XR combinations. Final inherited suite:
+357 passed, the same five baseline/environment failures,59 skipped in316 seconds.
+Default-off startup passed; all19 monitored stable hashes remain unchanged.
+Source wrapper syntax and its Windows named mutex were checked. The package has
+launcher/docs/receipt only and uses the privately built matching host/renderer.
+
+Evidence stays private: work/game-build/immersive-synthetic-final-result.txt,
+work/validation/immersive-synthetic-final-report.json,
+work/vr-immersive-final-tests.log,
+work/game-build/inherited-immersive-final-tests.log,
+work/game-build/immersive-default-off-result.txt,
+work/validation/immersive-stable-hashes.json. See vr-immersive-game-preview.md for
+English/Spanish instructions. Game binaries, images, saves and game files are never
+publication inputs. A new Hookshot upstream version has not been integrated.

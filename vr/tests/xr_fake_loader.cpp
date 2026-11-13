@@ -79,9 +79,17 @@ XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
         const bool preview_mode=std::getenv("XR_FAKE_MODE")&&std::strncmp(std::getenv("XR_FAKE_MODE"),"preview_",8)==0;
     if(!frame_open||info->displayTime!=frames*10000000||(!preview_mode&&(info->layerCount||info->layers)))++counts[4];
     if(preview_mode&&info->layerCount) {
-        const auto* quad=reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[0]);
-        if(info->layerCount!=1||quad->type!=XR_TYPE_COMPOSITION_LAYER_QUAD||quad->eyeVisibility!=XR_EYE_VISIBILITY_BOTH||
-           quad->subImage.imageRect.extent.width!=1280||quad->size.width!=2.4f||quad->pose.position.x!=1||quad->pose.position.y!=2||quad->pose.position.z!=1)++counts[5];
+        if(mode("preview_immersive")){
+            const auto* p=reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[0]);
+            if(info->layerCount!=1||p->type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION||p->viewCount!=2||!p->views)++counts[5];
+            else for(unsigned eye=0;eye<2;++eye){const auto& v=p->views[eye];
+                if(v.type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW||v.subImage.imageRect.extent.width!=1280||v.subImage.imageRect.extent.height!=720||
+                   v.pose.orientation.w!=1||v.pose.position.x!=1||v.pose.position.y!=2||v.pose.position.z!=3||v.fov.angleLeft>=0||v.fov.angleRight<=0||v.fov.angleUp<=0||v.fov.angleDown>=0)++counts[5];}
+        }else{
+            const auto* quad=reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[0]);
+            if(info->layerCount!=1||quad->type!=XR_TYPE_COMPOSITION_LAYER_QUAD||quad->eyeVisibility!=XR_EYE_VISIBILITY_BOTH||
+               quad->subImage.imageRect.extent.width!=1280||quad->size.width!=2.4f||quad->pose.position.x!=1||quad->pose.position.y!=2||quad->pose.position.z!=1)++counts[5];
+        }
         ++counts[17];
     }
     frame_open=false;++counts[3];return mode("session_end_error")?XR_ERROR_RUNTIME_FAILURE:XR_SUCCESS;

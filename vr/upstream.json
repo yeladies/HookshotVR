@@ -2,7 +2,7 @@
   "schema": 1,
   "upstream_url": "https://github.com/NotRexed/Hookshot.git",
   "base_commit": "940eb9ef34134913d2bc2a7b3ed5cb3caea58ef3",
-  "mod_host_renderer_abi": 18,
+  "mod_host_renderer_abi": 19,
   "supported_game_builds": [
     "e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348"
   ],

@@ -29,7 +29,7 @@ Un resultado correcto solo confirma capacidades anunciadas, no estereoscopía, s
 
 ## Compilar el juego aislado
 
-Necesitas tu instalación local compatible y las herramientas de Builder. El identificador revisado del juego es `e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348`, ABI del renderer 18; consulta `vr/upstream.json`. Revisa los parámetros de [la guía técnica](../../vr-game-build.md) y los scripts para tus rutas. Empieza con el plan:
+Necesitas tu instalación local compatible y las herramientas de Builder. El identificador revisado del juego es `e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348`, ABI del renderer 19; consulta `vr/upstream.json`. Revisa los parámetros de [la guía técnica](../../vr-game-build.md) y los scripts para tus rutas. Empieza con el plan:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File vr/build-game.ps1 -PlanOnly
@@ -59,3 +59,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vr/run-moving-preview.ps1 -S
 El productor carga una copia privada de la partida y el visor muestra la escena durante 60 segundos tras la preparación. Ambos procesos tienen límites y limpieza. La cámara de origen sigue en tercera persona. Comprueba color, estereoscopía, orientación, escala y movimientos pequeños de cabeza. Informa de huecos, imágenes obsoletas o malestar. Este modo no integra controles VR ni audio verificado.
 
 Para calibración congelada, sigue primero [captura y preparación de malla](../../vr-frozen-depth-preview.md) y ejecuta `vr/run-depth-preview.ps1 -Seconds 60`. Las carpetas `work/headset-preview` y `work/headset-live-preview` preparadas en el PC de desarrollo son privadas; no están disponibles para descargar del repositorio.
+
+Para la nueva prueba de cámara del juego real, consulta [el prototipo inmersivo monoscópico](../../vr-immersive-game-preview.md). Utiliza ABI19 y es independiente del visor de profundidad.

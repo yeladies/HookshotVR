@@ -29,7 +29,7 @@ The probe checks advertised capabilities; success does not establish working ste
 
 ## Build the isolated game
 
-Use your own supported local installation and Builder inputs. The reviewed game build is `e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348`, renderer ABI 18; see `vr/upstream.json`. Check the parameters in [the isolated build guide](../../vr-game-build.md) and the scripts for your paths. Plan first:
+Use your own supported local installation and Builder inputs. The reviewed game build is `e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348`, renderer ABI 19; see `vr/upstream.json`. Check the parameters in [the isolated build guide](../../vr-game-build.md) and the scripts for your paths. Plan first:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File vr/build-game.ps1 -PlanOnly
@@ -59,3 +59,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File vr/run-moving-preview.ps1 -S
 The producer loads a private save snapshot and the viewer runs for 60 seconds after preparation. Both processes are bounded and cleaned up. Source camera position remains third person. Inspect color, stereo, orientation, scale and small head movements. Report holes, stale frames and discomfort. This mode has no integrated VR controls or verified audio.
 
 For frozen calibration, first follow [capture and mesh preparation](../../vr-frozen-depth-preview.md), then use `vr/run-depth-preview.ps1 -Seconds 60`. The prepared `work/headset-preview` and `work/headset-live-preview` folders on the development PC are private local artifacts, not downloads available from this repository.
+
+For the new real-game head-camera test, see [the monoscopic immersive prototype](../../vr-immersive-game-preview.md). It uses ABI19 and is separate from the depth viewers.

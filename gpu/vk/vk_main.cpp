@@ -1383,6 +1383,7 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     table.describe = describe;
     fill_replay_table(table);
     table.camera_observation = xr_camera_observation;
+    table.head_camera = xr_immersive_head_camera;
     return &table;
 }
 

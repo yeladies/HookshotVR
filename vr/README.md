@@ -105,3 +105,7 @@ Its output is an incomplete resource plan, never permission to replay GPU work.
 The [native game-image clone probe](../docs/vr-game-image-clone-probe.md) optionally
 checks strict local-memory allocation, copies and timeline retirement from a real
 scene draw using `-EyeImageProbe`. It does not display the copies or enable stereo.
+
+## Live game head camera
+
+The new [monoscopic immersive game prototype](../docs/vr-immersive-game-preview.md) uses a guarded real-game camera override and a tagged projection layer. It is not native stereo and still needs its first headset check. The source interface is ABI19; old receipts/binaries must not be mixed. The linked guide is available in English and Spanish.

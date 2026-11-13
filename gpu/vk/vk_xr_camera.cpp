@@ -10,6 +10,7 @@
 #include <mutex>
 namespace mkwvk {
 void logf(const char*,...);
+void xr_immersive_note_camera(uint64_t,const float*,size_t);
 namespace {
 std::mutex capture_mutex;
 CameraCapture capture;
@@ -83,6 +84,7 @@ bool xr_scene_camera_observation(const SceneCameraEvidence& draw,const float* bl
     if(observed==1||observed%2000==0)logf("vr-scene: draw candidates %llu, invalid %llu, no fresh camera %llu, view mismatch %llu, projection mismatch %llu, matched %llu, matched replay frames %llu",
         (unsigned long long)observed,(unsigned long long)totals[0],(unsigned long long)totals[1],(unsigned long long)totals[2],
         (unsigned long long)totals[3],(unsigned long long)totals[4],(unsigned long long)matched_frames);
+    if(pinned.matched)xr_immersive_note_camera(draw.replay_frame,block,count);
     return pinned.matched;
 }
 namespace {

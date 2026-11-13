@@ -20,6 +20,17 @@ std::mutex queue;
 bool locked(){bool result=false;std::thread t([&]{if(queue.try_lock())queue.unlock();else result=true;});t.join();return result;}
 int main(int argc,char** argv){using namespace mkwvk;try {
     check(argc==2,"fake path");
+    const char* initial_mode=std::getenv("XR_FAKE_MODE");
+    const bool immersive=initial_mode&&std::strstr(initial_mode,"preview_immersive");
+    const bool missing=initial_mode&&!std::strcmp(initial_mode,"preview_immersive_missing");
+    if(immersive){
+#ifdef _WIN32
+        _putenv_s("RX_VK_XR_IMMERSIVE","1");
+#else
+        setenv("RX_VK_XR_IMMERSIVE","1",1);
+#endif
+    }
+
 #ifdef _WIN32
     _putenv_s("HOOKSHOT_OPENXR_LOADER",argv[1]);HMODULE lib=LoadLibraryA(argv[1]);
 #define SYM(n) GetProcAddress(lib,n)
@@ -44,10 +55,16 @@ int main(int argc,char** argv){using namespace mkwvk;try {
     if(!init_error) {
         auto pixels=std::make_shared<std::vector<uint8_t>>(1280*720*4,0);
         (*pixels)[0]=17;(*pixels)[1]=34;(*pixels)[2]=51;(*pixels)[3]=255;
+        if(immersive&&!missing){
+            XrFrameSnapshot snapshot;bool ready=false;for(int i=0;i<100;++i){if(xr_vulkan_latest_frame(&snapshot)&&snapshot.focused){ready=true;break;}std::this_thread::sleep_for(std::chrono::milliseconds(2));}check(ready,"fresh fake head pose");
+            float view[12]={1,0,0,0,0,1,0,0,0,0,1,0};check(xr_immersive_head_camera(7,view),"real pose camera callback");
+            float block[0x230/4]{};std::memcpy(block,view,sizeof view);const float projection[16]={1,0,0,0,0,2,0,0,0,0,-1,-.2f,0,0,-1,0};std::memcpy(block+0x70/4,projection,sizeof projection);
+            xr_immersive_note_camera(77,block,0x230/4);xr_immersive_tag_present(12,77);
+        }
         xr_preview_publish(pixels,1280,720,12);
         bool reached=false;
         for(int i=0;i<1000;++i) {
-            if((runtime_error?count(12)>0:count(17)>=2)){reached=true;break;}
+            if((missing?count(3)>=3:(runtime_error?count(12)>0:count(17)>=2))){reached=true;break;}
             std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
         check(reached,"preview work reached");
@@ -58,7 +75,8 @@ int main(int argc,char** argv){using namespace mkwvk;try {
     else {
         check(count(0)==count(1)&&count(6)==count(7),"session and spaces cleaned");
         check(count(10)==count(11)&&count(15)==count(16),"preview partial/complete resources cleaned");
-        if(!init_error&&!runtime_error)check(count(17)>=2&&count(14)==1&&count(12)==1,"reuse released image across quad frames without acquiring or uploading again");
+        if(missing)check(count(17)==0&&count(12)==0,"unassociated images never submitted as immersive layers");
+        if(!init_error&&!runtime_error&&!missing)check(count(17)>=2&&count(14)==1&&count(12)==1,"reuse released image across quad frames without acquiring or uploading again");
     }
     if(!std::strcmp(mode,"preview_noncoherent"))check(count(18)>0,"noncoherent staging flush");
     check(count(4)==0&&count(5)==0,"frame balance, queue locking and copied color pattern");

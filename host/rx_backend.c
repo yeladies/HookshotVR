@@ -356,6 +356,9 @@ static void camera_cache_uniform(uint64_t address,const float* rows) {
         camera_uniform_candidates[camera_uniform_candidates_count++]=address;}
     ReleaseSRWLockExclusive(&camera_cache_lock);
 }
+int rx_xr_head_camera(uint64_t camera, float rows[12]) {
+    return env_on("RX_VK_XR_IMMERSIVE") && vk && vk->head_camera ? vk->head_camera(camera, rows) : 0;
+}
 void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3], int debug) {
     MkwVkCameraObservation sample = {0};
     if(env_on("HOOKSHOT_VR_CAMERA_CAPTURE"))camera_cache_primary(camera,rows,debug);

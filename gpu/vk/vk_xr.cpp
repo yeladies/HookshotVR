@@ -140,7 +140,7 @@ bool xr_preview_wants_frame() {return (bridge.preview_accepting.load()||bridge.r
 void xr_preview_publish(std::shared_ptr<const std::vector<uint8_t>> pixels,uint32_t width,uint32_t height,int64_t present) {
     if(!xr_preview_wants_frame())return;
     const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-    if(bridge.preview_feed.publish(std::move(pixels),width,height,present,now)&&bridge.readback_only.load()) {
+    if(bridge.preview_feed.publish(std::move(pixels),width,height,present,now,xr_immersive_frame_tag(present))&&bridge.readback_only.load()) {
         const auto image=bridge.preview_feed.latest(now);
         if(image.serial==1||image.serial%60==0)logf("xr-preview: readback frames %llu, %ux%u RGBA, no XR session",
             (unsigned long long)image.serial,width,height);

@@ -128,13 +128,13 @@ struct SessionProbe {
         if(preview&&located&&frame.shouldRender&&frame.predictedDisplayTime>=suppress_until&&(location.locationFlags&needed)==needed) {
             const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
             auto image=bridge.preview_feed.latest(now);
-            if(image.pixels){draw_ok=preview->frame(local,location.pose,generation,std::move(image));quad=draw_ok;}
+            if(image.pixels&&(!preview->immersive||(image.immersive.valid&&image.immersive.generation==generation))){draw_ok=preview->frame(local,location.pose,generation,std::move(image));quad=draw_ok;}
         }
         // Balance every begun frame, including failures and no-image/not-visible frames.
         XrFrameEndInfo end{XR_TYPE_FRAME_END_INFO};end.displayTime=frame.predictedDisplayTime;
         end.environmentBlendMode=XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
         const XrCompositionLayerBaseHeader* layers[1]{};
-        if(quad){layers[0]=reinterpret_cast<const XrCompositionLayerBaseHeader*>(&preview->layer);end.layerCount=1;end.layers=layers;}
+        if(quad){layers[0]=preview->submitted_layer();end.layerCount=1;end.layers=layers;}
         XrResult ended;
         { std::lock_guard lock(queue_mutex);ended=end_frame(session,&end); }
         if(!ok(ended,"end renderer frame")||!located||!draw_ok)return false;

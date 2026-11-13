@@ -3170,6 +3170,7 @@ void do_present(const nvn_tex* t, const int crop[4]) {
         interpolated = framegen_on() && tex && fg_inline &&
                        framegen_record(r.cmd, texture_view(tex, t, nullptr, VK_IMAGE_VIEW_TYPE_2D, ViewUse::Sample), sw,
                                        sh, crop);
+        xr_immersive_tag_present(presents+1,texture_frame_no());
         texture_frame(completed());
         full_barrier(r.cmd);
         presents++;

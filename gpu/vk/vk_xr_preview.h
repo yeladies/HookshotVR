@@ -10,6 +10,8 @@ namespace mkwvk { namespace {
  X(WaitForFences) X(QueueSubmit) X(CmdPipelineBarrier) X(CmdCopyBufferToImage) X(FlushMappedMemoryRanges)
 struct QuadPreview {
     Bridge& bridge;std::mutex& queue_mutex;
+    bool immersive=false;XrCompositionLayerProjection projection{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
+    std::array<XrCompositionLayerProjectionView,2> projection_views{{{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW},{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}}};
     XrSession session=XR_NULL_HANDLE;XrSwapchain chain=XR_NULL_HANDLE;
     VkDevice device=VK_NULL_HANDLE;VkQueue queue=VK_NULL_HANDLE;
     VkBuffer buffer=VK_NULL_HANDLE;VkDeviceMemory memory=VK_NULL_HANDLE;void* mapped=nullptr;
@@ -28,6 +30,7 @@ struct QuadPreview {
     bool vk_ok(VkResult result,const char* operation) {if(result==VK_SUCCESS)return true;logf("xr: preview %s failed (%d)",operation,int(result));return false;}
     bool initialize(XrSession s,VkInstance instance,VkPhysicalDevice physical,VkDevice d,uint32_t family) {
         session=s;device=d;
+        const char* mode=std::getenv("RX_VK_XR_IMMERSIVE");immersive=mode&&std::strcmp(mode,"1")==0;
         if(!bridge.vulkan_get)return false;
         auto get_device=reinterpret_cast<PFN_vkGetDeviceProcAddr>(bridge.vulkan_get(instance,"vkGetDeviceProcAddr"));
         auto memory_properties=reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(bridge.vulkan_get(instance,"vkGetPhysicalDeviceMemoryProperties"));
@@ -68,7 +71,7 @@ struct QuadPreview {
         if(!vk_ok(AllocateCommandBuffers(device,&commands,&command),"allocate command buffer"))return false;
         VkFenceCreateInfo f{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};f.flags=VK_FENCE_CREATE_SIGNALED_BIT;
         if(!vk_ok(CreateFence(device,&f,nullptr,&fence),"create upload fence"))return false;
-        logf("xr: flat quad preview prepared, 1280x720 sRGB; not native game stereo");return true;
+        logf("xr: %s prepared, 1280x720 sRGB; not native game stereo",immersive?"immersive mono projection":"flat quad preview");return true;
     }
     bool upload(uint32_t index,const PreviewFrame& frame) {
         if(pending)return false;
@@ -100,7 +103,15 @@ struct QuadPreview {
         if(!vk_ok(WaitForFences(device,1,&fence,VK_TRUE,5000000000ull),"wait image upload"))return false;
         pending=false;return true;
     }
+    const XrCompositionLayerBaseHeader* submitted_layer()const{return immersive?reinterpret_cast<const XrCompositionLayerBaseHeader*>(&projection):reinterpret_cast<const XrCompositionLayerBaseHeader*>(&layer);}
     bool frame(XrSpace local,const XrPosef& head,uint64_t generation,PreviewFrame frame) {
+        if(immersive){
+            if(!frame.immersive.valid||frame.immersive.generation!=generation)return false;
+            const auto& tag=frame.immersive;
+            for(auto& v:projection_views){v.pose.orientation={tag.orientation[0],tag.orientation[1],tag.orientation[2],tag.orientation[3]};v.pose.position={tag.position[0],tag.position[1],tag.position[2]};
+                v.fov={tag.fov[0],tag.fov[1],tag.fov[2],tag.fov[3]};v.subImage={chain,{{0,0},{1280,720}},0};}
+            projection.space=local;projection.viewCount=2;projection.views=projection_views.data();
+        }
         if(!frame.pixels||frame.width!=1280||frame.height!=720){logf("xr: preview frame-size validation failed");return false;}
         const auto q0=head.orientation;const double norm=double(q0.x)*q0.x+double(q0.y)*q0.y+double(q0.z)*q0.z+double(q0.w)*q0.w;
         if(!std::isfinite(norm)||std::abs(norm-1)>0.01||!std::isfinite(head.position.x)||!std::isfinite(head.position.y)||!std::isfinite(head.position.z)){logf("xr: preview pose validation failed");return false;}
@@ -138,7 +149,7 @@ struct QuadPreview {
         if(buffer&&DestroyBuffer)DestroyBuffer(device,buffer,nullptr);buffer=VK_NULL_HANDLE;
         if(memory&&FreeMemory)FreeMemory(device,memory,nullptr);memory=VK_NULL_HANDLE;
         if(chain&&destroy_chain)ok(destroy_chain(chain),"destroy preview swapchain");chain=XR_NULL_HANDLE;
-        logf("xr: flat quad preview closed; quad frames %llu, game images %llu",(unsigned long long)quad_frames,(unsigned long long)game_updates);
+        logf("xr: %s closed; quad frames %llu, game images %llu",immersive?"immersive mono projection":"flat quad preview",(unsigned long long)quad_frames,(unsigned long long)game_updates);
         return true;
     }
 };
