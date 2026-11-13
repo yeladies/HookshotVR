@@ -86,3 +86,46 @@ the owning full descriptor snapshot. Compare original before/after and both priv
 outputs only after known queue completion. XrBaselineAttempt and the four-frame
 comparator are implemented/tested, but no extra game draw is implemented or enabled
 by this checkpoint. No headset test is needed for this next baseline experiment.
+
+## 2026-11-13: unchanged isolated GPU draw passed
+
+The default-off `-IsolatedDrawProbe` is now implemented. Current native fingerprint
+`0a1eb48b`, ABI18, pinned upstream base unchanged. A fresh same-process nonce/source
+selection is produced atomically during the bounded run; live native stage/module
+identities must match before any private work. The ordinary source draw executes
+once, two raw unchanged private draws follow, and the full original pushed set is
+explicitly restored. No game update/main loop is repeated and XR is not opened.
+
+Actual RTX 2060 SUPER result: program f0b770574af166d8, 1152x648 HDR/D32, two camera
+UBO aliases with a maximum resolved range of 2432 bytes, thirteen read images. The
+original draw changed 116 pixels; both complete private color outputs matched bitwise.
+The first eligible color-writing attempt passed and private resources were released
+after the native timeline completed. Peak process working set 6596 MiB in the
+150-second headless/muted private-save run. The earlier unfiltered run exhausted eight
+invisible attempts; those were inconclusive, never accepted as a match. Color-write
+and known VMA allocation/feedback checks now exclude those cases.
+
+Validation: 75/75 VR tests pass, including a fixture compiling the actual recorder
+against a Vulkan double with allocation exceptions/failures, stale generations,
+changed descriptors, skipped serials, signed indexed geometry, full source restore,
+delayed retirement and deliberate private-pixel corruption. The inherited suite
+reports 357 passed, the same 5 known baseline/environment failures and 59 skipped in
+295 seconds. A 20-second default-off startup completed with both new flags false,
+3001 MiB peak. All 19 stable installation hashes still match. Linux/AMD and headset
+visuals have not been tested by this experiment.
+
+Private evidence: work/validation/isolated-baseline-2026-11-13/{result.json,
+baseline.json,attempts.jsonl,stderr.txt}; work/game-build/baseline-draw-color-live-result.txt;
+work/game-build/baseline-draw-default-off-result.txt;
+work/game-build/inherited-isolated-baseline-tests.log;
+work/vr-baseline-draw-final-tests.log. No captures, binaries, game shaders or assets
+are publication inputs.
+
+Next work: review the same draw's complete camera aliases/read footprints before
+introducing eye transforms, then expand coverage to complete producer/consumer
+passes. The current baseline copies exact resolved GPU UBO ranges, not necessarily
+the whole logical NVN camera allocation. Do not assume every camera alias starts at
+its base address, or that a single successful draw establishes full scene replay,
+culling, temporal histories or world scale. Keep synthetic camera changes isolated
+and prove routing/completion before any headset presentation. A visor test is not
+needed yet; no new stereo scene is presented by this milestone.

@@ -40,6 +40,7 @@
 #include "vk_draw.h"
 #include "xr_eye_uniform_probe.h"
 #include "xr_baseline_preflight.h"
+#include "xr_baseline_draw.h"
 #include "xr_uniform_copy_source.h"
 #include "xr_descriptor_snapshot.h"
 #include "vk_menu.h"          // (opts.anisotropy: the Anisotropic filtering row; resolution_scale)
@@ -2809,7 +2810,9 @@ struct DescWriter {
 };
 TLS_OBJECT(dw, DescWriter)
 TLS_OBJECT(baseline_read_images, std::vector<VkImage>)
+TLS_OBJECT(baseline_read_allocations, std::vector<VmaAllocation>)
 thread_local bool baseline_image_reads_complete = false;
+thread_local uint64_t baseline_draw_serial = 0;
 TLS_OBJECT(draw_sampled, std::vector<const Texture*>)   // (the textures the descriptors being built sample or store)
 void lineage_resource(const Texture* texture) {
     if(!xr_image_lineage_enabled()||!texture)return;
@@ -3025,7 +3028,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
     desc_samp_seen = sampler_registrations_generation();   // (so one registered during the build still forces the next rebuild)
     desc_destroy_seen = texture_destroy_generation();      // (an eviction retires views behind the slots' backs: it bumps only this)
     draw_sampled().clear();
-    if(xr_baseline_preflight_enabled()){baseline_read_images().clear();baseline_image_reads_complete=true;}
+    if(xr_baseline_preflight_enabled()){baseline_read_images().clear();baseline_read_allocations().clear();baseline_image_reads_complete=true;}
     lineage_writes().clear();lineage_buffers().clear();
     dump_written().clear();
     dump_inputs().clear();
@@ -3368,7 +3371,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                                tex ? tex->width : 0, tex ? tex->height : 0, tex ? tex->layers : 0, tex ? (void*)tex->image : nullptr,
                                (void*)view, view ? "" : " (dummy)");
                 if(xr_baseline_preflight_enabled()){
-                    if(view&&tex&&tex->image)baseline_read_images().push_back(tex->image);
+                    if(view&&tex&&tex->image&&tex->allocation&&!tex->sparse){baseline_read_images().push_back(tex->image);baseline_read_allocations().push_back(tex->allocation);}
                     else baseline_image_reads_complete=false;
                 }
                 if (view && tex && tex->gpu_written) draw_sampled().push_back(tex);
@@ -3392,7 +3395,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 if (view && tex && d.is_written) { ParLock lk; texture_written(tex, "a storage image of a draw"); }
                 if (xr_image_lineage_enabled() && view && tex && d.is_written) {lineage_writes().push_back(tex->id);lineage_resource(tex);}
                 if(xr_baseline_preflight_enabled()){
-                    if(view&&tex&&tex->image)baseline_read_images().push_back(tex->image);
+                    if(view&&tex&&tex->image&&tex->allocation&&!tex->sparse){baseline_read_images().push_back(tex->image);baseline_read_allocations().push_back(tex->allocation);}
                     else baseline_image_reads_complete=false;
                 }
                 if (view && tex) draw_sampled().push_back(tex);
@@ -6432,11 +6435,13 @@ void shader_uniform_compute_note(const Program& p,const NvnState& s) {
     }
     shader_uniform_audit_note(p,s,0,&cameras);
 }
-// Read-only eligibility experiment. No resource import, descriptor rebuild, pass end,
-// GPU command or extra draw is permitted here. Offline stage-effect review is separate.
-void baseline_draw_preflight(const Program& p,const NvnState& s,const DrawArgs& d,const Targets& at,bool same_desc,bool seed){
+// Eligibility reads existing state without another import or descriptor build. The
+// separate baseline-only switch additionally requires current-process stage review
+// before delegating preparation to the private recorder; the preflight alone is read-only.
+void baseline_draw_preflight(VkCommandBuffer command,const Program& p,const NvnState& s,const DrawArgs& d,const Targets& at,bool same_desc,bool seed){
     if(!xr_baseline_preflight_enabled()||!seed)return;
     XrBaselinePreflightNote note{p.key,rec_value,texture_frame_no(),at.width,at.height};
+    XrBaselineRecorderInput replay;
     auto examine=[&]()->const char*{
         if(par_active||stats_frame_now()||probe_on()||dump_on())return "diagnostic_or_parallel_state";
         if(same_desc||dw().prog!=&p)return "descriptor_build_not_fresh";
@@ -6451,6 +6456,7 @@ void baseline_draw_preflight(const Program& p,const NvnState& s,const DrawArgs& 
             for(const auto& descriptor:stage.info.image_buffer_descriptors)if(descriptor.is_written)return "texel_buffer_write";
         }
         if(mask!=17)return "unsupported_stages";
+        if(!target_write_mask(p,s,0))return "no_primary_color_write";
         if(d.mesh||d.indirect||d.count_addr||d.prim!=NVN_DRAW_PRIMITIVE_TRIANGLES||d.count<=0||d.count>1048576||d.instances<0||d.instances>1024||d.first<0||d.base_instance<0||s.restart||
            (d.indexed&&(d.itype<1||d.itype>2)))return "unsupported_geometry";
         if(at.n!=1||!at.color[0]||!at.depth||!at.color_view[0]||!at.depth_view||at.has_block_images||at.samples!=1||!at.width||!at.height||at.width>4096||at.height>4096||
@@ -6459,7 +6465,9 @@ void baseline_draw_preflight(const Program& p,const NvnState& s,const DrawArgs& 
             if(!texture->image||texture->sparse||texture->type!=VK_IMAGE_TYPE_2D||texture->samples!=VK_SAMPLE_COUNT_1_BIT||texture->levels!=1||texture->layers!=1||texture->depth!=1||texture->width!=at.width||texture->height!=at.height)return "unsupported_target_storage";
         }
         if(at.color[0]->format!=at.color_format[0]||at.depth->format!=at.depth_format||at.color[0]->image==at.depth->image)return "target_reinterpretation_or_alias";
+        if(!at.color[0]->allocation||!at.depth->allocation||at.color[0]->allocation==at.depth->allocation)return "unknown_or_aliased_target_allocation";
         if(!baseline_image_reads_complete)return "unresolved_image_read";
+        for(auto allocation:baseline_read_allocations())if(allocation==at.color[0]->allocation||allocation==at.depth->allocation)return "target_allocation_feedback";
         note.read_images=uint32_t(baseline_read_images().size());
         for(auto image:baseline_read_images())if(image==at.color[0]->image||image==at.depth->image)return "target_image_feedback";
         XrDescriptorSnapshot source;
@@ -6473,7 +6481,7 @@ void baseline_draw_preflight(const Program& p,const NvnState& s,const DrawArgs& 
                     for(const auto& write:source.writes())if(write.dstBinding==binding&&write.descriptorType==VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER&&element<write.descriptorCount)actual=&write.pBufferInfo[element];
                     if(!actual||!actual->buffer||actual->range==VK_WHOLE_SIZE||!actual->range||actual->range>65536||actual->range%4||actual->offset%4)return "unsupported_camera_descriptor";
                     if(camera.buffer&&(camera.buffer!=actual->buffer||camera.offset!=actual->offset))return "camera_descriptor_alias_mismatch";
-                    camera.buffer=actual->buffer;camera.offset=actual->offset;camera.range=std::max(camera.range,actual->range);++note.camera_bindings;
+                    camera.buffer=actual->buffer;camera.offset=actual->offset;camera.range=std::max(camera.range,actual->range);++note.camera_bindings;replay.camera_slots.push_back({binding,element});
                 }
                 ++binding;
             }
@@ -6483,11 +6491,18 @@ void baseline_draw_preflight(const Program& p,const NvnState& s,const DrawArgs& 
         note.uniform_bytes=uint32_t(camera.range);XrUniformCopySource description;
         if(!memory_xr_uniform_copy_source(camera.buffer,rec_value,description))return "camera_source_not_current_mirror";
         if(!xr_uniform_copy_source_valid(description,camera.buffer,camera.offset,camera.range,description.stamp))return "camera_source_range_or_usage";
+        replay.serial=baseline_draw_serial;replay.recording=rec_value;replay.program=p.key;replay.command=command;replay.layout=p.layout;
+        auto describe=[](const Texture& t){EyeImageSource image;image.image=t.image;image.identity=t.id;image.format=t.format;image.aspect=t.aspect;
+            image.flags=t.create_flags;image.usage=t.usage;image.width=t.width;image.height=t.height;image.levels=t.levels;image.layers=t.layers;image.sparse=t.sparse;image.samples=t.samples;image.type=t.type;return image;};
+        replay.color=describe(*at.color[0]);replay.depth=describe(*at.depth);replay.camera=camera;replay.writes=dw().writes;
+        replay.geometry={d.indexed,uint32_t(d.count),uint32_t(std::max(1,d.instances)),d.indexed?0u:uint32_t(d.first),uint32_t(d.base_instance),d.base_vertex};
         return "live_state_candidate_requires_shader_review";
     };
     note.reason=examine();xr_baseline_preflight_note(note);
+    if(std::strcmp(note.reason,"live_state_candidate_requires_shader_review")==0&&xr_baseline_draw_selected(p))xr_baseline_draw_prepare(replay);
 }
 void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+    if(xr_baseline_draw_enabled()){if(++baseline_draw_serial==0)++baseline_draw_serial;xr_baseline_draw_tick(texture_frame_no(),baseline_draw_serial);}
     PROF_HOT(PROF_DRAW);
     FINE_N(FC_DRAWS, 1);
     stats_tick();
@@ -6844,7 +6859,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         }
     }
     if (p.fallback && d.mesh && !fallback_record(cmd, p, d)) SKIP_HERE();
-    baseline_draw_preflight(p,s,d,at,same_desc,vr_camera_seed);
+    baseline_draw_preflight(cmd,p,s,d,at,same_desc,vr_camera_seed);
     {
         FINE_SCOPE(FT_HAZARD);
         begin_pass(cmd, at);
@@ -7195,6 +7210,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         vkCmdDraw(cmd, (uint32_t)d.count, (uint32_t)std::max(1, d.instances), (uint32_t)d.first, (uint32_t)d.base_instance);
     }
     st_draws++, pass().draws++;
+    if(xr_baseline_draw_enabled())xr_baseline_draw_finish(baseline_draw_serial,rec_value,p.key,cmd,dw().writes);
     eye_image_probe_note(cmd,at,s,vr_camera_seed);
     lineage_note(p,&at,vr_camera_seed,true);
     if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);

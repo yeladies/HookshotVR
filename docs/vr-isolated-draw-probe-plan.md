@@ -1,9 +1,10 @@
-# Next experiment: one isolated baseline draw
+# Isolated unchanged baseline draw
 
-Status: planned, not enabled. Complete program inventories now identify shader
-subsets worth inspecting; they do not by themselves permit replay. The next goal
-is to reproduce one unchanged original GPU draw into private color/depth targets,
-with both copies matching its original result. No game update/main loop is repeated,
+Status: implemented as a default-off, bounded experiment. The unchanged baseline
+passed on an RTX 2060 SUPER on 2026-11-13: one original draw changed 116 pixels and
+both private color outputs matched the complete original output exactly. Complete
+program inventories alone still do not permit replay; the live draw and current
+process stage identities must satisfy the additional guards below. No game update/main loop is repeated,
 and no modified camera or XR image is presented in this first experiment.
 
 ## Required live checks
@@ -83,4 +84,49 @@ original invalidates preparation before the next draw. Submitted storage can ret
 only after known completion on the original device; unknown completion is retained.
 The four-frame comparator requires visible original changes and exact pixel equality
 for both private outputs, with mismatches taking precedence over invisible output.
-These components do not yet issue the private draws.
+The separate isolated-draw mode now uses these components to issue only the two
+unchanged private draws described below.
+
+
+## Bounded GPU recorder and verified result
+
+Run `vr/run-game.ps1 -IsolatedDrawProbe -SnapshotStableSaves -LoadTestSave -Seconds 150`
+after building the experimental native renderer. The runner remains headless/muted
+unless explicitly changed and refuses XR/session/image-probe combinations. It disables
+parallel replay, the recorder and competing query/dump diagnostics for this process.
+A fresh capture directory, nonce and native source fingerprint scope the control file.
+The Python analyzer writes the selection atomically while the save loads; the native
+reader also checks exact program/stage/module fingerprints and word counts from its
+own successful module exports. Incomplete/stale selections do not start a draw.
+
+Preparation allocates all private images, views, UBOs and four-frame readback storage
+under a 64 MiB actual-allocation budget before recording transfers. It preserves each
+camera descriptor's range and copies actual resolved GPU uniform bytes. Pool/capture
+stamps must remain unchanged between allocation and preparation. Original target and
+read-image VMA allocations must be known; same-image/allocation feedback and sparse
+read images reject. The original fragment shader/output mask must write primary color.
+No guest resource is imported again or registered for private writeback.
+
+The exact source draw then executes once through its ordinary path. Only its matching
+serial/command/recording/program may finish the attempt. Two raw direct draws use the
+same pipeline, vertex/index state, push constants and dynamic state in independent
+color/depth rendering instances, followed by an explicit full pushed-descriptor restore.
+The recorder never re-enters draw() or any game update. Submitted resources remain
+owned until the source queue's actual timeline completes; device changes/unknown
+completion retain them. Allocation exceptions are contained before recording commands.
+
+At most eight distinct programs are attempted; no visible original pixel change is
+inconclusive, while any private color mismatch stops the experiment immediately.
+The first test, before the primary-color-write filter, completed eight inconclusive
+attempts, with no color differences and all resources released. After adding that
+filter, program f0b770574af166d8 passed on the first attempt: 116 changed original
+pixels, zero mismatched pixels across both complete 1152x648 private outputs, followed
+by verified retirement. Native source fingerprint 0a1eb48b; 150-second process peak
+6596 MiB. This proves one unchanged isolated draw, not a full scene, stereo camera,
+headset presentation, Linux/AMD behavior or visual gameplay correctness.
+
+Native test coverage compiles the actual recorder against an in-memory Vulkan double:
+partial image/buffer allocation failures, allocation exceptions, changed generations,
+changed source descriptors, skipped serials, signed indexed offsets, two private draws,
+full source descriptor restoration, delayed retirement and deliberate private-output
+corruption. Real GPU comparison is a separate local run, never a CI requirement.
