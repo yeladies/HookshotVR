@@ -108,4 +108,6 @@ scene draw using `-EyeImageProbe`. It does not display the copies or enable ster
 
 ## Live game head camera
 
-The new [monoscopic immersive game prototype](../docs/vr-immersive-game-preview.md) uses a guarded real-game camera override and a tagged projection layer. It is not native stereo and still needs its first headset check. The source interface is ABI19; old receipts/binaries must not be mixed. The linked guide is available in English and Spanish.
+The new [monoscopic immersive game prototype](../docs/vr-immersive-game-preview.md) uses a guarded real-game camera override and a tagged projection layer. It is not native stereo and still needs its first headset check. The source interface is ABI20; old receipts/binaries must not be mixed. The linked guide is available in English and Spanish.
+
+The [wide-lens and temporal-stereo prototype](../docs/vr-temporal-stereo-preview.md) now has separate eye images and a source perspective/frustum update. It remains temporal, with new headset checks pending; menu coverage and Quest audio are unfinished.

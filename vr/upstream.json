@@ -2,7 +2,7 @@
   "schema": 1,
   "upstream_url": "https://github.com/NotRexed/Hookshot.git",
   "base_commit": "940eb9ef34134913d2bc2a7b3ed5cb3caea58ef3",
-  "mod_host_renderer_abi": 19,
+  "mod_host_renderer_abi": 20,
   "supported_game_builds": [
     "e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348"
   ],
@@ -18,6 +18,7 @@
     "nx2/build.py",
     "nx2/oot_patches.py",
     "nx2/oot_jitter.py",
+    "nx2/oot_wide.py",
     "gpu/vk/vk_internal.h",
     "gpu/vk/vk_vma.cpp",
     "gpu/vk/vk_texture.h",

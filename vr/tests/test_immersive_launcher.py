@@ -10,6 +10,9 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'vr/run-game.ps1'),*args],capture_output=True,text=True,timeout=20)
         self.assertNotEqual(result.returncode,0)
         self.assertIn(message,result.stdout+result.stderr)
+    def test_lens_and_stereo_require_isolated_immersive_mode(self):
+        for mode in ('-WideFov','-TemporalStereo'):
+            self.reject([mode],'Wide FOV/stereo require an isolated immersive mode')
     def test_synthetic_cannot_open_xr(self):
         for switch in ('-XrPreview','-XrSessionProbe','-XrNegotiation'):
             with self.subTest(switch=switch):self.reject(['-Seconds','180','-ImmersiveReadbackTest',switch],'Synthetic head motion cannot be combined with XR')

@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 namespace mkwvk {
 struct ImmersiveTag {
-    bool valid=false;uint64_t generation=0;int64_t observed_ns=0;
+    bool valid=false,menu=false,temporal_stereo=false;uint32_t eye=0;uint64_t generation=0;int64_t observed_ns=0;
     float orientation[4]{0,0,0,1},position[3]{},fov[4]{};
 };
-struct ImmersivePose {float q[4]{0,0,0,1},p[3]{};uint64_t generation=0;int64_t observed_ns=0;};
-// A bounded monoscopic camera experiment. No eye separation, guest pointers or XR API.
+struct ImmersivePose {float q[4]{0,0,0,1},p[3]{};bool temporal_stereo=false;uint32_t eye=0;uint64_t generation=0;int64_t observed_ns=0;};
+// Bounded head/eye camera math. Temporal stereo uses distinct game presents.
+// No guest pointers or XR API are accessed by this helper.
 class ImmersiveCamera {
     uint64_t camera_=0,generation_=0;float reference_[9]{},origin_[3]{},base_[12]{},last_[12]{};
     bool anchored_=false;struct History {float view[12]{};ImmersivePose pose;bool valid=false;};
@@ -29,11 +31,15 @@ class ImmersiveCamera {
         return std::abs(d-1)<0.003;
     }
 public:
-    bool apply(uint64_t camera,float* view,const ImmersivePose& pose,int64_t now){
+    bool apply(uint64_t camera,float* view,const ImmersivePose& pose,int64_t now,const ImmersivePose* anchor=nullptr){
         float current[9];if(!camera||!pose.generation||pose.observed_ns<=0||now<pose.observed_ns||now-pose.observed_ns>250000000||!rigid(view)||!rotation(pose.q,current))return false;
         for(float x:pose.p)if(!std::isfinite(x))return false;
+        if(pose.temporal_stereo&&pose.eye>1)return false;
+        float reference_rotation[9];const auto& reference=anchor?*anchor:pose;
+        if(reference.generation!=pose.generation||reference.observed_ns<=0||now<reference.observed_ns||now-reference.observed_ns>250000000||!rotation(reference.q,reference_rotation))return false;
+        for(float x:reference.p)if(!std::isfinite(x))return false;
         const bool reset=!anchored_||camera_!=camera||generation_!=pose.generation;
-        if(reset){camera_=camera;generation_=pose.generation;std::memcpy(reference_,current,sizeof current);std::memcpy(origin_,pose.p,sizeof origin_);anchored_=true;for(auto& h:history_)h.valid=false;}
+        if(reset){camera_=camera;generation_=pose.generation;std::memcpy(reference_,reference_rotation,sizeof reference_rotation);std::memcpy(origin_,reference.p,sizeof origin_);anchored_=true;for(auto& h:history_)h.valid=false;}
         // The engine may revisit the same view without rebuilding it. Never feed
         // a previously overridden matrix back into the relative transformation.
         if(reset||std::memcmp(view,last_,sizeof last_)!=0)std::memcpy(base_,view,sizeof base_);
@@ -56,11 +62,25 @@ public:
         for(unsigned n=0;n<history_.size();++n){const auto& h=history_[(cursor_-1-n)%history_.size()];
             if(!h.valid||h.pose.generation!=generation_||now<h.pose.observed_ns||now-h.pose.observed_ns>250000000)continue;
             bool same=true;for(int i=0;i<12;++i)same&=std::abs(double(h.view[i])-view[i])<0.0001;if(!same)continue;
-            out.valid=true;out.generation=h.pose.generation;out.observed_ns=h.pose.observed_ns;std::memcpy(out.orientation,h.pose.q,sizeof out.orientation);std::memcpy(out.position,h.pose.p,sizeof out.position);
+            out.valid=true;out.temporal_stereo=h.pose.temporal_stereo;out.eye=h.pose.eye;out.generation=h.pose.generation;out.observed_ns=h.pose.observed_ns;std::memcpy(out.orientation,h.pose.q,sizeof out.orientation);std::memcpy(out.position,h.pose.p,sizeof out.position);
             out.fov[0]=std::atan((projection[2]-1)/projection[0]);out.fov[1]=std::atan((projection[2]+1)/projection[0]);
             out.fov[2]=std::atan((projection[6]+1)/std::abs(projection[5]));out.fov[3]=std::atan((projection[6]-1)/std::abs(projection[5]));return out;
         }
         return out;
     }
 };
+inline bool immersive_lens_from_fovs(const float left[4],const float right[4],float& vertical,float& aspect){
+    double horizontal=0,height=0;
+    for(const auto* eye:{left,right}){
+        if(!eye)return false;
+        for(int i=0;i<4;++i)if(!std::isfinite(eye[i])||std::abs(eye[i])>=1.45)return false;
+        if(eye[0]>=0||eye[1]<=0||eye[2]<=0||eye[3]>=0)return false;
+        horizontal=std::max(horizontal,std::max(-std::tan(double(eye[0])),std::tan(double(eye[1]))));
+        height=std::max(height,std::max(std::tan(double(eye[2])),-std::tan(double(eye[3]))));
+    }
+    const double fov=2*std::atan(height),ratio=horizontal/height;
+    if(!std::isfinite(ratio)||fov<.2||fov>2.8||ratio<.5||ratio>2.5)return false;
+    vertical=float(fov);aspect=float(ratio);return true;
+}
+
 }

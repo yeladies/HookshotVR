@@ -10,14 +10,14 @@ namespace mkwvk { namespace {
  X(WaitForFences) X(QueueSubmit) X(CmdPipelineBarrier) X(CmdCopyBufferToImage) X(FlushMappedMemoryRanges)
 struct QuadPreview {
     Bridge& bridge;std::mutex& queue_mutex;
-    bool immersive=false;XrCompositionLayerProjection projection{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
+    bool immersive=false,use_projection=false,stereo=false;XrCompositionLayerProjection projection{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
     std::array<XrCompositionLayerProjectionView,2> projection_views{{{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW},{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}}};
     XrSession session=XR_NULL_HANDLE;XrSwapchain chain=XR_NULL_HANDLE;
     VkDevice device=VK_NULL_HANDLE;VkQueue queue=VK_NULL_HANDLE;
     VkBuffer buffer=VK_NULL_HANDLE;VkDeviceMemory memory=VK_NULL_HANDLE;void* mapped=nullptr;
     VkCommandPool pool=VK_NULL_HANDLE;VkCommandBuffer command=VK_NULL_HANDLE;VkFence fence=VK_NULL_HANDLE;
     bool coherent=false,pending=false,anchored=false;
-    uint64_t anchor_generation=0,quad_frames=0,game_serial=0,game_updates=0,staged_serial=0;
+    uint64_t anchor_generation=0,quad_frames=0,game_serial=0,game_updates=0,temporal_projection_frames=0,staged_serial=0,game_right_serial=0,staged_right_serial=0;
     std::vector<XrSwapchainImageVulkan2KHR> images;
     XrPosef anchor{};
     XrCompositionLayerQuad layer{XR_TYPE_COMPOSITION_LAYER_QUAD};
@@ -31,6 +31,7 @@ struct QuadPreview {
     bool initialize(XrSession s,VkInstance instance,VkPhysicalDevice physical,VkDevice d,uint32_t family) {
         session=s;device=d;
         const char* mode=std::getenv("RX_VK_XR_IMMERSIVE");immersive=mode&&std::strcmp(mode,"1")==0;
+        const char* eye_mode=std::getenv("RX_VK_XR_TEMPORAL_STEREO");stereo=immersive&&eye_mode&&std::strcmp(eye_mode,"1")==0;
         if(!bridge.vulkan_get)return false;
         auto get_device=reinterpret_cast<PFN_vkGetDeviceProcAddr>(bridge.vulkan_get(instance,"vkGetDeviceProcAddr"));
         auto memory_properties=reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(bridge.vulkan_get(instance,"vkGetPhysicalDeviceMemoryProperties"));
@@ -46,12 +47,12 @@ struct QuadPreview {
         std::vector<int64_t> supported(count);if(!ok(formats(session,count,&count,supported.data()),"preview formats"))return false;
         if(std::find(supported.begin(),supported.end(),int64_t(VK_FORMAT_R8G8B8A8_SRGB))==supported.end()) {logf("xr: preview sRGB format unavailable");return false;}
         XrSwapchainCreateInfo ci{XR_TYPE_SWAPCHAIN_CREATE_INFO};ci.usageFlags=XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT|XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
-        ci.format=VK_FORMAT_R8G8B8A8_SRGB;ci.sampleCount=1;ci.width=1280;ci.height=720;ci.faceCount=1;ci.arraySize=1;ci.mipCount=1;
+        ci.format=VK_FORMAT_R8G8B8A8_SRGB;ci.sampleCount=1;ci.width=stereo?2560:1280;ci.height=720;ci.faceCount=1;ci.arraySize=1;ci.mipCount=1;
         if(!ok(create_chain(session,&ci,&chain),"create preview swapchain")||!ok(enumerate(chain,0,&count,nullptr),"preview image count")||!count)return false;
         images.assign(count,{XR_TYPE_SWAPCHAIN_IMAGE_VULKAN2_KHR});
         if(!ok(enumerate(chain,count,&count,reinterpret_cast<XrSwapchainImageBaseHeader*>(images.data())),"preview images"))return false;
         GetDeviceQueue(device,family,0,&queue);
-        VkBufferCreateInfo b{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};b.size=1280*720*4;b.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT;b.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+        VkBufferCreateInfo b{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};b.size=1280*720*4*(stereo?2:1);b.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT;b.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
         if(!vk_ok(CreateBuffer(device,&b,nullptr,&buffer),"create staging buffer"))return false;
         VkMemoryRequirements requirements{};GetBufferMemoryRequirements(device,buffer,&requirements);
         VkPhysicalDeviceMemoryProperties properties{};memory_properties(physical,&properties);
@@ -75,11 +76,12 @@ struct QuadPreview {
     }
     bool upload(uint32_t index,const PreviewFrame& frame) {
         if(pending)return false;
-        if(staged_serial!=frame.serial) {
+        if(staged_serial!=frame.serial||staged_right_serial!=frame.right_serial) {
             std::memcpy(mapped,frame.pixels->data(),frame.pixels->size());
+            if(frame.right_pixels){if(!stereo||frame.right_pixels->size()!=frame.pixels->size())return false;std::memcpy(static_cast<uint8_t*>(mapped)+frame.pixels->size(),frame.right_pixels->data(),frame.right_pixels->size());}
             if(!coherent){VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};range.memory=memory;range.size=VK_WHOLE_SIZE;
                 if(!vk_ok(FlushMappedMemoryRanges(device,1,&range),"flush staging memory"))return false;}
-            staged_serial=frame.serial;
+            staged_serial=frame.serial;staged_right_serial=frame.right_serial;
         }
         if(!vk_ok(ResetCommandBuffer(command,0),"reset upload command"))return false;
         VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
@@ -91,8 +93,9 @@ struct QuadPreview {
         image.oldLayout=VK_IMAGE_LAYOUT_UNDEFINED;image.newLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
         image.srcQueueFamilyIndex=image.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;image.image=images[index].image;image.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
         CmdPipelineBarrier(command,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&image);
-        VkBufferImageCopy copy{};copy.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};copy.imageExtent={1280,720,1};
-        CmdCopyBufferToImage(command,buffer,images[index].image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,1,&copy);
+        VkBufferImageCopy copies[2]{};copies[0].imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};copies[0].imageExtent={1280,720,1};
+        copies[1]=copies[0];copies[1].bufferOffset=1280*720*4;copies[1].imageOffset.x=1280;
+        CmdCopyBufferToImage(command,buffer,images[index].image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,frame.right_pixels?2:1,copies);
         image.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;image.dstAccessMask=VK_ACCESS_MEMORY_READ_BIT;
         image.oldLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;image.newLayout=VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         CmdPipelineBarrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,0,0,nullptr,0,nullptr,1,&image);
@@ -103,13 +106,19 @@ struct QuadPreview {
         if(!vk_ok(WaitForFences(device,1,&fence,VK_TRUE,5000000000ull),"wait image upload"))return false;
         pending=false;return true;
     }
-    const XrCompositionLayerBaseHeader* submitted_layer()const{return immersive?reinterpret_cast<const XrCompositionLayerBaseHeader*>(&projection):reinterpret_cast<const XrCompositionLayerBaseHeader*>(&layer);}
+    const XrCompositionLayerBaseHeader* submitted_layer()const{return immersive&&use_projection?reinterpret_cast<const XrCompositionLayerBaseHeader*>(&projection):reinterpret_cast<const XrCompositionLayerBaseHeader*>(&layer);}
     bool frame(XrSpace local,const XrPosef& head,uint64_t generation,PreviewFrame frame) {
         if(immersive){
-            if(!frame.immersive.valid||frame.immersive.generation!=generation)return false;
-            const auto& tag=frame.immersive;
-            for(auto& v:projection_views){v.pose.orientation={tag.orientation[0],tag.orientation[1],tag.orientation[2],tag.orientation[3]};v.pose.position={tag.position[0],tag.position[1],tag.position[2]};
-                v.fov={tag.fov[0],tag.fov[1],tag.fov[2],tag.fov[3]};v.subImage={chain,{{0,0},{1280,720}},0};}
+            if((!frame.immersive.valid&&!frame.immersive.menu)||(frame.immersive.valid&&frame.immersive.menu)||frame.immersive.generation!=generation)return false;
+            const bool projection_now=frame.immersive.valid;
+            if(use_projection&&!projection_now)anchored=false;
+            use_projection=projection_now;
+        }
+        if(immersive&&use_projection){
+            if(frame.immersive.temporal_stereo&&(!stereo||!frame.right_pixels||!frame.right_immersive.valid||frame.right_immersive.generation!=generation||frame.immersive.eye!=0||frame.right_immersive.eye!=1))return false;
+            for(unsigned eye=0;eye<2;++eye){auto& v=projection_views[eye];const auto& tag=eye&&frame.right_pixels?frame.right_immersive:frame.immersive;
+                v.pose.orientation={tag.orientation[0],tag.orientation[1],tag.orientation[2],tag.orientation[3]};v.pose.position={tag.position[0],tag.position[1],tag.position[2]};
+                v.fov={tag.fov[0],tag.fov[1],tag.fov[2],tag.fov[3]};v.subImage={chain,{{eye&&frame.right_pixels?1280:0,0},{1280,720}},0};}
             projection.space=local;projection.viewCount=2;projection.views=projection_views.data();
         }
         if(!frame.pixels||frame.width!=1280||frame.height!=720){logf("xr: preview frame-size validation failed");return false;}
@@ -123,7 +132,7 @@ struct QuadPreview {
             anchored=true;anchor_generation=generation;
         }
         // xrEndFrame uses the most recently released image. Reuse it until a new game image arrives.
-        if(game_serial && game_serial==frame.serial) {layer.space=local;layer.pose=anchor;++quad_frames;return true;}
+        if(game_serial && game_serial==frame.serial&&game_right_serial==frame.right_serial) {layer.space=local;layer.pose=anchor;++quad_frames;if(immersive&&use_projection&&frame.right_pixels)++temporal_projection_frames;return true;}
         uint32_t index=0;XrSwapchainImageAcquireInfo a{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
         {std::lock_guard lock(queue_mutex);if(!ok(acquire(chain,&a,&index),"acquire preview image"))return false;}
         XrSwapchainImageWaitInfo wait{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};wait.timeout=1000000000;
@@ -135,7 +144,7 @@ struct QuadPreview {
             if(!ok(release(chain,&r),"release preview image"))return false;}
         if(!uploaded)return false;
         layer.space=local;layer.eyeVisibility=XR_EYE_VISIBILITY_BOTH;layer.pose=anchor;layer.size={2.4f,1.35f};
-        layer.subImage={chain,{{0,0},{1280,720}},0};if(game_serial!=frame.serial)++game_updates;game_serial=frame.serial;++quad_frames;
+        layer.subImage={chain,{{0,0},{1280,720}},0};if(game_serial!=frame.serial||game_right_serial!=frame.right_serial)++game_updates;game_serial=frame.serial;game_right_serial=frame.right_serial;++quad_frames;if(immersive&&use_projection&&frame.right_pixels)++temporal_projection_frames;
         return true;
     }
     bool close() {
@@ -149,6 +158,7 @@ struct QuadPreview {
         if(buffer&&DestroyBuffer)DestroyBuffer(device,buffer,nullptr);buffer=VK_NULL_HANDLE;
         if(memory&&FreeMemory)FreeMemory(device,memory,nullptr);memory=VK_NULL_HANDLE;
         if(chain&&destroy_chain)ok(destroy_chain(chain),"destroy preview swapchain");chain=XR_NULL_HANDLE;
+        if(stereo)logf("xr: temporal stereo projection closed; frames %llu",(unsigned long long)temporal_projection_frames);
         logf("xr: %s closed; quad frames %llu, game images %llu",immersive?"immersive mono projection":"flat quad preview",(unsigned long long)quad_frames,(unsigned long long)game_updates);
         return true;
     }

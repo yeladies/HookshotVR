@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 19
+#define MKWVK_API_VERSION 20
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -256,8 +256,10 @@ typedef struct MkwVkRenderer {
     int (*setting_set)(const char *key, int value, MkwVkSetting *out);
     /* version 18: observational diagnostics only; no camera override or game-memory access. */
     void (*camera_observation)(const MkwVkCameraObservation *sample);
-    /* version 19: opt-in mono head camera; rows are changed only for a fresh valid pose. */
-    int (*head_camera)(uint64_t camera, float rows[12]);
+    /* version 20: opt-in tracked head/eye camera; present identifies temporal eye phase. */
+    int (*head_camera)(uint64_t camera, float rows[12], int64_t game_present);
+    /* version 20: reviewed perspective lens, shared by CPU frustum and GPU matrix construction. */
+    int (*head_lens)(float *vertical_fov, float *aspect);
 } MkwVkRenderer;
 
 /* the DLL's one export: null when Vulkan is not usable (the executable then falls back to WebGPU) */

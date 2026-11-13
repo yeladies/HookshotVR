@@ -267,3 +267,51 @@ work/game-build/immersive-default-off-result.txt,
 work/validation/immersive-stable-hashes.json. See vr-immersive-game-preview.md for
 English/Spanish instructions. Game binaries, images, saves and game files are never
 publication inputs. A new Hookshot upstream version has not been integrated.
+
+## 2026-11-13: wide game lens and temporal eye stereo prepared
+
+The user confirmed smooth mono gameplay/head response and original controls, but
+reported a narrow head-following window, silent audio and black menus. That test
+submitted888 new game images and closed without XR API errors. Its audio was off.
+The requested next priority is source FOV and distinct eye views.
+
+The new ABI20 path supplies present identity and a tracked lens. A fresh lift of
+four reviewed perspective construction sites changes matrix inputs and stored
+CPU-frustum fields, default-off. The engine field is tan(vfov/2), not radians;
+host_vr_lens_fields validates and converts it. Each eye uses its runtime pose once,
+anchored at the head centre. Eye capture phases cover two ordinary presents so the
+existing every-second-present readback can sample both; no game simulation or GPU
+compute replay is repeated per eye. This is TEMPORAL stereo, not same-frame native
+stereo replay. Pair age, origin, duplicate/order/present and eye identities are
+checked. GPU upload uses two disjoint1280x720 regions of a2560x720 swapchain.
+
+Final source c5617507, ABI20: actual game/offscreen check stereo_ready=true and
+distinct_pair_verified=true. Requested/observed vertical FOV1.74533rad (100deg),
+horizontal1.91986rad (110deg), both eye images accepted, peak6632MiB. Target angles
+were synthetic; Quest targets come from its runtime eye FOVs. The menu check failed:
+no menu image accepted while open; closing it restored the game. Do not claim menus
+fixed. Audio is requested by the new private launchers but not heard/verified yet.
+No new XR session was opened during implementation; headset perception is pending.
+
+All88 VR tests pass, including generated hook/culling-field compilation, engine
+unit conversion, eye offsets, pair policy, different image/subrect uploads, missing
+eye suppression and menu transitions against a fake runtime. Final inherited suite:
+357 passed, same5 baseline/environment failures,59 skipped in317seconds. A20-second
+default-off startup passed at3005MiB; all19 monitored stable hashes match.
+
+Private launchers: work/headset-stereo-preview/Probar-solo-FOV.cmd and
+Probar-fov-estereo.cmd. Source launcher: vr/run-immersive-preview.ps1 with WideFov
+or TemporalStereo and optional Audio.180seconds including about90s preparation.
+The first headset check should use a still scene and small movements. Third-person,
+head collision, physical VR controls, temporal ghosting, menu coverage and sharpness
+remain limited/pending. Source instructions are bilingual in
+vr-temporal-stereo-preview.md. No game assets, generated game code, binaries, saves
+or captures are publication inputs.
+
+Evidence: work/validation/stereo-game-corrected-result.json;
+work/stereo-check-f4d1dbe0421547499bd85ba7e8f4dd4d/;
+work/vr-stereo-corrected-tests.log;
+work/game-build/inherited-stereo-corrected-tests.log;
+work/game-build/stereo-default-off-result.txt;
+work/validation/stereo-stable-hashes.json. The existing base is unchanged; this does
+not integrate the newer upstream development branch or promise future compatibility.

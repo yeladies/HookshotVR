@@ -356,8 +356,16 @@ static void camera_cache_uniform(uint64_t address,const float* rows) {
         camera_uniform_candidates[camera_uniform_candidates_count++]=address;}
     ReleaseSRWLockExclusive(&camera_cache_lock);
 }
+volatile float hos_vr_fov,hos_vr_aspect; /* engine tan(vfov/2) and aspect; zero outside the opt-in process */
 int rx_xr_head_camera(uint64_t camera, float rows[12]) {
-    return env_on("RX_VK_XR_IMMERSIVE") && vk && vk->head_camera ? vk->head_camera(camera, rows) : 0;
+    if(!env_on("RX_VK_XR_IMMERSIVE")||!vk||!vk->head_camera)return 0;
+    const int valid=vk->head_camera(camera,rows,(int64_t)InterlockedCompareExchange(&presents,0,0));
+    float fov=0,aspect=0;
+    float tangent=0,engine_aspect=0;
+    if(valid&&vk->head_lens&&vk->head_lens(&fov,&aspect)&&host_vr_lens_fields(fov,aspect,&tangent,&engine_aspect)){
+        hos_vr_fov=tangent;hos_vr_aspect=engine_aspect;
+    }else{hos_vr_fov=0;hos_vr_aspect=0;}
+    return valid;
 }
 void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3], int debug) {
     MkwVkCameraObservation sample = {0};

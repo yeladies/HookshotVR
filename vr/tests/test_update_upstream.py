@@ -81,6 +81,7 @@ class UpdateTests(unittest.TestCase):
     def test_patch_allowlist(self):
         for path in ("work/image.bin", "vr/game.exe", "../host/hos_main.c", "user/save.sav", "vr/shaders/game.spv", "vr/shaders/unknown.comp", "work/capture.comp", "gpu/vk/unknown.cpp", "docs/unknown.md"):
             self.assertFalse(update.allowed_patch(path))
+        self.assertTrue(update.allowed_patch("nx2/oot_wide.py"))
         self.assertTrue(update.allowed_patch("gpu/vk/vk_memory.cpp"))
         self.assertTrue(update.allowed_patch("docs/tested-configurations.md"))
         self.assertTrue(update.allowed_patch("vr/src/mod.cpp"))

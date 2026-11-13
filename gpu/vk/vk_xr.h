@@ -28,8 +28,10 @@ bool xr_vulkan_session_start(VkInstance instance, VkPhysicalDevice physical, VkD
 bool xr_vulkan_session_stop();
 bool xr_vulkan_latest_frame(XrFrameSnapshot* out);
 bool xr_preview_wants_frame();
-int xr_immersive_head_camera(uint64_t camera,float rows[12]);
+int xr_immersive_head_camera(uint64_t camera,float rows[12],int64_t present=0);
+int xr_immersive_head_lens(float* vertical,float* aspect);
 void xr_immersive_note_camera(uint64_t frame,const float* block,size_t count);
+void xr_immersive_note_scene_candidate(uint64_t frame);
 void xr_immersive_tag_present(int64_t present,uint64_t frame);
 ImmersiveTag xr_immersive_frame_tag(int64_t present);
 void xr_preview_publish(std::shared_ptr<const std::vector<uint8_t>> pixels,uint32_t width,uint32_t height,int64_t present);

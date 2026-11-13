@@ -1,5 +1,6 @@
 > **HookshotVR development:** this branch starts an experimental Quest 3 / OpenXR adaptation.
-> The game is not playable in VR yet. See [VR setup and probe](vr/README.md) and [roadmap](docs/vr-roadmap.md).
+> Experimental live-camera, wide-FOV and temporal-stereo tests are available; native same-frame stereo remains in development.
+> See [VR setup](vr/README.md), [optics test](docs/vr-temporal-stereo-preview.md) and [roadmap](docs/vr-roadmap.md).
 > **Project pages / Páginas del proyecto:** [English](docs/vr-guide/en/index.md) · [Castellano](docs/vr-guide/es/index.md).
 > Moving depth previews are implemented; native full-game VR remains in development.
 > The upstream Hookshot documentation follows below.

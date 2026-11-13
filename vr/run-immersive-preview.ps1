@@ -1,4 +1,4 @@
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$Audio)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$Audio,[switch]$WideFov,[switch]$TemporalStereo)
 $ErrorActionPreference='Stop'
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $mutex=[Threading.Mutex]::new($false,'Local\HookshotVR-Immersive-Preview')
@@ -10,14 +10,17 @@ try{
     $scope=Join-Path $project ('work/immersive-preview-'+[Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $scope | Out-Null
     $stop=Join-Path $scope 'stop'
-    Write-Host 'JUEGO REAL CON CAMARA DE CABEZA - PROTOTIPO MONOSCOPICO'
+    if($TemporalStereo){Write-Host 'FOV Y ESTEREO TEMPORAL EXPERIMENTAL - DOS VISTAS EN FOTOGRAMAS PROXIMOS'}else{Write-Host 'JUEGO REAL CON CAMARA DE CABEZA - PROTOTIPO MONOSCOPICO'}
     Write-Host 'Conecta Virtual Desktop y ponte las Quest. Puede tardar 90 segundos en cargar la partida.'
-    Write-Host 'Ambos ojos reciben la misma vista. FOV limitado, tercera persona, sin controles fisicos VR.'
+    if($TemporalStereo){Write-Host 'Puede haber diferencias temporales en objetos en movimiento. Empieza mirando una escena quieta.'}else{Write-Host 'Ambos ojos reciben la misma vista.'}
+    Write-Host 'Tercera persona; sin controles fisicos VR. La prueba se cerrara automaticamente.'
     Write-Host 'Prueba giros pequenos y desplazamientos leves. Se cerrara automaticamente.'
     Write-Host ('Registros privados: '+$scope)
     $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'run-game.ps1')+'"'),'-ImmersivePreview','-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
     if($Window){$arguments+='-Window'}
     if($Audio){$arguments+='-Audio'}
+    if($WideFov){$arguments+='-WideFov'}
+    if($TemporalStereo){$arguments+='-TemporalStereo'}
     $child=Start-Process powershell -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $scope 'result.json') -RedirectStandardError (Join-Path $scope 'errors.txt')
     $null=$child.Handle
     # Keep console writes outside the active child lifetime: console selection must

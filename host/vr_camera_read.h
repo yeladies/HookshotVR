@@ -40,3 +40,12 @@ static inline void host_vr_cache_uniform(HostVrCameraCache* cache,uint64_t objec
     cache->uniform=object;
 }
 #endif
+
+/* Sead's perspective +0xac stores tan(vertical_fov/2), not the angle.
+   Keep conversion checked and atomic before writing the register/frustum fields. */
+static inline int host_vr_lens_fields(float vertical_radians,float ratio,float* tangent,float* aspect) {
+    if(!tangent||!aspect||!isfinite(vertical_radians)||!isfinite(ratio)||vertical_radians<=0.2f||vertical_radians>=2.8f||ratio<0.5f||ratio>2.5f)return 0;
+    const double value=tan((double)vertical_radians*0.5);
+    if(!isfinite(value)||value<=0.2||value>=2.8)return 0;
+    *tangent=(float)value;*aspect=ratio;return 1;
+}

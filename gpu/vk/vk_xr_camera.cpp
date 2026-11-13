@@ -11,6 +11,7 @@
 namespace mkwvk {
 void logf(const char*,...);
 void xr_immersive_note_camera(uint64_t,const float*,size_t);
+void xr_immersive_note_scene_candidate(uint64_t);
 namespace {
 std::mutex capture_mutex;
 CameraCapture capture;
@@ -55,6 +56,7 @@ bool xr_scene_capture_enabled() {
 }
 bool xr_scene_camera_observation(const SceneCameraEvidence& draw,const float* block,size_t count) {
     if(!xr_scene_capture_enabled())return false;
+    xr_immersive_note_scene_candidate(draw.replay_frame);
     std::lock_guard lock(capture_mutex);
     CameraCapturePair pair{};const bool fresh=capture.latest(now_ns(),pair);
     const auto result=match_scene_camera(block,count,draw,fresh?&pair:nullptr);

@@ -4,13 +4,14 @@
 namespace {
 template<class T>T ph(uintptr_t value){if constexpr(std::is_pointer_v<T>)return reinterpret_cast<T>(value);else return T(value);}
 std::vector<uint8_t> preview_memory(1280*720*4);
+bool stereo_preview(){return mode("preview_immersive_stereo")||mode("preview_immersive_stereo_missing");}
 bool preview_acquired=false,preview_waited=false,gpu_pending=false;
 uint32_t preview_index=0;
 XrResult XRAPI_CALL preview_formats(XrSession,uint32_t cap,uint32_t* count,int64_t* out) {
     *count=1;if(cap)out[0]=mode("preview_no_format")?VK_FORMAT_B8G8R8A8_UNORM:VK_FORMAT_R8G8B8A8_SRGB;return XR_SUCCESS;
 }
 XrResult XRAPI_CALL preview_create(XrSession,const XrSwapchainCreateInfo* info,XrSwapchain* out) {
-    if(info->width!=1280||info->height!=720||info->arraySize!=1||info->format!=VK_FORMAT_R8G8B8A8_SRGB||!(info->usageFlags&XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT))++counts[5];
+    if(info->width!=(stereo_preview()?2560u:1280u)||info->height!=720||info->arraySize!=1||info->format!=VK_FORMAT_R8G8B8A8_SRGB||!(info->usageFlags&XR_SWAPCHAIN_USAGE_TRANSFER_DST_BIT))++counts[5];
     *out=ph<XrSwapchain>(300);++counts[10];return XR_SUCCESS;
 }
 XrResult XRAPI_CALL preview_destroy(XrSwapchain) {if(gpu_pending)++counts[5];++counts[11];preview_acquired=false;return XR_SUCCESS;}
@@ -32,9 +33,9 @@ XrResult XRAPI_CALL preview_release(XrSwapchain,const XrSwapchainImageReleaseInf
 }
 void VKAPI_CALL pv_queue(VkDevice,uint32_t family,uint32_t index,VkQueue* out) {if(family!=7||index)++counts[5];*out=ph<VkQueue>(500);}
 VkResult VKAPI_CALL pv_buffer(VkDevice,const VkBufferCreateInfo* info,const VkAllocationCallbacks*,VkBuffer* out) {
-    if(info->size!=1280*720*4||info->usage!=VK_BUFFER_USAGE_TRANSFER_SRC_BIT)++counts[5];*out=ph<VkBuffer>(501);++counts[15];return VK_SUCCESS;
+    if(info->size!=1280*720*4*(stereo_preview()?2:1)||info->usage!=VK_BUFFER_USAGE_TRANSFER_SRC_BIT)++counts[5];preview_memory.resize(size_t(info->size));*out=ph<VkBuffer>(501);++counts[15];return VK_SUCCESS;
 }
-void VKAPI_CALL pv_requirements(VkDevice,VkBuffer,VkMemoryRequirements* out){*out={1280*720*4,256,1};}
+void VKAPI_CALL pv_requirements(VkDevice,VkBuffer,VkMemoryRequirements* out){*out={VkDeviceSize(1280*720*4*(stereo_preview()?2:1)),256,1};}
 void VKAPI_CALL pv_memory_properties(VkPhysicalDevice,VkPhysicalDeviceMemoryProperties* out){*out={};out->memoryTypeCount=1;
     out->memoryTypes[0].propertyFlags=VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|(mode("preview_noncoherent")?0:VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);}
 VkResult VKAPI_CALL pv_allocate(VkDevice,const VkMemoryAllocateInfo*,const VkAllocationCallbacks*,VkDeviceMemory* out){
@@ -60,7 +61,12 @@ VkResult VKAPI_CALL pv_submit(VkQueue,uint32_t,const VkSubmitInfo*,VkFence){if(!
     if(mode("preview_submit_error"))return VK_ERROR_DEVICE_LOST;gpu_pending=true;++counts[14];return VK_SUCCESS;}
 void VKAPI_CALL pv_barrier(VkCommandBuffer,VkPipelineStageFlags,VkPipelineStageFlags,VkDependencyFlags,uint32_t,const VkMemoryBarrier*,uint32_t,const VkBufferMemoryBarrier*,uint32_t,const VkImageMemoryBarrier*){}
 void VKAPI_CALL pv_copy(VkCommandBuffer,VkBuffer,VkImage,VkImageLayout layout,uint32_t count,const VkBufferImageCopy* copy){
-    if(!preview_waited||layout!=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL||count!=1||copy->imageExtent.width!=1280||copy->imageExtent.height!=720||preview_memory[0]!=17||preview_memory[1]!=34||preview_memory[2]!=51||preview_memory[3]!=255)++counts[5];}
+    if(!preview_waited||layout!=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL||count!=(stereo_preview()?2u:1u)||copy->imageExtent.width!=1280||copy->imageExtent.height!=720||preview_memory[0]!=17||preview_memory[1]!=34||preview_memory[2]!=51||preview_memory[3]!=255)++counts[5];
+    if(stereo_preview()){
+        const size_t offset=1280*720*4;
+        if(count!=2||copy[0].bufferOffset||copy[0].imageOffset.x||copy[1].bufferOffset!=offset||copy[1].imageOffset.x!=1280||copy[1].imageExtent.width!=1280||copy[1].imageExtent.height!=720||preview_memory[offset]!=85||preview_memory[offset+1]!=102||preview_memory[offset+2]!=119||preview_memory[offset+3]!=255)++counts[5];else ++counts[21];
+    }
+}
 VkResult VKAPI_CALL pv_flush(VkDevice,uint32_t count,const VkMappedMemoryRange* range){if(count!=1||range->size!=VK_WHOLE_SIZE)++counts[5];++counts[18];return VK_SUCCESS;}
 PFN_vkVoidFunction VKAPI_CALL preview_device_proc(VkDevice,const char* name) {
 #define MAPV(n,f) if(!std::strcmp(name,"vk" #n))return reinterpret_cast<PFN_vkVoidFunction>(f);

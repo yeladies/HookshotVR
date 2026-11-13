@@ -128,7 +128,7 @@ struct SessionProbe {
         if(preview&&located&&frame.shouldRender&&frame.predictedDisplayTime>=suppress_until&&(location.locationFlags&needed)==needed) {
             const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
             auto image=bridge.preview_feed.latest(now);
-            if(image.pixels&&(!preview->immersive||(image.immersive.valid&&image.immersive.generation==generation))){draw_ok=preview->frame(local,location.pose,generation,std::move(image));quad=draw_ok;}
+            if(image.pixels&&(!preview->immersive||((image.immersive.valid||image.immersive.menu)&&image.immersive.generation==generation))){draw_ok=preview->frame(local,location.pose,generation,std::move(image));quad=draw_ok;}
         }
         // Balance every begun frame, including failures and no-image/not-visible frames.
         XrFrameEndInfo end{XR_TYPE_FRAME_END_INFO};end.displayTime=frame.predictedDisplayTime;

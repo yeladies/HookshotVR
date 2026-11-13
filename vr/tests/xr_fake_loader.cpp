@@ -5,6 +5,7 @@
 #include <openxr/openxr.h>
 #include <openxr/openxr_platform.h>
 #include <cstdlib>
+#include <cmath>
 #include <cstring>
 #include <cstdint>
 #include <vector>
@@ -13,7 +14,7 @@
 #include <chrono>
 namespace {
 bool mode(const char* value) { const char* s=std::getenv("XR_FAKE_MODE");return s&&!std::strcmp(s,value); }
-std::atomic<int> counts[20]{};
+std::atomic<int> counts[22]{};
 bool (*queue_check)()=nullptr;
 int event_stage=0, frames=0;
 bool stopping=false, frame_open=false;
@@ -79,13 +80,15 @@ XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
         const bool preview_mode=std::getenv("XR_FAKE_MODE")&&std::strncmp(std::getenv("XR_FAKE_MODE"),"preview_",8)==0;
     if(!frame_open||info->displayTime!=frames*10000000||(!preview_mode&&(info->layerCount||info->layers)))++counts[4];
     if(preview_mode&&info->layerCount) {
-        if(mode("preview_immersive")){
+        if(mode("preview_immersive")||mode("preview_immersive_stereo")||(mode("preview_immersive_transition")&&info->layers[0]->type==XR_TYPE_COMPOSITION_LAYER_PROJECTION)){
+            ++counts[19];
             const auto* p=reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[0]);
             if(info->layerCount!=1||p->type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION||p->viewCount!=2||!p->views)++counts[5];
             else for(unsigned eye=0;eye<2;++eye){const auto& v=p->views[eye];
                 if(v.type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW||v.subImage.imageRect.extent.width!=1280||v.subImage.imageRect.extent.height!=720||
-                   v.pose.orientation.w!=1||v.pose.position.x!=1||v.pose.position.y!=2||v.pose.position.z!=3||v.fov.angleLeft>=0||v.fov.angleRight<=0||v.fov.angleUp<=0||v.fov.angleDown>=0)++counts[5];}
+                   v.pose.orientation.w!=1||std::abs(v.pose.position.x-(mode("preview_immersive_stereo")?(eye?1.032f:.968f):1.f))>.0001f||v.pose.position.y!=2||v.pose.position.z!=3||v.subImage.imageRect.offset.x!=(mode("preview_immersive_stereo")&&eye?1280:0)||v.fov.angleLeft>=0||v.fov.angleRight<=0||v.fov.angleUp<=0||v.fov.angleDown>=0)++counts[5];}
         }else{
+            ++counts[20];
             const auto* quad=reinterpret_cast<const XrCompositionLayerQuad*>(info->layers[0]);
             if(info->layerCount!=1||quad->type!=XR_TYPE_COMPOSITION_LAYER_QUAD||quad->eyeVisibility!=XR_EYE_VISIBILITY_BOTH||
                quad->subImage.imageRect.extent.width!=1280||quad->size.width!=2.4f||quad->pose.position.x!=1||quad->pose.position.y!=2||quad->pose.position.z!=1)++counts[5];
@@ -104,7 +107,7 @@ XrResult XRAPI_CALL locate_space(XrSpace,XrSpace,XrTime time,XrSpaceLocation* ou
 XrResult XRAPI_CALL locate_views(XrSession,const XrViewLocateInfo* info,XrViewState* state,uint32_t capacity,uint32_t* count,XrView* views) {
     if(info->displayTime!=located_time||capacity!=2)++counts[5];
     *count=2;state->viewStateFlags=mode("session_invalid_pose")?0:XR_VIEW_STATE_POSITION_VALID_BIT|XR_VIEW_STATE_ORIENTATION_VALID_BIT;
-    for(int i=0;i<2;++i){views[i].pose.orientation.w=1;views[i].pose.position.x=i?0.032f:-0.032f;views[i].fov={-0.7f,0.8f,0.9f,-0.6f};}
+    for(int i=0;i<2;++i){views[i].pose.orientation.w=1;views[i].pose.position.x=i?0.032f:-0.032f;if(mode("preview_immersive_stereo")||mode("preview_immersive_stereo_missing")){views[i].pose.position.x+=1;views[i].pose.position.y=2;views[i].pose.position.z=3;}views[i].fov={-0.7f,0.8f,0.9f,-0.6f};}
     return XR_SUCCESS;
 }
 XrResult XRAPI_CALL extensions(const char*,uint32_t cap,uint32_t* count,XrExtensionProperties* props) {
@@ -170,7 +173,7 @@ extern "C" EXPORT XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance,const cha
 #undef MAP
     return XR_ERROR_FUNCTION_UNSUPPORTED;
 }
-extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<20?counts[key].load():-1; }
+extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<22?counts[key].load():-1; }
 
 extern "C" EXPORT void XRAPI_CALL xrTestSetQueueCheck(bool (*check)()) { queue_check=check; }
 

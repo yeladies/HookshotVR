@@ -18,7 +18,8 @@ Investigación experimental de PCVR para **Hookshot**, orientada a Quest 3 en Wi
 | Pantalla plana de cine | Imagen y pantalla fija en el espacio confirmadas en Quest; sonido sin resolver. |
 | Reconstrucción de profundidad congelada | Proyecciones y poses independientes por ojo implementadas; prueba GPU sin visor superada; percepción en visor pendiente. |
 | Reconstrucción de profundidad en movimiento | Escena en movimiento confirmada en Quest; escala/profundidad aparentemente correctas; pixelación observada. Render nativo pendiente. |
-| [Cámara del juego vivo](../../vr-immersive-game-preview.md) | Nuevo prototipo inmersivo monoscópico; la cámara real recibe poses de cabeza; prueba de visor pendiente. |
+| [Cámara del juego vivo](../../vr-immersive-game-preview.md) | Prueba mono en Quest con buena respuesta y controles originales; FOV limitado y fallos de menú registrados. |
+| [FOV amplio / estéreo temporal](../../vr-temporal-stereo-preview.md) | Lente real y vistas distintas por ojo verificadas sin visor; prueba nueva en Quest pendiente. |
 | Render nativo de toda la escena por ojo | En investigación; se ha reproducido un dibujo aislado sin modificar, no una escena estereoscópica completa. |
 
 Los modos de profundidad reconstruyen las superficies visibles desde una cámara del juego. No recuperan geometría oculta ni equivalen a render nativo. La cámara de origen sigue en tercera persona. Los controles VR, las armas físicas y el audio están pendientes.
