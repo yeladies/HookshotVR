@@ -1,7 +1,11 @@
 # HookshotVR development
 
 Experimental PCVR adaptation for Quest 3 on Windows, initially through Virtual Desktop / VDXR.
-**The game is not playable in VR yet.** This first milestone adds a game-free OpenXR capability probe, not a VR renderer.
+**The game is not playable in native VR yet.** The tools now include frozen and moving depth-reconstructed previews, verified offscreen; their headset checks remain pending.
+
+**Project pages:** [English](../docs/vr-guide/en/index.md) · [Castellano](../docs/vr-guide/es/index.md).
+
+The sections below retain the setup and technical history, starting with the game-free OpenXR probe.
 The inherited Hookshot source and licenses remain intact. See [the roadmap](../docs/vr-roadmap.md).
 A standalone [Vulkan stereo marker scene](../docs/vr-spatial-test.md) now exercises sessions,
 per-eye projection and live head/controller grip poses independently of the game.
