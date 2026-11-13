@@ -60,13 +60,15 @@ class UpdateTests(unittest.TestCase):
         with self.assertRaises(RuntimeError): update.prepare(self.root, self.manifest, self.base)
         self.assertEqual((self.root / "readme.md").read_text(), "user edit\n")
     def test_authored_shader_reapplies(self):
-        shader=self.root/"vr/shaders/eye_address_copy.comp"
-        shader.parent.mkdir(parents=True)
-        shader.write_text("// authored synthetic shader source\n")
-        self.commit("add authored shader")
+        names=("eye_address_copy.comp","eye_matrix_patch.comp")
+        for name in names:
+            shader=self.root/("vr/shaders/"+name);shader.parent.mkdir(parents=True,exist_ok=True)
+            shader.write_text("// authored synthetic shader source\n")
+        self.commit("add authored shaders")
         report=update.prepare(self.root,self.manifest,self.base)
         self.assertTrue(report["patch_applied"])
-        self.assertEqual((Path(report["candidate_directory"])/"vr/shaders/eye_address_copy.comp").read_text(),shader.read_text())
+        for name in names:
+            self.assertEqual((Path(report["candidate_directory"])/("vr/shaders/"+name)).read_text(),(self.root/("vr/shaders/"+name)).read_text())
         self.assertEqual(report["compatibility"],"unverified")
     def test_native_mirror_query_and_validation_record_reapply(self):
         for name in ("gpu/vk/vk_memory.cpp","docs/tested-configurations.md"):
@@ -86,6 +88,7 @@ class UpdateTests(unittest.TestCase):
         self.assertTrue(update.allowed_patch("docs/tested-configurations.md"))
         self.assertTrue(update.allowed_patch("vr/src/mod.cpp"))
         self.assertTrue(update.allowed_patch("vr/shaders/eye_address_copy.comp"))
+        self.assertTrue(update.allowed_patch("vr/shaders/eye_matrix_patch.comp"))
         self.assertTrue(update.allowed_patch("vr/shaders/depth_scene.vert"))
         self.assertTrue(update.allowed_patch("vr/shaders/depth_stream.vert"))
         self.assertTrue(update.allowed_patch("vr/shaders/depth_scene.frag"))
