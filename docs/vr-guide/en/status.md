@@ -26,3 +26,7 @@ No Linux runtime, AMD GPU, full-game compatibility, new depth-mode headset perce
 6. **Release readiness:** gameplay and headset regression checks, performance budgets, compatibility profiles and reviewed update candidates.
 
 The order is incremental, not a release schedule. [oot-vr](https://github.com/gibranfelix/oot-vr) is a research reference for future mechanics, not a dependency or proof that its implementation can be copied into this renderer. Review licenses before reusing code.
+
+## Headset check update
+
+The user subsequently confirmed a persistent moving depth scene, apparently correct scale and depth, and pixelation. The session accepted 254 source updates in 60 seconds and closed normally. Native stereo remains pending. See [native camera work and test limits](../../vr-native-camera-aliases.md).

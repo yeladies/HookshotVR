@@ -68,6 +68,31 @@ int main(){try{
     buffer.buffer=handle<VkBuffer>(99);check(!xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes)&&!fake.draws&&!fake.pushes,"changed source descriptor abandons before replay");
     check(!xr_baseline_recorder_retire(p,comparison)&&p,"abandoned submitted storage retained");fake.completed=9;check(xr_baseline_recorder_retire(p,comparison)&&!p&&comparison.result==XrBaselineComparison::Result::Invalid,"completed abandoned storage released without result");cleaned();
     for(bool indexed:{false,true}){reset();in=input(buffer);in.geometry.indexed=indexed;in.geometry.vertex_offset=indexed?-2:0;p=xr_baseline_recorder_create(in);check(p&&xr_baseline_recorder_prepare(p),"prepare exact source");fake.images[handle<VkImage>(11)][0]=7;check(xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes),"same original draw finishes");check(fake.draws==2&&fake.pushes==3&&fake.last_ubo==handle<VkBuffer>(10),"two private draws and explicit complete source restore");check(!xr_baseline_recorder_retire(p,comparison),"no early GPU retirement");fake.completed=9;check(xr_baseline_recorder_retire(p,comparison)&&!p&&comparison.result==XrBaselineComparison::Result::Match&&comparison.changed_pixels==1,"four complete frames compare after known completion");cleaned();check(fake.buffers.at(handle<VkBuffer>(10))==std::vector<unsigned char>(560,23),"source uniform payload unchanged");}
+    // A second view begins inside the first and extends the copied camera span.
+    reset();in=input(buffer);VkDescriptorBufferInfo aliases[2]={{handle<VkBuffer>(10),0,256},{handle<VkBuffer>(10),128,432}};
+    in.camera=aliases[0];in.writes[0].descriptorCount=2;in.writes[0].pBufferInfo=aliases;
+    p=xr_baseline_recorder_create(in);check(p&&p->source.camera.range==560&&p->source.camera_slots.size()==2,"transitive camera alias closure");
+    for(unsigned eye=0;eye<2;++eye){const auto* b=p->descriptors[eye].writes()[0].pBufferInfo;
+        check(b[0].buffer==b[1].buffer&&b[0].offset==0&&b[0].range==256&&b[1].offset==128&&b[1].range==432,"private offsets and individual ranges preserved");}
+    check(xr_baseline_recorder_prepare(p),"prepare offset aliases");
+    for(const auto b:p->uniforms)check(fake.buffers.at(b)==fake.buffers.at(handle<VkBuffer>(10)),"entire camera union copied unchanged");
+    fake.images[handle<VkImage>(11)][0]=7;check(xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes),"replay offset aliases");
+    fake.completed=9;check(xr_baseline_recorder_retire(p,comparison)&&comparison.result==XrBaselineComparison::Result::Match,"offset alias baseline matches");cleaned();
+    // Reverse-ordered aliases require another pass and preserve a nonzero base.
+    reset();in=input(buffer);VkDescriptorBufferInfo chain[3]={{handle<VkBuffer>(10),384,176},{handle<VkBuffer>(10),128,256},{handle<VkBuffer>(10),256,256}};
+    in.camera=chain[1];in.camera_slots={{0,1}};in.writes[0].descriptorCount=3;in.writes[0].pBufferInfo=chain;
+    p=xr_baseline_recorder_create(in);check(p&&p->source.camera.offset==128&&p->source.camera.range==432&&p->source.camera_slots.size()==3,"reverse chain closes with nonzero copy base");
+    const auto* relative=p->descriptors[0].writes()[0].pBufferInfo;
+    check(relative[0].offset==256&&relative[1].offset==0&&relative[2].offset==128,"rebase all aliases relative to copy origin");
+    check(xr_baseline_recorder_retire(p,comparison),"unsubmitted chain releases");cleaned();
+    reset();in=input(buffer);VkDescriptorBufferInfo excessive[2]={buffer,{handle<VkBuffer>(10),128,65536}};
+    in.writes[0].descriptorCount=2;in.writes[0].pBufferInfo=excessive;
+    check(!xr_baseline_recorder_create(in)&&!fake.allocations,"alias union budget rejects before allocation");cleaned();
+    reset();in=input(buffer);VkDescriptorBufferInfo overflow[2]={buffer,{handle<VkBuffer>(10),UINT64_MAX-3,8}};
+    in.writes[0].descriptorCount=2;in.writes[0].pBufferInfo=overflow;
+    check(!xr_baseline_recorder_create(in)&&!fake.allocations,"overflow alias rejected before arithmetic");cleaned();
+    reset();in=input(buffer);VkDescriptorBufferInfo storage=buffer;auto extra=in.writes[0];extra.dstBinding=1;extra.descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;extra.pBufferInfo=&storage;in.writes.push_back(extra);
+    check(!xr_baseline_recorder_create(in)&&!fake.allocations,"overlapping storage camera alias rejected before allocation");cleaned();
     reset();in=input(buffer);p=xr_baseline_recorder_create(in);check(p&&xr_baseline_recorder_prepare(p),"prepare negative readback");fake.images[handle<VkImage>(11)][0]=7;fake.corrupt_draw=2;
     check(xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes),"record deliberately divergent private right");fake.completed=9;
     check(xr_baseline_recorder_retire(p,comparison)&&comparison.result==XrBaselineComparison::Result::Mismatch&&comparison.mismatched_pixels[1]==1,"actual recorder readback catches private mismatch");cleaned();

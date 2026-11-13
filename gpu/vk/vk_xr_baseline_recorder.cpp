@@ -51,7 +51,42 @@ void color_readback(XrBaselineRecorder& p,VkImage image,unsigned slot){
     vkCmdCopyImageToBuffer(p.source.command,image,VK_IMAGE_LAYOUT_GENERAL,p.readback,1,&copy);
 }
 }
-static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& in){
+// Close overlapping resolved UBO ranges before allocating either eye. This is
+// byte routing only, not proof that the full logical camera or shader semantics
+// have been identified. A camera transform must still be separately reviewed.
+static bool close_camera_aliases(XrBaselineRecorderInput& in){
+    if(!in.camera.buffer||!in.camera.range||in.camera.range>65536||in.camera.offset>UINT64_MAX-in.camera.range)return false;
+    auto begin=in.camera.offset,end=begin+in.camera.range;
+    for(unsigned pass=0;pass<33;++pass){
+        bool changed=false;
+        for(const auto& w:in.writes){
+            if(w.descriptorType!=VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER&&w.descriptorType!=VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)continue;
+            if(!w.pBufferInfo||!w.descriptorCount||w.descriptorCount>32)return false;
+            for(uint32_t element=0;element<w.descriptorCount;++element){const auto& b=w.pBufferInfo[element];
+                if(b.buffer!=in.camera.buffer)continue;
+                if(!b.range||b.range==VK_WHOLE_SIZE||b.offset>UINT64_MAX-b.range)return false;
+                const auto limit=b.offset+b.range;if(b.offset>=end||limit<=begin)continue;
+                // A storage alias could read or write the original camera during
+                // a private draw; never silently leave such an alias shared.
+                if(w.descriptorType!=VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)return false;
+                if(b.offset%4||b.range%4)return false;
+                const auto next_begin=std::min(begin,b.offset),next_end=std::max(end,limit);
+                if(next_end-next_begin>65536)return false;
+                changed|=next_begin!=begin||next_end!=end;begin=next_begin;end=next_end;
+                bool found=false;for(const auto& slot:in.camera_slots)found|=slot.binding==w.dstBinding&&slot.element==element;
+                if(!found){if(in.camera_slots.size()>=32)return false;in.camera_slots.push_back({w.dstBinding,element});}
+            }
+        }
+        if(!changed){in.camera.offset=begin;in.camera.range=end-begin;return true;}
+    }
+    return false;
+}
+static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& requested){
+    auto in=requested;
+    // Validate and own the writer payload before examining raw descriptor arrays.
+    XrDescriptorSnapshot checked;if(!checked.capture(in.writes))return nullptr;
+    in.writes=checked.writes();
+    if(in.camera_slots.empty()||!close_camera_aliases(in))return nullptr;
     if(par_active||!in.command||!in.layout||!in.serial||!in.recording||!in.program||!vkCmdPushDescriptorSetKHR||
        !in.geometry.count||in.geometry.count>1048576||!in.geometry.instances||in.geometry.instances>1024||
        !shape(in.color,VK_FORMAT_B10G11R11_UFLOAT_PACK32,VK_IMAGE_ASPECT_COLOR_BIT)||!shape(in.depth,VK_FORMAT_D32_SFLOAT,VK_IMAGE_ASPECT_DEPTH_BIT)||
@@ -69,7 +104,7 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& in){
     for(unsigned index=0;index<in.camera_slots.size();++index){const auto slot=in.camera_slots[index];bool found=false;
         for(unsigned previous=0;previous<index;++previous)if(in.camera_slots[previous].binding==slot.binding&&in.camera_slots[previous].element==slot.element){return nullptr;}
         for(const auto& write:p->original.writes())if(write.dstBinding==slot.binding&&write.descriptorType==VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER&&slot.element<write.descriptorCount){
-            const auto& bound=write.pBufferInfo[slot.element];found=bound.buffer==in.camera.buffer&&bound.offset==in.camera.offset&&bound.range&&bound.range<=in.camera.range&&bound.range!=VK_WHOLE_SIZE;
+            const auto& bound=write.pBufferInfo[slot.element];found=bound.buffer==in.camera.buffer&&bound.offset>=in.camera.offset&&bound.offset-in.camera.offset<in.camera.range&&bound.range&&bound.range!=VK_WHOLE_SIZE&&bound.range<=in.camera.range-(bound.offset-in.camera.offset);
         }
         if(!found){return nullptr;}
     }
@@ -84,8 +119,8 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& in){
     for(unsigned eye=0;eye<2;++eye){
         if(!create_device_buffer(in.camera.range,VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,p->uniforms[eye],p->uniform_memory[eye],true)||!account(*p,p->uniform_memory[eye])||!p->descriptors[eye].capture(p->original.writes())){return nullptr;}
         for(const auto slot:in.camera_slots){
-            VkDeviceSize range=0;for(const auto& write:p->original.writes())if(write.dstBinding==slot.binding)range=write.pBufferInfo[slot.element].range;
-            if(!p->descriptors[eye].set_uniform(slot.binding,slot.element,{p->uniforms[eye],0,range})){return nullptr;}
+            VkDeviceSize range=0,offset=0;for(const auto& write:p->original.writes())if(write.dstBinding==slot.binding){range=write.pBufferInfo[slot.element].range;offset=write.pBufferInfo[slot.element].offset-in.camera.offset;}
+            if(!p->descriptors[eye].set_uniform(slot.binding,slot.element,{p->uniforms[eye],offset,range})){return nullptr;}
         }
     }
     if(!create_buffer(4*p->frame_bytes,VK_BUFFER_USAGE_TRANSFER_DST_BIT,true,p->readback,p->readback_memory,&p->mapped,true)||!p->mapped||!account(*p,p->readback_memory)){return nullptr;}

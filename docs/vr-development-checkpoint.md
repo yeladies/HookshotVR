@@ -196,3 +196,32 @@ Next: user headset checks for scale/orientation/parallax/performance when physic
 available. Main native eye-renderer/camera-alias work remains outstanding; depth
 reconstruction does not solve hidden surfaces, native culling, temporal state or VR
 interaction. Never publish work/, captures, packets, meshes, PPM/PNG or binaries.
+
+## 2026-11-13: headset feedback and native camera alias closure
+
+The user verified that the moving reconstructed scene stays visible and moves in
+Quest 3, with apparently correct scale/depth but pixelated appearance. The session
+accepted 254 captures in 60 seconds and closed both processes normally. A previous
+launch opened after its producer exited and briefly showed a stale frame; the source
+launcher now rejects dead/stale producers before XR and removes intermediate console
+writes. The root cause of that delay is not proven.
+
+Native work now closes overlapping resolved camera UBO ranges transitively, preserves
+per-descriptor relative offsets/ranges in each eye copy, and rejects storage aliases,
+overflow and unions above 64 KiB. It does not identify all logical camera bytes,
+physical aliases across different buffers or shader matrix semantics. No camera
+transform or full-scene native stereo is enabled. See vr-native-camera-aliases.md.
+
+Native source 7836e412 compiled successfully. Actual GPU baseline matched on its
+first attempt: 117 changed original pixels, no differing pixels in either private
+output, resources released; run peak 6548 MiB. The run remained headless/muted and
+opened no XR session. All 78 VR tests passed; additional offset-chain/overflow cases
+passed in the actual-recorder test. Default-off startup passed and 19 stable file
+hashes remained unchanged. Inherited regressions completed: 357 passed, the same five known baseline/
+environment failures and 59 skipped in 374 seconds (two workers).
+
+Private evidence: work/game-build/native-alias-live-result.txt,
+work/game-build/native-alias-default-off-result.txt,
+work/game-build/inherited-native-alias-tests.log,
+work/vr-native-alias-tests.log and work/validation/native-alias-stable-hashes.json.
+No captures, game shaders, binaries or game files are publication inputs.

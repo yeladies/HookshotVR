@@ -9,6 +9,8 @@ $frame=Join-Path $scope 'frame.hsvrd';$stop=Join-Path $scope 'stop'
 $game=$null;$viewer=$null
 Write-Host 'Preparando el juego experimental y el flujo de profundidad. La instalacion estable no se modifica.'
 Write-Host ('Directorio privado de esta prueba: '+$scope)
+if($Offscreen){Write-Host 'La verificacion GPU comenzara al llegar una captura reciente.'}
+else{Write-Host 'Ponte las Quest ahora. El visor se abrira automaticamente al llegar una captura reciente; no selecciones texto en esta ventana.'}
 try {
     $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'run-game.ps1')+'"'),'-Seconds','180','-ExperimentalXrRenderer','-DepthSceneStream','-DepthCapturePath',('"'+$frame+'"'),'-StopSignal',('"'+$stop+'"'),'-SnapshotStableSaves','-LoadTestSave')
     $game=Start-Process -FilePath 'powershell' -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $scope 'game-result.json') -RedirectStandardError (Join-Path $scope 'game-errors.txt')
@@ -22,16 +24,21 @@ try {
     if($Offscreen){
         $duration=[Math]::Min(30,$Seconds)
         $arguments=@('--stream-check',('"'+$frame+'"'),'--output',('"'+(Join-Path $scope 'eyes')+'"'),'--seconds',$duration.ToString())
-        Write-Host 'Verificando movimiento en GPU sin crear una sesion XR.'
     }else{
         $duration=$Seconds
         $arguments=@('--stream',('"'+$frame+'"'),'--seconds',$duration.ToString())
-        Write-Host 'Escena lista: ponte las Quest conectadas por Virtual Desktop. Es reconstruccion por profundidad, no render VR nativo completo.'
+    }
+    # Do not write to the console between producer startup and viewer startup:
+    # a selected legacy console can block writes while the producer times out.
+    $game.Refresh()
+    if($game.HasExited){throw 'El productor termino antes de abrir el visor. No se mostrara una captura antigua.'}
+    $latest=Get-Item -LiteralPath $frame
+    if(([DateTime]::UtcNow-$latest.LastWriteTimeUtc).TotalSeconds -gt 2){
+        throw 'La captura ya no es reciente. Repite la prueba sin seleccionar texto en la consola.'
     }
     $viewer=Start-Process -FilePath $ViewerExecutable -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $scope 'viewer-result.json') -RedirectStandardError (Join-Path $scope 'viewer-errors.txt')
     $null=$viewer.Handle
     if(!$viewer.WaitForExit(($duration+30)*1000)){Stop-Process -Id $viewer.Id -Force;throw 'El visor supero el tiempo de la prueba.'}
-    Get-Content -LiteralPath (Join-Path $scope 'viewer-result.json')
     if($viewer.ExitCode -ne 0){throw ('El visor devolvio '+$viewer.ExitCode+'. Revisa '+(Join-Path $scope 'viewer-errors.txt'))}
 }finally{
     [IO.File]::WriteAllText($stop,'stop')
@@ -47,4 +54,5 @@ try {
         if(!$game.HasExited){Stop-Process -Id $game.Id -Force}
     }
 }
+Get-Content -LiteralPath (Join-Path $scope 'viewer-result.json')
 Write-Host ('Prueba terminada. Registros privados: '+$scope)

@@ -26,3 +26,7 @@ No se afirma compatibilidad de ejecución con Linux, AMD, todo el juego ni perce
 6. **Preparación de lanzamiento:** regresiones de juego y visor, presupuestos de rendimiento, perfiles compatibles y candidatos de actualización revisados.
 
 Es un orden de trabajo, no un calendario. [oot-vr](https://github.com/gibranfelix/oot-vr) es una referencia para investigar futuras mecánicas, no una dependencia ni prueba de que su implementación pueda trasladarse directamente. Revisar licencias antes de reutilizar código.
+
+## Actualización de la prueba en Quest
+
+El usuario confirmó después una escena de profundidad persistente y en movimiento, escala y profundidad aparentemente correctas y pixelación. Se aceptaron 254 actualizaciones en 60 segundos y la prueba cerró correctamente. La estereoscopía nativa sigue pendiente. Consulta [el avance de cámara y sus límites](../../vr-native-camera-aliases.md).
