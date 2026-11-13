@@ -44,3 +44,5 @@ python -I -B tests/run_all.py --jobs 2
 The inherited suite needs its documented compiler and fixture dependencies. Record failures honestly. GPU-only synthetic motion checks are explicit local checks, not portable CI requirements. Headset tests require a person available to inspect the result.
 
 For the complete update rules see [upstream compatibility](../../vr-upstream-updates.md). These bilingual guide pages are part of the allowed source-only patch and travel with update candidates.
+
+The separate [same-state eye patch audit](../../vr-same-state-eye-patch.md) now identifies which observed shader reads fit the private matrix patch extent and which require further review. This is offline preparation for native stereo; temporal stereo remains the current playable diagnostic.

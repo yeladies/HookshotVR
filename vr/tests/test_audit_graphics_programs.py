@@ -25,6 +25,34 @@ class ProgramTests(unittest.TestCase):
     def analyze(self,associated=False):
         data=json.dumps(self.record)+"\n";(self.path/"program-bindings.jsonl").write_text(data)
         return audit.analyze_directory(self.path,fixture.GRAMMAR,associated)
+    def test_eye_patch_reports_only_transport_coverage(self):
+        binding=self.record["bindings"][0]
+        result=audit.eye_patch_footprint([(binding,{"static_subset_resolved":True,"static_read_word_offsets":[0,48,112,176,220]})])
+        self.assertEqual(result["status"],"matrix_footprint_only")
+        self.assertFalse(result["safe_to_patch"]);self.assertFalse(result["shader_semantics_confirmed"])
+    def test_preserved_fields_are_not_assumed_eye_independent(self):
+        result=audit.eye_patch_footprint([(self.record["bindings"][0],{"static_subset_resolved":True,"static_read_word_offsets":[0,224,448,508]})])
+        self.assertEqual(result["status"],"unreviewed_preserved_fields")
+        self.assertEqual(result["preserved_read_byte_offsets_requiring_review"],[224,448,508])
+    def test_unresolved_camera_pointer_blocks_footprint_completeness(self):
+        for query in ({},{"static_subset_resolved":False,"static_read_word_offsets":[0]}):
+            result=audit.eye_patch_footprint([(self.record["bindings"][0],query)])
+            self.assertEqual(result["status"],"unresolved_camera_reads")
+            self.assertFalse(result["all_primary_footprints_resolved"])
+    def test_eye_patch_keeps_stage_and_array_identity(self):
+        first=self.record["bindings"][0];second={**first,"vk_stage":16,"array_element":1}
+        query={"static_subset_resolved":True,"static_read_word_offsets":[48]}
+        result=audit.eye_patch_footprint([(first,query),(second,query)])
+        self.assertEqual([r["vk_stage"] for r in result["primary_binding_footprints"]],[1,16])
+        self.assertEqual(result["primary_binding_footprints"][1]["array_element"],1)
+    def test_eye_patch_rejects_malformed_offsets(self):
+        for words in ([True],[-4],[1],[560],[0]*16385):
+            with self.assertRaises(ValueError):
+                audit.eye_patch_footprint([(self.record["bindings"][0],{"static_read_word_offsets":words})])
+    def test_eye_patch_no_binding_or_no_reads_is_not_matrix_evidence(self):
+        self.assertEqual(audit.eye_patch_footprint([])["status"],"unresolved_camera_reads")
+        result=audit.eye_patch_footprint([(self.record["bindings"][0],{"static_subset_resolved":True,"static_read_word_offsets":[]})])
+        self.assertEqual(result["status"],"no_observed_matrix_reads")
     def test_fragment_without_uniform_binding_is_still_checked(self):
         report=self.analyze();self.assertEqual(report["unique_stage_modules"],2);self.assertEqual(report["shader_subset_candidates"],1)
         self.assertFalse(report["safe_to_replay"]);self.assertFalse(report["pipeline_state_coverage_complete"])

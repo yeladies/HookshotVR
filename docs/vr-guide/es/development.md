@@ -44,3 +44,5 @@ python -I -B tests/run_all.py --jobs 2
 La batería heredada necesita el compilador y dependencias de sus fixtures. Registra los fallos reales. Las pruebas sintéticas GPU son comprobaciones locales explícitas, no requisitos portables de CI. Las pruebas de visor requieren una persona que pueda observar el resultado.
 
 Consulta [las reglas completas de actualización](../../vr-upstream-updates.md). Estas guías bilingües forman parte del parche permitido y acompañan a los candidatos de actualización.
+
+La [auditoría de cámara desde un mismo estado](../../vr-same-state-eye-patch.md) identifica qué lecturas observadas de los shaders cubre el prefijo privado de matrices y cuáles requieren revisión. Es preparación sin visor para el estéreo nativo; el diagnóstico jugable actual sigue siendo temporal.

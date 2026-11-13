@@ -44,6 +44,33 @@ def baseline_preflight(directory,programs):
             eligible.add(program["program"])
     return {"records":len(records),"reasons":reasons,"shader_and_live_state_candidates":sorted(eligible),"capture_link_hash_verified":True,"safe_to_replay":False}
 
+def eye_patch_footprint(footprints):
+    """Compare observed reads with the existing private-copy matrix patch extent.
+
+    A known byte range is only transport coverage, never shader semantic proof.
+    Unknown fields stay byte-exact, but may still be camera-dependent.
+    """
+    rows=[];resolved=bool(footprints);matrix_reads=0;review=set()
+    for binding,query in footprints:
+        words=query.get("static_read_word_offsets",[])
+        if not isinstance(words,list) or len(words)>16384 or any(type(n) is not int or n<0 or n%4 or n>=binding["range_bytes"] for n in words):
+            raise ValueError("Invalid bounded camera read footprint")
+        complete=query.get("static_subset_resolved") is True
+        resolved &= complete
+        covered=sorted(set(n for n in words if n<0xe0))
+        unknown=sorted(set(n for n in words if n>=0xe0))
+        matrix_reads+=len(covered);review.update(unknown)
+        rows.append({"vk_stage":binding["vk_stage"],"binding":binding["binding"],"array_element":binding["array_element"],
+            "range_bytes":binding["range_bytes"],"static_subset_resolved":complete,
+            "matrix_patch_read_byte_offsets":covered,"preserved_fields_requiring_review":unknown})
+    status=("unresolved_camera_reads" if not resolved else "unreviewed_preserved_fields" if review else
+            "matrix_footprint_only" if matrix_reads else "no_observed_matrix_reads")
+    return {"status":status,"primary_binding_footprints":rows,"all_primary_footprints_resolved":resolved,
+        "matrix_read_words":matrix_reads,"preserved_read_byte_offsets_requiring_review":sorted(review),
+        "matrix_patch_extent_bytes":0xe0,"shader_semantics_confirmed":False,"safe_to_patch":False,
+        "full_scene_stereo":False}
+
+
 def analyze_directory(directory,grammar,require_association=False):
     root=Path(directory).resolve();associated=False
     if require_association or (root/"baseline-preflight.jsonl").exists():
@@ -86,13 +113,16 @@ def analyze_directory(directory,grammar,require_association=False):
                 stage=seen.get(binding["vk_stage"])
                 if not stage or stage["nvn_stage"]!=binding["nvn_stage"] or stage.get("module")!=binding["module"]:raise ValueError("Binding does not match stage inventory")
         primary=any(binding["primary_camera_binding"] for binding in record["bindings"])
-        camera_regions=set();vertex_transform=False
+        camera_regions=set();vertex_transform=False;patch_footprints=[]
         for binding in record["bindings"]:
-            if not binding["primary_camera_binding"] or binding["module"] not in modules:continue
+            if not binding["primary_camera_binding"]:continue
+            if binding["module"] not in modules:
+                patch_footprints.append((binding,{}));continue
             key=(binding["module"],binding["binding"],binding["array_element"],binding["range_bytes"])
             if key not in queries:
                 try:queries[key]=bindings.reader.analyze(bindings.reader.read_module(root/(binding["module"]+".spv")),binding["binding"],0,binding["array_element"],binding["range_bytes"])
                 except (OSError,ValueError,IndexError,TypeError):queries[key]={"static_read_word_offsets":[]}
+            patch_footprints.append((binding,queries[key]))
             words=queries[key].get("static_read_word_offsets",[])
             ranges=(("view",0,48),("view_projection",48,112),("projection",112,176),("inverse_view",176,224))
             observed={name for name,first,end in ranges if any(first<=word<end for word in words)}
@@ -102,7 +132,8 @@ def analyze_directory(directory,grammar,require_association=False):
         reports.append({"program":record["program"],"stage_inventory_declared_complete":complete,
             "all_declared_stage_files_available":available,"primary_binding_observed":primary,
             "shader_subset_candidate":candidate,"observed_primary_byte_regions":sorted(camera_regions),
-            "vertex_camera_transform_reads_observed":vertex_transform,"stages":stage_reports,"safe_to_replay":False})
+            "vertex_camera_transform_reads_observed":vertex_transform,"stages":stage_reports,
+            "eye_patch_preflight":eye_patch_footprint(patch_footprints),"safe_to_replay":False})
     return {"schema":1,"observed_programs":len(reports),"complete_stage_inventories":sum(r["stage_inventory_declared_complete"] for r in reports),
         "programs_with_all_stage_files":sum(r["all_declared_stage_files_available"] for r in reports),
         "shader_subset_candidates":sum(r["shader_subset_candidate"] for r in reports),
