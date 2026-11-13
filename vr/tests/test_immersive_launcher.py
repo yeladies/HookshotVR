@@ -10,6 +10,10 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'vr/run-game.ps1'),*args],capture_output=True,text=True,timeout=20)
         self.assertNotEqual(result.returncode,0)
         self.assertIn(message,result.stdout+result.stderr)
+    def test_gpu_matrix_probe_requires_isolated_baseline(self):
+        self.reject(['-GpuEyeMatrixProbe'],'GPU matrix transport probe requires the isolated non-XR draw baseline')
+    def test_gpu_matrix_probe_cannot_open_xr(self):
+        self.reject(['-GpuEyeMatrixProbe','-IsolatedDrawProbe','-XrPreview'],'requires its own non-XR run')
     def test_private_capture_cannot_open_xr(self):
         self.reject(['-Seconds','180','-ImmersivePreview','-PreviewCaptureDirectory','unused'],'Private image capture requires the non-XR immersive readback test')
     def test_private_capture_cannot_escape_work(self):

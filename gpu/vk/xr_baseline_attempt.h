@@ -38,6 +38,8 @@ public:
 struct XrBaselineComparison {
     enum class Result {Invalid,Invisible,Match,Mismatch};
     Result result=Result::Invalid;
+    bool matrix_probe_requested=false,matrix_probe_validated=false,matrix_source_unchanged=false;
+    uint64_t matrix_payload_bytes=0;
     uint64_t changed_pixels=0;
     std::array<uint64_t,2> mismatched_pixels{};
 };

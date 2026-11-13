@@ -5,9 +5,13 @@ import re
 import unittest
 class ShaderTests(unittest.TestCase):
     def test_generated_source_and_compute_contract(self):
+        self.check_shader("eye_address_copy",64)
+    def test_generated_matrix_patch_shader(self):
+        self.check_shader("eye_matrix_patch",1)
+    def check_shader(self,stem,local_size):
         root=Path(__file__).resolve().parents[1]
-        source=(root/"shaders/eye_address_copy.comp").read_bytes().replace(b"\r\n",b"\n")
-        header=(root/"src/eye_address_copy_spv.h").read_text()
+        source=(root/("shaders/"+stem+".comp")).read_bytes().replace(b"\r\n",b"\n")
+        header=(root.parent/"gpu/vk/xr_eye_matrix_patch_spv.h" if stem=="eye_matrix_patch" else root/"src/eye_address_copy_spv.h").read_text()
         self.assertIn("Source SHA256: "+hashlib.sha256(source).hexdigest(),header,"Regenerate after editing the authored shader")
         words=[int(w,16) for w in re.findall(r"0x[0-9a-f]{8}",header)]
         self.assertGreater(len(words),5);self.assertLessEqual(len(words)*4,65536)
@@ -22,5 +26,5 @@ class ShaderTests(unittest.TestCase):
         self.assertIn((14,[5348,1]),instructions) # PhysicalStorageBuffer64 / GLSL450
         entries=[args for op,args in instructions if op==15]
         self.assertEqual(len(entries),1);self.assertEqual(entries[0][0],5) # GLCompute
-        self.assertIn((16,[entries[0][1],17,64,1,1]),instructions) # LocalSize
+        self.assertIn((16,[entries[0][1],17,local_size,1,1]),instructions) # LocalSize
 if __name__=="__main__":unittest.main()

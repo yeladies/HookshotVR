@@ -25,6 +25,8 @@ void report(const State& p,const char* status){
     if(file)file<<"{\"schema\":1,\"status\":\""<<status<<"\",\"attempts\":"<<p.attempted.size()<<",\"completed_attempts\":"<<p.completed
         <<",\"changed_original_pixels\":"<<p.result.changed_pixels<<",\"left_mismatched_pixels\":"<<p.result.mismatched_pixels[0]
         <<",\"right_mismatched_pixels\":"<<p.result.mismatched_pixels[1]<<",\"resources_released\":"<<(!p.current?"true":"false")
+        <<",\"matrix_probe_requested\":"<<(p.result.matrix_probe_requested?"true":"false")<<",\"matrix_probe_validated\":"<<(p.result.matrix_probe_validated?"true":"false")
+        <<",\"matrix_source_unchanged\":"<<(p.result.matrix_source_unchanged?"true":"false")<<",\"matrix_payload_bytes\":"<<p.result.matrix_payload_bytes<<",\"patched_buffers_bound_to_draw\":false"
         <<",\"unchanged_camera_baseline\":true,\"full_scene_stereo\":false,\"headset_presentation\":false}\n";
 }
 void selection(State& p){
@@ -56,7 +58,7 @@ void xr_baseline_draw_tick(uint64_t frame,uint64_t serial){
         if(p.last_poll_frame!=frame){p.last_poll_frame=frame;
         if(xr_baseline_recorder_retire(p.current,result)){
             p.result=result;++p.completed;
-            if(result.result==XrBaselineComparison::Result::Match){p.stopped=true;report(p,"baseline_matched");}
+            if(result.result==XrBaselineComparison::Result::Match){p.stopped=true;report(p,result.matrix_probe_requested&&!result.matrix_probe_validated?"matrix_patch_unverified":"baseline_matched");}
             else if(result.result==XrBaselineComparison::Result::Mismatch){p.stopped=true;report(p,"baseline_mismatch");}
             else report(p,"attempt_inconclusive");
         }}
@@ -72,7 +74,8 @@ bool xr_baseline_draw_selected(const Program& program){
 void xr_baseline_draw_prepare(const XrBaselineRecorderInput& input){
     if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);
     if(p.stopped||p.current||p.attempted.size()>=8||p.attempted.count(input.program))return;
-    p.current=xr_baseline_recorder_create(input);if(!p.current)return;
+    auto requested=input;requested.matrix_probe=env_on("RX_VK_XR_MATRIX_PATCH_PROBE");
+    p.current=xr_baseline_recorder_create(requested);if(!p.current)return;
     p.attempted.insert(input.program);p.current_program=input.program;
     if(!xr_baseline_recorder_prepare(p.current))xr_baseline_recorder_abandon(p.current);
     report(p,"attempt_prepared");

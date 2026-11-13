@@ -25,6 +25,7 @@ param(
     [switch]$EyeUniformProbe,
     [switch]$BaselineDrawPreflight,
     [switch]$IsolatedDrawProbe,
+    [switch]$GpuEyeMatrixProbe,
     [switch]$DepthSceneCapture,
     [switch]$DepthSceneStream,
     [string]$DepthCapturePath,
@@ -37,6 +38,7 @@ param(
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+if($GpuEyeMatrixProbe -and !$IsolatedDrawProbe){throw 'GPU matrix transport probe requires the isolated non-XR draw baseline.'}
 if($PreviewCaptureDirectory -and !$ImmersiveReadbackTest){throw 'Private image capture requires the non-XR immersive readback test.'}
 if(($WideFov -or $TemporalStereo) -and !($ImmersivePreview -or $ImmersiveReadbackTest)){throw 'Wide FOV/stereo require an isolated immersive mode.'}
 if($TemporalStereo){$WideFov=$true}
@@ -197,6 +199,7 @@ if($DepthSceneCapture){
     Remove-Item Env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE -ErrorAction SilentlyContinue
     Remove-Item Env:HOOKSHOT_VR_DEPTH_CAPTURE_ARM_FILE -ErrorAction SilentlyContinue
 }
+$env:RX_VK_XR_MATRIX_PATCH_PROBE=if($GpuEyeMatrixProbe){'1'}else{'0'}
 if($IsolatedDrawProbe){
     foreach($name in @('RX_VK_DRAW_STATS','RX_VK_PASS_TIMING','RX_VK_PROBE','RX_VK_DUMP')){Remove-Item ('Env:'+$name) -ErrorAction SilentlyContinue}
     $env:RX_VK_XR_BASELINE_DRAW='1'
@@ -414,11 +417,13 @@ if($EyeUniformProbe -and (Test-Path -LiteralPath $env:HOOKSHOT_VR_EYE_UNIFORM_PR
     $eyeUniformProbeComplete=$uniformProbe.schema -eq 1 -and $uniformProbe.copy_recorded -and $uniformProbe.gpu_completion_verified -and $uniformProbe.full_payloads_validated -and $uniformProbe.resources_released -and !$uniformProbe.source_objects_replaced -and !$uniformProbe.stereo_replay_enabled
 }
 if($EyeUniformProbe -and !$eyeUniformProbeComplete -and $reason -eq 'time_limit'){$reason='eye_uniform_probe_unverified'}
+$gpuMatrixVerified=$false
 $isolatedDrawMatched=$false
 if($IsolatedDrawProbe -and (Test-Path -LiteralPath $env:HOOKSHOT_VR_BASELINE_DRAW_FILE)){
     $baselineDraw=Get-Content -LiteralPath $env:HOOKSHOT_VR_BASELINE_DRAW_FILE -Raw | ConvertFrom-Json
     $isolatedDrawMatched=$baselineDraw.schema -eq 1 -and $baselineDraw.status -eq 'baseline_matched' -and $baselineDraw.resources_released -and $baselineDraw.changed_original_pixels -gt 0 -and $baselineDraw.left_mismatched_pixels -eq 0 -and $baselineDraw.right_mismatched_pixels -eq 0 -and $baselineDraw.unchanged_camera_baseline -and !$baselineDraw.full_scene_stereo -and !$baselineDraw.headset_presentation
 }
+if($GpuEyeMatrixProbe){$gpuMatrixVerified=$isolatedDrawMatched -and $baselineDraw.matrix_probe_requested -and $baselineDraw.matrix_probe_validated -and $baselineDraw.matrix_source_unchanged -and !$baselineDraw.patched_buffers_bound_to_draw;if(!$gpuMatrixVerified){$isolatedDrawMatched=$false}}
 if($IsolatedDrawProbe -and !$isolatedDrawMatched -and $reason -eq 'time_limit'){$reason='isolated_draw_unverified'}
 $depthSceneComplete=$false
 if($DepthSceneCapture -and (Test-Path -LiteralPath ($env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE+'.json')) -and (Test-Path -LiteralPath $env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE)){
@@ -436,7 +441,7 @@ if(($ImmersivePreview -or $ImmersiveReadbackTest) -and (Test-Path -LiteralPath $
     $immersiveVerified=$immersiveReport.schema -eq 1 -and $immersiveReport.camera_overrides -gt 0 -and $immersiveReport.matched_draws -gt 0 -and $immersiveReport.published_images -gt 0 -and ([bool]$immersiveReport.monoscopic -eq !$TemporalStereo) -and (!$TemporalStereo -or ($temporalPairObserved -and $immersiveReport.temporal_stereo -and $immersiveReport.left_images -gt 0 -and $immersiveReport.right_images -gt 0)) -and (!$WideFov -or ($immersiveReport.lens_updates -gt 0 -and [math]::Abs($immersiveReport.vertical_fov_rad-$immersiveReport.requested_vertical_fov_rad) -lt 0.02)) -and !$immersiveReport.native_stereo -and ([bool]$immersiveReport.synthetic_pose -eq [bool]$ImmersiveReadbackTest)
 }
 if(($ImmersivePreview -or $ImmersiveReadbackTest) -and !$immersiveVerified -and $reason -eq 'time_limit'){$reason='immersive_camera_unverified'}
-[ordered]@{ temporal_pair_observed=$temporalPairObserved;immersive_requested=[bool]($ImmersivePreview -or $ImmersiveReadbackTest);immersive_camera_verified=$immersiveVerified;immersive_report=$immersiveReport;depth_scene_stream_requested=[bool]$DepthSceneStream;depth_scene_capture_completed=$depthSceneComplete;depth_scene_capture_requested=[bool]$DepthSceneCapture;depth_scene_capture_file=$env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE;isolated_draw_requested=[bool]$IsolatedDrawProbe;isolated_draw_matched=$isolatedDrawMatched;isolated_draw_file=$env:HOOKSHOT_VR_BASELINE_DRAW_FILE;baseline_draw_preflight_requested=[bool]$BaselineDrawPreflight;baseline_draw_preflight_file=$env:HOOKSHOT_VR_BASELINE_PREFLIGHT_FILE;eye_uniform_probe_requested=[bool]$EyeUniformProbe;eye_uniform_probe_completed=$eyeUniformProbeComplete;eye_uniform_probe_file=$env:HOOKSHOT_VR_EYE_UNIFORM_PROBE_FILE;eye_image_probe_requested=[bool]$EyeImageProbe;eye_image_probe_completed=$eyeImageProbeComplete;eye_image_probe_file=$env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE; compute_shader_uniform_audit_requested = [bool]$ComputeShaderUniformAudit; shader_uniform_audit_requested = [bool]$ShaderUniformAudit; shader_uniform_audit_observed = $shaderAuditObserved; shader_uniform_audit_directory = $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR; camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]($XrPreview -and !$ImmersivePreview); flat_quad_submitted = ($previewSubmitted -and !$ImmersivePreview); readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+[ordered]@{ gpu_matrix_probe_requested=[bool]$GpuEyeMatrixProbe;gpu_matrix_probe_verified=[bool]$gpuMatrixVerified;temporal_pair_observed=$temporalPairObserved;immersive_requested=[bool]($ImmersivePreview -or $ImmersiveReadbackTest);immersive_camera_verified=$immersiveVerified;immersive_report=$immersiveReport;depth_scene_stream_requested=[bool]$DepthSceneStream;depth_scene_capture_completed=$depthSceneComplete;depth_scene_capture_requested=[bool]$DepthSceneCapture;depth_scene_capture_file=$env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE;isolated_draw_requested=[bool]$IsolatedDrawProbe;isolated_draw_matched=$isolatedDrawMatched;isolated_draw_file=$env:HOOKSHOT_VR_BASELINE_DRAW_FILE;baseline_draw_preflight_requested=[bool]$BaselineDrawPreflight;baseline_draw_preflight_file=$env:HOOKSHOT_VR_BASELINE_PREFLIGHT_FILE;eye_uniform_probe_requested=[bool]$EyeUniformProbe;eye_uniform_probe_completed=$eyeUniformProbeComplete;eye_uniform_probe_file=$env:HOOKSHOT_VR_EYE_UNIFORM_PROBE_FILE;eye_image_probe_requested=[bool]$EyeImageProbe;eye_image_probe_completed=$eyeImageProbeComplete;eye_image_probe_file=$env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE; compute_shader_uniform_audit_requested = [bool]$ComputeShaderUniformAudit; shader_uniform_audit_requested = [bool]$ShaderUniformAudit; shader_uniform_audit_observed = $shaderAuditObserved; shader_uniform_audit_directory = $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR; camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]($XrPreview -and !$ImmersivePreview); flat_quad_submitted = ($previewSubmitted -and !$ImmersivePreview); readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }

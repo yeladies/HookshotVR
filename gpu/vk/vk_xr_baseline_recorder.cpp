@@ -3,6 +3,8 @@
 #include "vk_draw.h"
 #include "xr_baseline_recorder.h"
 #include "xr_uniform_copy_source.h"
+#include "xr_eye_matrix_patch_spv.h"
+#include "xr_matrix_patch_check.h"
 #include <array>
 #include <new>
 #include <memory>
@@ -13,6 +15,10 @@ struct XrBaselineRecorder {
     XrDescriptorSnapshot original;std::array<XrDescriptorSnapshot,2> descriptors;
     EyeImageClonePair color,depth;EyeImageViewPair color_views,depth_views;
     std::array<VkBuffer,2> uniforms{};std::array<VmaAllocation,2> uniform_memory{};
+    std::array<VkBuffer,2> matrix_buffers{};std::array<VmaAllocation,2> matrix_memory{};
+    VkShaderModule matrix_shader=VK_NULL_HANDLE;VkPipelineLayout matrix_layout=VK_NULL_HANDLE;VkPipeline matrix_pipeline=VK_NULL_HANDLE;
+    VkDeviceAddress matrix_source=0;std::array<VkDeviceAddress,2> matrix_destinations{};
+    uint64_t readback_bytes=0;
     VkBuffer readback=VK_NULL_HANDLE;VmaAllocation readback_memory=nullptr;void* mapped=nullptr;
     uint64_t frame_bytes=0,allocated=0;bool prepared=false,finished=false;
     XrBaselineAttempt attempt;XrUniformSourceStamp source_stamp{};
@@ -29,6 +35,10 @@ void release_image(VkImage image,uintptr_t allocation){destroy_image(image,reint
 uint64_t image_bytes(uintptr_t allocation){return allocation_size(reinterpret_cast<VmaAllocation>(allocation));}
 void release_buffers(XrBaselineRecorder& p){
     for(unsigned eye=0;eye<2;++eye)if(p.uniforms[eye])destroy_buffer(p.uniforms[eye],p.uniform_memory[eye]);
+    for(unsigned eye=0;eye<2;++eye)if(p.matrix_buffers[eye])destroy_buffer(p.matrix_buffers[eye],p.matrix_memory[eye]);
+    if(p.matrix_pipeline)vkDestroyPipeline(p.device,p.matrix_pipeline,nullptr);
+    if(p.matrix_layout)vkDestroyPipelineLayout(p.device,p.matrix_layout,nullptr);
+    if(p.matrix_shader)vkDestroyShaderModule(p.device,p.matrix_shader,nullptr);
     if(p.readback)destroy_buffer(p.readback,p.readback_memory);
 }
 void dispose_unsubmitted(XrBaselineRecorder* p){
@@ -86,7 +96,9 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& reques
     // Validate and own the writer payload before examining raw descriptor arrays.
     XrDescriptorSnapshot checked;if(!checked.capture(in.writes))return nullptr;
     in.writes=checked.writes();
+    const auto seed_offset=in.camera.offset;
     if(in.camera_slots.empty()||!close_camera_aliases(in))return nullptr;
+    if(in.matrix_probe&&(in.camera.offset!=seed_offset||in.camera.offset%16||in.camera.range<0x230))return nullptr;
     if(par_active||!in.command||!in.layout||!in.serial||!in.recording||!in.program||!vkCmdPushDescriptorSetKHR||
        !in.geometry.count||in.geometry.count>1048576||!in.geometry.instances||in.geometry.instances>1024||
        !shape(in.color,VK_FORMAT_B10G11R11_UFLOAT_PACK32,VK_IMAGE_ASPECT_COLOR_BIT)||!shape(in.depth,VK_FORMAT_D32_SFLOAT,VK_IMAGE_ASPECT_DEPTH_BIT)||
@@ -95,6 +107,7 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& reques
        in.camera.offset%4||vk_timeline_completed()>=in.recording)return nullptr;
     XrUniformCopySource source;
     if(!memory_xr_uniform_copy_source(in.camera.buffer,in.recording,source)||!xr_uniform_copy_source_valid(source,in.camera.buffer,in.camera.offset,in.camera.range,source.stamp))return nullptr;
+    if(in.matrix_probe&&!(source.usage&VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT))return nullptr;
     std::unique_ptr<XrBaselineRecorder,decltype(&dispose_unsubmitted)> owned(new(std::nothrow)XrBaselineRecorder,dispose_unsubmitted);
     auto* p=owned.get();if(!p)return nullptr;p->source_stamp=source.stamp;
     p->device=dev.device;p->source=in;p->frame_bytes=uint64_t(in.color.width)*in.color.height*4;
@@ -123,7 +136,27 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& reques
             if(!p->descriptors[eye].set_uniform(slot.binding,slot.element,{p->uniforms[eye],offset,range})){return nullptr;}
         }
     }
-    if(!create_buffer(4*p->frame_bytes,VK_BUFFER_USAGE_TRANSFER_DST_BIT,true,p->readback,p->readback_memory,&p->mapped,true)||!p->mapped||!account(*p,p->readback_memory)){return nullptr;}
+    if(in.matrix_probe){
+        VkBufferDeviceAddressInfo address{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};address.buffer=in.camera.buffer;
+        const auto base=vkGetBufferDeviceAddress(p->device,&address);
+        if(!base||base>UINT64_MAX-in.camera.offset||base+in.camera.offset>UINT64_MAX-in.camera.range)return nullptr;
+        p->matrix_source=base+in.camera.offset;if(p->matrix_source%16)return nullptr;
+        for(unsigned eye=0;eye<2;++eye){
+            if(!create_device_buffer(in.camera.range,VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,p->matrix_buffers[eye],p->matrix_memory[eye],true)||!account(*p,p->matrix_memory[eye]))return nullptr;
+            address.buffer=p->matrix_buffers[eye];const auto value=vkGetBufferDeviceAddress(p->device,&address);
+            if(!value||value%16||value>UINT64_MAX-in.camera.range||(value<p->matrix_source+in.camera.range&&p->matrix_source<value+in.camera.range))return nullptr;
+            if(eye&&value<p->matrix_destinations[0]+in.camera.range&&p->matrix_destinations[0]<value+in.camera.range)return nullptr;
+            p->matrix_destinations[eye]=value;
+        }
+        VkShaderModuleCreateInfo shader{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};shader.codeSize=sizeof kEyeMatrixPatchSpv;shader.pCode=kEyeMatrixPatchSpv;
+        if(vkCreateShaderModule(p->device,&shader,nullptr,&p->matrix_shader)!=VK_SUCCESS)return nullptr;
+        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT,0,24};VkPipelineLayoutCreateInfo layout{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};layout.pushConstantRangeCount=1;layout.pPushConstantRanges=&range;
+        if(vkCreatePipelineLayout(p->device,&layout,nullptr,&p->matrix_layout)!=VK_SUCCESS)return nullptr;
+        VkComputePipelineCreateInfo pipeline{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};pipeline.layout=p->matrix_layout;pipeline.stage={VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};pipeline.stage.stage=VK_SHADER_STAGE_COMPUTE_BIT;pipeline.stage.module=p->matrix_shader;pipeline.stage.pName="main";
+        if(vkCreateComputePipelines(p->device,VK_NULL_HANDLE,1,&pipeline,nullptr,&p->matrix_pipeline)!=VK_SUCCESS)return nullptr;
+    }
+    p->readback_bytes=4*p->frame_bytes+(in.matrix_probe?4*in.camera.range:0);
+    if(!create_buffer(p->readback_bytes,VK_BUFFER_USAGE_TRANSFER_DST_BIT,true,p->readback,p->readback_memory,&p->mapped,true)||!p->mapped||!account(*p,p->readback_memory)){return nullptr;}
     return owned.release();
 }
 XrBaselineRecorder* xr_baseline_recorder_create(const XrBaselineRecorderInput& in){
@@ -141,6 +174,18 @@ bool xr_baseline_recorder_prepare(XrBaselineRecorder* p){
     order(in.command,VK_PIPELINE_STAGE_2_COPY_BIT,VK_ACCESS_2_TRANSFER_READ_BIT|VK_ACCESS_2_TRANSFER_WRITE_BIT);
     for(auto buffer:p->uniforms){VkBufferCopy copy{in.camera.offset,0,in.camera.range};vkCmdCopyBuffer(in.command,in.camera.buffer,buffer,1,&copy);}
     color_readback(*p,in.color.image,0);
+    if(in.matrix_probe){
+        VkBufferCopy copy{in.camera.offset,4*p->frame_bytes,in.camera.range};vkCmdCopyBuffer(in.command,in.camera.buffer,p->readback,1,&copy);
+        order(in.command,VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,VK_ACCESS_2_SHADER_READ_BIT|VK_ACCESS_2_SHADER_WRITE_BIT);
+        vkCmdBindPipeline(in.command,VK_PIPELINE_BIND_POINT_COMPUTE,p->matrix_pipeline);
+        for(unsigned eye=0;eye<2;++eye){
+            struct Parameters {VkDeviceAddress source,destination;uint32_t bytes;float shift;};static_assert(sizeof(Parameters)==24);
+            const Parameters parameters{p->matrix_source,p->matrix_destinations[eye],uint32_t(in.camera.range),eye?.01f:-.01f};
+            vkCmdPushConstants(in.command,p->matrix_layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof parameters,&parameters);vkCmdDispatch(in.command,1,1,1);
+        }
+        // No compute descriptors are touched. Ordinary compute dispatches rebind
+        // their pipeline and constants; graphics state remains on its own bind point.
+    }
     order(in.command,VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT);return true;
 }
 bool xr_baseline_recorder_finish(XrBaselineRecorder* p,uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer command,const std::vector<VkWriteDescriptorSet>& writes){
@@ -162,6 +207,12 @@ bool xr_baseline_recorder_finish(XrBaselineRecorder* p,uint64_t serial,uint64_t 
         vkCmdEndRendering(command);color_readback(*p,p->color.eye(eye),eye+2);
     }
     const auto& original=p->original.writes();vkCmdPushDescriptorSetKHR(command,VK_PIPELINE_BIND_POINT_GRAPHICS,p->source.layout,0,uint32_t(original.size()),original.data());
+    if(p->source.matrix_probe){
+        order(command,VK_PIPELINE_STAGE_2_COPY_BIT,VK_ACCESS_2_TRANSFER_READ_BIT|VK_ACCESS_2_TRANSFER_WRITE_BIT);
+        const auto n=p->source.camera.range,offset=4*p->frame_bytes;
+        VkBufferCopy copy{p->source.camera.offset,offset+n,n};vkCmdCopyBuffer(command,p->source.camera.buffer,p->readback,1,&copy);
+        for(unsigned eye=0;eye<2;++eye){copy={0,offset+(eye+2)*n,n};vkCmdCopyBuffer(command,p->matrix_buffers[eye],p->readback,1,&copy);}
+    }
     order(command,VK_PIPELINE_STAGE_2_HOST_BIT,VK_ACCESS_2_HOST_READ_BIT);
     p->finished=true;return true;
 }
@@ -171,7 +222,12 @@ bool xr_baseline_recorder_retire(XrBaselineRecorder*& p,XrBaselineComparison& co
     if(!p->prepared){dispose_unsubmitted(p);p=nullptr;comparison={};return true;}
     const bool finished=p->finished;const auto completed=vk_timeline_completed();
     if(!p->attempt.retire(identity(dev.device),completed,p->device==dev.device))return false;
-    comparison={};if(finished){invalidate_mapped(p->readback_memory,4*p->frame_bytes);comparison=compare_xr_baseline(p->mapped,size_t(4*p->frame_bytes),p->source.color.width,p->source.color.height);}
+    comparison={};if(finished){invalidate_mapped(p->readback_memory,p->readback_bytes);comparison=compare_xr_baseline(p->mapped,size_t(4*p->frame_bytes),p->source.color.width,p->source.color.height);
+        if(p->source.matrix_probe){const auto n=size_t(p->source.camera.range);const auto* bytes=static_cast<const unsigned char*>(p->mapped)+4*p->frame_bytes;
+            comparison.matrix_probe_requested=true;comparison.matrix_payload_bytes=n;comparison.matrix_source_unchanged=!std::memcmp(bytes,bytes+n,n);
+            comparison.matrix_probe_validated=xr_matrix_patch_payloads(bytes,4*n,n);
+        }
+    }
     if(!p->color.retire(completed)||!p->depth.retire(completed))return false;
     release_buffers(*p);delete p;p=nullptr;return true;
 }

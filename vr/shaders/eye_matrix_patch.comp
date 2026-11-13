@@ -1,0 +1,45 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#version 460
+#extension GL_EXT_buffer_reference : require
+layout(local_size_x=1) in;
+layout(buffer_reference, std430, buffer_reference_align=16) readonly buffer Source { uint words[]; };
+layout(buffer_reference, std430, buffer_reference_align=16) writeonly buffer Destination { uint words[]; };
+layout(push_constant, std430) uniform Parameters { Source source; Destination destination; uint bytes; float shift; } parameters;
+bool finiteValue(float x) { return !isnan(x) && !isinf(x); }
+bool closeValue(float a,float b) { return finiteValue(a)&&finiteValue(b)&&abs(a-b)<=0.02+abs(a)*0.0001; }
+void main() {
+    if(parameters.bytes<0x230 || parameters.bytes>65536 || parameters.bytes%4!=0) return;
+    // Copy the actual submitted GPU bytes, including fields whose semantics are unknown.
+    for(uint i=0;i<parameters.bytes/4;++i) parameters.destination.words[i]=parameters.source.words[i];
+    if(!finiteValue(parameters.shift)||abs(parameters.shift)>0.05) return;
+    float b[56]; for(uint i=0;i<56;++i) { b[i]=uintBitsToFloat(parameters.source.words[i]); if(!finiteValue(b[i])) return; }
+    // Reviewed affine rigid-view and perspective prefix only. Invalid source remains unchanged.
+    for(int r=0;r<3;++r) for(int s=0;s<3;++s) {
+        float v=0;for(int k=0;k<3;++k)v+=b[4*r+k]*b[4*s+k];
+        if(abs(v-(r==s?1.0:0.0))>0.002) return;
+    }
+    float det=b[0]*(b[5]*b[10]-b[6]*b[9])-b[1]*(b[4]*b[10]-b[6]*b[8])+b[2]*(b[4]*b[9]-b[5]*b[8]);
+    if(abs(det-1)>0.003 || b[28]<=0 || abs(b[33])<=0.000001 || abs(b[42]+1)>0.000001 || abs(b[39])==0) return;
+    const int zeroFields[9]=int[9](1,3,4,7,8,9,12,13,15);
+    for(int i=0;i<9;++i)if(abs(b[28+zeroFields[i]])>0.000001) return;
+    for(int r=0;r<4;++r)for(int c=0;c<4;++c) {
+        float v=0;for(int k=0;k<4;++k)v+=b[28+4*r+k]*(k==3?(c==3?1.0:0.0):b[4*k+c]);
+        if(!closeValue(v,b[12+4*r+c]))return;
+    }
+    for(int r=0;r<3;++r) {
+        for(int c=0;c<3;++c)if(!closeValue(b[4*c+r],b[44+4*r+c]))return;
+        float t=0;for(int k=0;k<3;++k)t-=b[4*k+r]*b[4*k+3];
+        if(!closeValue(t,b[44+4*r+3]))return;
+    }
+    b[3]+=parameters.shift; // Diagnostic displacement in game units, not a calibrated IPD.
+    for(int r=0;r<4;++r)for(int c=0;c<4;++c) {
+        float v=0;for(int k=0;k<4;++k)v+=b[28+4*r+k]*(k==3?(c==3?1.0:0.0):b[4*k+c]);
+        b[12+4*r+c]=v;
+    }
+    for(int r=0;r<3;++r) {
+        for(int c=0;c<3;++c)b[44+4*r+c]=b[4*c+r];
+        float t=0;for(int k=0;k<3;++k)t-=b[4*k+r]*b[4*k+3];b[44+4*r+3]=t;
+    }
+    for(int i=0;i<56;++i)if(!finiteValue(b[i]))return;
+    for(uint i=0;i<56;++i)parameters.destination.words[i]=floatBitsToUint(b[i]);
+}

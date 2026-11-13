@@ -5,6 +5,7 @@
 #include "eye_uniform_copy.h"
 #include "camera_math.h"
 #include "eye_address_copy_spv.h"
+#include "../../gpu/vk/xr_eye_matrix_patch_spv.h"
 #include "eye_page_patches.h"
 #include "eye_buffer_descriptors.h"
 #include <cstring>
@@ -29,6 +30,7 @@ struct Context {
     std::array<AddressBuffer,4> auxiliary{};uint64_t auxiliary_bytes=0;
     VkDescriptorPool descriptor_pool=VK_NULL_HANDLE;VkDescriptorSetLayout descriptor_layout=VK_NULL_HANDLE;
     std::array<VkDescriptorSet,2> descriptor_sets{};
+    VkShaderModule matrix_shader=VK_NULL_HANDLE;VkPipeline matrix_pipeline=VK_NULL_HANDLE;
     VkShaderModule shader=VK_NULL_HANDLE;VkPipelineLayout layout=VK_NULL_HANDLE;VkPipeline pipeline=VK_NULL_HANDLE;
     bool uncertain=false;
     template<class T>T global(const char* name){auto fn=get(instance,name);require(fn!=nullptr,name);return reinterpret_cast<T>(fn);}
@@ -42,6 +44,8 @@ struct Context {
                 if(buffer.memory)fn<PFN_vkFreeMemory>("vkFreeMemory")(device,buffer.memory,nullptr);
             }
             if(descriptor_pool)fn<PFN_vkDestroyDescriptorPool>("vkDestroyDescriptorPool")(device,descriptor_pool,nullptr);
+            if(matrix_pipeline)fn<PFN_vkDestroyPipeline>("vkDestroyPipeline")(device,matrix_pipeline,nullptr);
+            if(matrix_shader)fn<PFN_vkDestroyShaderModule>("vkDestroyShaderModule")(device,matrix_shader,nullptr);
             if(pipeline)fn<PFN_vkDestroyPipeline>("vkDestroyPipeline")(device,pipeline,nullptr);
             if(layout)fn<PFN_vkDestroyPipelineLayout>("vkDestroyPipelineLayout")(device,layout,nullptr);
             if(descriptor_layout)fn<PFN_vkDestroyDescriptorSetLayout>("vkDestroyDescriptorSetLayout")(device,descriptor_layout,nullptr);
@@ -74,8 +78,11 @@ void address_buffer(Context& c,const EyeResourceApi& api,const VkPhysicalDeviceM
 int main(int argc,char** argv){
     const bool reject_ubo=argc==3&&!std::strcmp(argv[2],"--expect-ubo-rejection");
     const bool reject_ssbo=argc==3&&!std::strcmp(argv[2],"--expect-ssbo-rejection");
-    if(argc<2||argc>3||std::strcmp(argv[1],"--run")||(argc==3&&!reject_ubo&&!reject_ssbo)){
-        std::cerr<<"Explicit native GPU opt-in: --run [--expect-ubo-rejection|--expect-ssbo-rejection]\n";return 2;
+    const bool reject_matrix_shift=argc==3&&!std::strcmp(argv[2],"--matrix-patch-reject-shift");
+    const bool reject_matrix_view=argc==3&&!std::strcmp(argv[2],"--matrix-patch-reject-view");
+    const bool matrix_patch=(argc==3&&!std::strcmp(argv[2],"--matrix-patch"))||reject_matrix_shift||reject_matrix_view;
+    if(argc<2||argc>3||std::strcmp(argv[1],"--run")||(argc==3&&!reject_ubo&&!reject_ssbo&&!matrix_patch)){
+        std::cerr<<"Explicit native GPU opt-in: --run [--expect-ubo-rejection|--expect-ssbo-rejection|--matrix-patch|--matrix-patch-reject-shift|--matrix-patch-reject-view]\n";return 2;
     }
     const bool expect_rejection=reject_ubo||reject_ssbo;
     try {
@@ -122,19 +129,33 @@ int main(int argc,char** argv){
         for(size_t i=0;i<original.size();++i)original[i]=std::byte((i*37)%256);
         float base[0xe0/4]{};for(int i=0;i<3;++i)base[4*i+i]=1;
         ProjectionMatrix projection{};require(eye_projection({-.7,.8,.9,-.6},.05,1000,ClipDepth::MinusOneToOne,DepthOrder::Forward,false,projection),"authored projection");
-        for(int i=0;i<16;++i){base[0x30/4+i]=float(projection[i]);base[0x70/4+i]=float(projection[i]);}
+        for(int i=0;i<16;++i)base[0x70/4+i]=float(projection[i]);
+        if(matrix_patch){CameraView view;TrackingOrigin origin{};origin.yaw_radians=.3;
+            XrPosef pose{{float(std::sin(.1)),0,0,float(std::cos(.1))},{1,2,3}};
+            require(tracked_camera_view(origin,pose,3,view),"authored pitched source camera");
+            for(int r=0;r<3;++r)for(int col=0;col<4;++col)base[4*r+col]=float(view.rows[r][col]);}
+        for(int r=0;r<4;++r)for(int col=0;col<4;++col)for(int k=0;k<4;++k)
+            base[12+4*r+col]+=base[28+4*r+k]*(k==3?(col==3?1.f:0.f):base[4*k+col]);
         uniform_detail::inverse(base,base+0xb0/4);std::memcpy(original.data(),base,sizeof base);
+        if(reject_matrix_view){float invalid=2;std::memcpy(original.data(),&invalid,4);}
         const auto source_before=original;std::array<std::vector<std::byte>,2> payloads;
         for(unsigned eye=0;eye<2;++eye){
+            if(reject_matrix_shift||reject_matrix_view){payloads[eye]=original;continue;}
             EyeMatrices matrices{};TrackingOrigin origin{};origin.yaw_radians=.3;
             XrPosef pose{{0,0,float(std::sin(.1)),float(std::cos(.1))},{eye?.032f:-.032f,1,2}};
             require(tracked_camera_view(origin,pose,XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT,matrices.view),"authored tracked eye");
+            if(matrix_patch){
+                for(int r=0;r<3;++r)for(int col=0;col<4;++col)matrices.view.rows[r][col]=base[4*r+col];
+                matrices.view.rows[0][3]=float(base[3]+(eye?.01f:-.01f));
+                float view[12],inverse[12];for(int i=0;i<12;++i)view[i]=float(matrices.view.rows[i/4][i%4]);
+                uniform_detail::inverse(view,inverse);for(int r=0;r<3;++r)matrices.view.eye[r]=inverse[4*r+3];
+            }
             matrices.projection=projection;
             for(int r=0;r<4;++r)for(int col=0;col<4;++col)for(int k=0;k<4;++k)
                 matrices.world_to_clip[4*r+col]+=projection[4*r+k]*(k==3?(col==3?1:0):matrices.view.rows[k][col]);
             require(prepare_eye_uniform_copy(original.data(),original.size(),matrices,ClipDepth::MinusOneToOne,payloads[eye]),"prepare complete eye payload");
         }
-        require(original==source_before&&payloads[0]!=payloads[1],"source preserved and eye payloads distinct");
+        require(original==source_before&&((reject_matrix_shift||reject_matrix_view)||payloads[0]!=payloads[1]),"source preserved and eye payloads distinct");
         EyeResourcePair pair;require(pair.create(c.device,api,memory,32,32,VK_FORMAT_R8G8B8A8_UNORM,4096,8*1024*1024,true),"create bounded independent eyes");
         require(pair.eye(0)->address&&pair.eye(1)->address&&pair.eye(0)->address!=pair.eye(1)->address,"independent buffer device addresses");
         address_buffer(c,api,memory,8192,c.auxiliary[0]);
@@ -191,6 +212,12 @@ int main(int argc,char** argv){
         VkComputePipelineCreateInfo pipeline_info{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};pipeline_info.layout=c.layout;
         pipeline_info.stage.sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;pipeline_info.stage.stage=VK_SHADER_STAGE_COMPUTE_BIT;pipeline_info.stage.module=c.shader;pipeline_info.stage.pName="main";
         checked(c.fn<PFN_vkCreateComputePipelines>("vkCreateComputePipelines")(c.device,VK_NULL_HANDLE,1,&pipeline_info,nullptr,&c.pipeline),"create address compute pipeline");
+        if(matrix_patch){
+            shader_info.codeSize=sizeof kEyeMatrixPatchSpv;shader_info.pCode=kEyeMatrixPatchSpv;
+            checked(c.fn<PFN_vkCreateShaderModule>("vkCreateShaderModule")(c.device,&shader_info,nullptr,&c.matrix_shader),"create matrix patch shader");
+            pipeline_info.stage.module=c.matrix_shader;
+            checked(c.fn<PFN_vkCreateComputePipelines>("vkCreateComputePipelines")(c.device,VK_NULL_HANDLE,1,&pipeline_info,nullptr,&c.matrix_pipeline),"create matrix patch pipeline");
+        }
         VkCommandPoolCreateInfo pi{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};pi.queueFamilyIndex=family;checked(c.fn<PFN_vkCreateCommandPool>("vkCreateCommandPool")(c.device,&pi,nullptr,&c.pool),"command pool");
         VkCommandBufferAllocateInfo ca{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};ca.commandPool=c.pool;ca.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;ca.commandBufferCount=1;VkCommandBuffer command=VK_NULL_HANDLE;
         checked(c.fn<PFN_vkAllocateCommandBuffers>("vkAllocateCommandBuffers")(c.device,&ca,&command),"command buffer");for(unsigned round=0;round<2;++round){
@@ -227,10 +254,18 @@ int main(int argc,char** argv){
             barrier(command,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&ib);
             VkClearColorValue color{};color.float32[(eye+round)%2]=1;color.float32[3]=1;
             c.fn<PFN_vkCmdClearColorImage>("vkCmdClearColorImage")(command,e.image,VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,&color,1,&ib.subresourceRange);
-            c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,e.buffer,0,4096,payloads[eye].data());
+            if(matrix_patch){
+                VkMemoryBarrier ready{VK_STRUCTURE_TYPE_MEMORY_BARRIER};ready.srcAccessMask=VK_ACCESS_MEMORY_READ_BIT|VK_ACCESS_MEMORY_WRITE_BIT;ready.dstAccessMask=VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT;
+                barrier(command,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,1,&ready,0,nullptr,0,nullptr);
+                struct MatrixParameters {VkDeviceAddress source,destination;uint32_t bytes;float shift;};static_assert(sizeof(MatrixParameters)==24);
+                const MatrixParameters parameters{c.auxiliary[0].address,e.address,4096,reject_matrix_shift?.1f:(eye?.01f:-.01f)};
+                c.fn<PFN_vkCmdBindPipeline>("vkCmdBindPipeline")(command,VK_PIPELINE_BIND_POINT_COMPUTE,c.matrix_pipeline);
+                c.fn<PFN_vkCmdPushConstants>("vkCmdPushConstants")(command,c.layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof parameters,&parameters);
+                c.fn<PFN_vkCmdDispatch>("vkCmdDispatch")(command,1,1,1);
+            }else c.fn<PFN_vkCmdUpdateBuffer>("vkCmdUpdateBuffer")(command,e.buffer,0,4096,payloads[eye].data());
             ib.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;ib.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;ib.oldLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;ib.newLayout=VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-            VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};mb.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;mb.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_UNIFORM_READ_BIT;
-            barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,1,&mb,0,nullptr,1,&ib);
+            VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};mb.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT|VK_ACCESS_SHADER_WRITE_BIT;mb.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT|VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_UNIFORM_READ_BIT;
+            barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,1,&mb,0,nullptr,1,&ib);
             VkBufferImageCopy copy{};copy.bufferOffset=eye*8192;copy.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};copy.imageExtent={32,32,1};
             c.fn<PFN_vkCmdCopyImageToBuffer>("vkCmdCopyImageToBuffer")(command,e.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,c.staging,1,&copy);
             c.fn<PFN_vkCmdBindDescriptorSets>("vkCmdBindDescriptorSets")(command,VK_PIPELINE_BIND_POINT_COMPUTE,c.layout,0,1,&c.descriptor_sets[eye],0,nullptr);
@@ -249,7 +284,19 @@ int main(int argc,char** argv){
         auto* bytes=static_cast<const unsigned char*>(mapped);
         for(unsigned eye=0;eye<2;++eye){for(unsigned pixel=0;pixel<1024;++pixel)for(unsigned channel=0;channel<4;++channel)
                 pixels_correct&=bytes[eye*8192+pixel*4+channel]==((channel==(eye+round)%2||channel==3)?255:0);
-            for(unsigned offset=0;offset<4096;++offset)mismatches[eye]+=bytes[eye*8192+4096+offset]!=std::to_integer<unsigned char>(payloads[eye][offset]);}
+            for(unsigned offset=0;offset<4096;++offset){
+                if(matrix_patch&&!reject_matrix_shift&&!reject_matrix_view&&offset<0xe0&&(offset<0x70||offset>=0xb0))continue;
+                mismatches[eye]+=bytes[eye*8192+4096+offset]!=std::to_integer<unsigned char>(payloads[eye][offset]);
+            }
+            if(matrix_patch&&!reject_matrix_shift&&!reject_matrix_view){
+                float actual[56],expected[56];std::memcpy(actual,bytes+eye*8192+4096,sizeof actual);std::memcpy(expected,payloads[eye].data(),sizeof expected);
+                for(int i=0;i<56;++i)mismatches[eye]+=!std::isfinite(actual[i])||std::abs(actual[i]-expected[i])>0.00003f*(1+std::abs(expected[i]));
+                // Independently project a point five units ahead of the source camera.
+                double world[4]={0,0,0,1};for(int r=0;r<3;++r)world[r]=base[44+4*r+3]-5*base[44+4*r+2];
+                double bx=0,bw=0,x=0,w=0;for(int k=0;k<4;++k){bx+=base[12+k]*world[k];bw+=base[24+k]*world[k];x+=actual[12+k]*world[k];w+=actual[24+k]*world[k];}
+                require(bw>0&&w>0&&(eye?x/w>bx/bw+.0001:x/w<bx/bw-.0001),"opposite projected-point displacements from the same source camera");
+            }
+        }
         for(unsigned offset=0;offset<4096;++offset){
             const auto expected=std::to_integer<unsigned char>(source_before[offset]);
             original_correct&=bytes[16384+offset]==expected&&bytes[20480+offset]==expected&&bytes[24576+offset]==expected;
@@ -260,9 +307,10 @@ int main(int argc,char** argv){
         if(round==0){
             require(pair.rearm(),"rearm only after completion");
             checked(c.fn<PFN_vkResetCommandPool>("vkResetCommandPool")(c.device,c.pool,0),"reset completed command pool");
-            for(auto& payload:payloads)payload[0x300]^=std::byte{7};
+            if(!matrix_patch)for(auto& payload:payloads)payload[0x300]^=std::byte{7};
         }
         }
+        if(matrix_patch)std::cout<<"gpu_matrix_patch=true; same_source_for_both_eyes=true; matrix_rejection_verified="<<((reject_matrix_shift||reject_matrix_view)?"true":"false")<<"; projected_point_displacement_verified="<<((!reject_matrix_shift&&!reject_matrix_view)?"true":"false")<<"; game_draw_transformed=false; ";
         std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; auxiliary_allocation_bytes="<<c.auxiliary_bytes<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; physical_address_shader_readback=true; private_ubo_routes=2; private_ssbo_routes=2; descriptor_root_agreement_verified="<<(!expect_rejection?"true":"false")<<"; expected_descriptor_rejection_verified="<<(expect_rejection?"true":"false")<<"; private_shader_words_checked=4096; shared_shader_words_checked=4096; original_root_shader_words_checked=2048; gpu_root_copy_verified=true; private_guest_roots=2; guest_table_bytes_per_eye=25165824; guest_window_aliases_checked=true; original_gpu_bytes_checked=8192; image_pixels_checked=4096; buffer_bytes_checked=16384; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
         return 0;
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

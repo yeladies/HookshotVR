@@ -18,7 +18,7 @@ struct XrBaselineRecorderInput {
     VkDescriptorBufferInfo camera{};
     std::vector<XrBaselineCameraSlot> camera_slots;
     std::vector<VkWriteDescriptorSet> writes;
-    XrBaselineGeometry geometry{};
+    XrBaselineGeometry geometry{};bool matrix_probe=false;
 };
 struct XrBaselineRecorder;
 // Allocation/snapshot only: failure records no commands and leaves source state intact.
