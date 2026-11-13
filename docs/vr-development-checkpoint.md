@@ -155,3 +155,44 @@ work/game-build/depth-scene-format-capture-result.txt; work/validation/depth-mes
 work/validation/depth-scene-offscreen.json; work/vr-depth-scene-tests.log;
 work/game-build/inherited-depth-preview-tests.log. Captures, mesh, PPM/PNG, binaries
 and launch package stay ignored/private and must not be published.
+
+## 2026-11-13: moving depth-reconstructed scene verified without XR
+
+User is remote and explicitly deferred headset testing. No XR session was opened.
+The frozen package remains available; a separate moving package is prepared at
+work/headset-live-preview/Probar-en-movimiento.cmd. It runs the isolated game producer
+and a GPU depth-reconstruction viewer together, then closes both via a scoped stop
+signal. Preparation takes about90 seconds; viewer duration is60 seconds. This is a
+LIVE DEPTH PREVIEW, not native full-scene VR or integrated VR controls/audio.
+
+Native capture fingerprint d0fbac6a, ABI18. Atomic latest-frame replacement and
+same-frame camera/color/depth matching preserve complete V2 packets. Cached VMA
+readback is reused only after known timeline completion, capped at16MiB. Native
+interval is at least100ms (default200ms), maximum300 frames. The viewer keeps one
+16MiB mapped storage buffer, updates it between completed stereo pairs, and rebuilds
+the grid in an authored vertex shader. Stale streams stop submitting a scene layer
+after2 seconds. Both eyes use the same accepted frame and runtime poses/FOVs.
+
+Optimized real-game test,15 seconds, no XR:67 accepted/rendered pairs (~4.5 updates/s),
+14937386 temporal pixel changes, mean render/complete/copy1458us per800x600 pair and
+verification readback/file7550us perpair. Producer70 frames, exactly1 readback
+allocation (5971968 logical bytes), maxpublication12101us, game peak6612MiB. Cleanup
+returned stop_requested and capture-completed true. Private scope:
+work/live-preview-056b8fd34af849e2b06d46b3da26d952/.
+
+A synthetic GPU test kept color constant and changed only depth:45 frames,0 source
+color-change frames,44 depth-change frames,1659573 changed output pixels. It verifies
+geometry updates and host/GPU visibility independently of texture animation. The
+explicit tool vr/tests/run_depth_motion_gpu.py reads no game and never opens XR.
+
+All78 VR tests pass. Inherited regression:357 passed, the same5 known baseline/
+environment failures,59 skipped in293 seconds. Default-off20-second startup completed
+with both depth flags false, peak3003MiB. All19 stable installation hashes unchanged.
+Evidence: work/validation/live-depth-final-orchestrated-test.txt,
+work/validation/depth-only-motion-gpu.json, work/vr-live-depth-release-tests.log,
+work/game-build/inherited-live-depth-tests.log and docs/vr-live-depth-preview.md.
+
+Next: user headset checks for scale/orientation/parallax/performance when physically
+available. Main native eye-renderer/camera-alias work remains outstanding; depth
+reconstruction does not solve hidden surfaces, native culling, temporal state or VR
+interaction. Never publish work/, captures, packets, meshes, PPM/PNG or binaries.

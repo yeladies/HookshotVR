@@ -356,6 +356,7 @@ struct Scene {
         vk_check(vk.WaitForFences(vk.device,1,&fence,VK_TRUE,5000000000ull),"vkWaitForFences");
     }
     void frame() {
+        depth_scene.refresh_stream(); // Previous eye submissions have completed before updating shared capture data.
         XrFrameWaitInfo wait{XR_TYPE_FRAME_WAIT_INFO};XrFrameState state{XR_TYPE_FRAME_STATE};
         xr_check(xrWaitFrame(session,&wait,&state),"xrWaitFrame");
         XrFrameBeginInfo begin{XR_TYPE_FRAME_BEGIN_INFO};xr_check(xrBeginFrame(session,&begin),"xrBeginFrame");
@@ -366,7 +367,7 @@ struct Scene {
         XrViewState view_state{XR_TYPE_VIEW_STATE};uint32_t n=0;
         std::array<XrView,2> views{{{XR_TYPE_VIEW},{XR_TYPE_VIEW}}};
         xr_check(xrLocateViews(session,&locate,&view_state,2,&n,views.data()),"xrLocateViews");
-        const bool valid=(!depth_scene.enabled()||(depth_head_valid&&state.predictedDisplayTime>=depth_origin_change)) && n==2 && (view_state.viewStateFlags&(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT))==(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT);
+        const bool valid=depth_scene.fresh() && (!depth_scene.enabled()||(depth_head_valid&&state.predictedDisplayTime>=depth_origin_change)) && n==2 && (view_state.viewStateFlags&(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT))==(XR_VIEW_STATE_ORIENTATION_VALID_BIT|XR_VIEW_STATE_POSITION_VALID_BIT);
         if(valid) ++view_samples;
         std::array<XrCompositionLayerProjectionView,2> projection{{{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW},{XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW}}};
         XrCompositionLayerProjection layer{XR_TYPE_COMPOSITION_LAYER_PROJECTION};layer.space=local;layer.viewCount=2;layer.views=projection.data();
@@ -410,7 +411,7 @@ struct Scene {
             std::cout<<"{\"position_m\":["<<p.position.x<<','<<p.position.y<<','<<p.position.z<<"],\"orientation_xyzw\":["
                      <<p.orientation.x<<','<<p.orientation.y<<','<<p.orientation.z<<','<<p.orientation.w<<"]}";
         };
-        std::cout<<"{\n  \"session_created\": "<<(session?"true":"false")<<",\n  \"frames\": "<<frames
+        std::cout<<"{\n  \"depth_stream_updates\": "<<depth_scene.updates()<<",\n  \"session_created\": "<<(session?"true":"false")<<",\n  \"frames\": "<<frames
                  <<",\n  \"stereo_frames_submitted\": "<<rendered<<",\n  \"valid_view_samples\": "<<view_samples
                  <<",\n  \"valid_head_samples\": "<<head_samples<<",\n  \"left_hand_samples\": "<<hand_samples[0]
                  <<",\n  \"right_hand_samples\": "<<hand_samples[1]
@@ -447,15 +448,17 @@ struct Scene {
 };
 } // namespace
 int main(int argc,char** argv) {
+    if((argc==5||argc==7)&&std::string(argv[1])=="--stream-check"&&std::string(argv[3])=="--output"){
+        try{int seconds=0;if(argc==7){size_t used=0;if(std::string(argv[5])!="--seconds")throw std::runtime_error("stream check duration");seconds=std::stoi(argv[6],&used);if(used!=std::strlen(argv[6]))throw std::runtime_error("stream check duration");}if(seconds<0||seconds>30)throw std::runtime_error("stream check duration");return depth_scene_smoke(argv[2],argv[4],true,seconds);}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 2;}}
     if(argc==5&&std::string(argv[1])=="--mesh-check"&&std::string(argv[3])=="--output"){try{return depth_scene_smoke(argv[2],argv[4]);}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 2;}}
-    int seconds=15;std::string mesh;
-    if(argc==5&&std::string(argv[1])=="--mesh"&&std::string(argv[3])=="--seconds"){mesh=argv[2];argv+=2;argc-=2;}
+    int seconds=15;std::string mesh;bool live=false;
+    if(argc==5&&(std::string(argv[1])=="--mesh"||std::string(argv[1])=="--stream")&&std::string(argv[3])=="--seconds"){live=std::string(argv[1])=="--stream";mesh=argv[2];argv+=2;argc-=2;}
     if(argc==3 && std::string(argv[1])=="--seconds") {
         try {size_t used=0;seconds=std::stoi(argv[2],&used);if(used!=std::strlen(argv[2]) || seconds<1 || seconds>90) throw std::runtime_error("range");}
         catch(...) {std::cerr<<"--seconds must be 1..90\n";return 2;}
     } else if(argc!=1) {std::cerr<<"Usage: hookshot_vr_scene [--seconds 1..90]\n";return 2;}
     try {
-        Scene scene;if(!mesh.empty()){scene.depth_scene.load(mesh);std::cerr<<"FROZEN GAME DEPTH SCENE: calibration preview, not live native stereo; vertices="<<scene.depth_scene.vertices()<<"\n";}scene.init();scene.run(seconds);scene.report();
+        Scene scene;if(!mesh.empty()){if(live)scene.depth_scene.load_stream(mesh);else scene.depth_scene.load(mesh);std::cerr<<(live?"LIVE DEPTH RECONSTRUCTION: not native game stereo; vertices=":"FROZEN GAME DEPTH SCENE: calibration preview, not live native stereo; vertices=")<<scene.depth_scene.vertices()<<"\n";}scene.init();scene.run(seconds);scene.report();
         return scene.rendered && scene.head_samples?0:3;
     } catch(const std::exception& e) {std::cerr<<e.what()<<'\n';return 2;}
 }

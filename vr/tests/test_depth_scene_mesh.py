@@ -36,6 +36,6 @@ class DepthTests(unittest.TestCase):
   with self.assertRaises(ValueError):mesh.convert(source,self.path/'mesh',1,1)
  def test_authored_shader_header_tracks_sources(self):
   text=(root/'src/depth_scene_spv.h').read_text(encoding='utf-8');hashes=re.findall('source-sha256: ([0-9a-f]{64})',text)
-  self.assertEqual(hashes,[hashlib.sha256((root/'shaders'/('depth_scene.'+stage)).read_bytes()).hexdigest() for stage in ('vert','frag')])
-  self.assertEqual(text.count('0x7230203'),2)
+  self.assertEqual(hashes,[hashlib.sha256((root/'shaders'/name).read_bytes()).hexdigest() for name in ('depth_scene.vert','depth_scene.frag','depth_stream.vert')])
+  self.assertEqual(text.count('0x7230203'),3)
 if __name__=='__main__':unittest.main()

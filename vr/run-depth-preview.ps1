@@ -10,6 +10,7 @@ $log=Join-Path $project ($(if($packaged){'depth-headset-'}else{'work/validation/
 Write-Host 'Prueba 3D congelada de Hookshot: conecta Quest con Virtual Desktop y ponte el visor.'
 Write-Host 'Valida profundidad, suelo y respuesta al inclinar la cabeza. La escena no avanza y tiene huecos fuera de la captura.'
 $process=Start-Process -FilePath $exe -ArgumentList @('--mesh',('"'+$MeshPath+'"'),'--seconds',$Seconds.ToString()) -WindowStyle Hidden -PassThru -RedirectStandardOutput ($log+'.json') -RedirectStandardError ($log+'.stderr.txt')
+$null=$process.Handle
 if(!$process.WaitForExit(($Seconds+30)*1000)){Stop-Process -Id $process.Id -Force;throw 'La prueba superó su tiempo máximo y se cerró.'}
 Get-Content -LiteralPath ($log+'.json')
 if($process.ExitCode -ne 0){throw "El visor devolvió $($process.ExitCode). Registro: $log.stderr.txt"}

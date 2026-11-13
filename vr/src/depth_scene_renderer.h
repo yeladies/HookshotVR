@@ -2,6 +2,9 @@
 #pragma once
 #include "depth_scene_spv.h"
 #include "projection_math.h"
+#include "depth_stream_frame.h"
+#include <chrono>
+#include <algorithm>
 #include <filesystem>
 #include <vector>
 #include <array>
@@ -26,6 +29,7 @@ inline std::array<float,16> depth_scene_mvp(const XrPosef& eye,const XrPosef& an
     std::array<float,16> out{};for(int r=0;r<4;++r)for(int c=0;c<4;++c)for(int k=0;k<4;++k)out[4*r+c]+=float(projection[4*r+k]*view[4*k+c]);return out;
 }
 #define DEPTH_SCENE_FUNCTIONS(X) \
+ X(CreateDescriptorSetLayout) X(DestroyDescriptorSetLayout) X(CreateDescriptorPool) X(DestroyDescriptorPool) X(AllocateDescriptorSets) X(UpdateDescriptorSets) X(CmdBindDescriptorSets) \
  X(CreateBuffer) X(DestroyBuffer) X(GetBufferMemoryRequirements) X(AllocateMemory) X(FreeMemory) X(BindBufferMemory) X(MapMemory) X(UnmapMemory) \
  X(CreateImage) X(DestroyImage) X(GetImageMemoryRequirements) X(BindImageMemory) X(CreateImageView) X(DestroyImageView) \
  X(CreateShaderModule) X(DestroyShaderModule) X(CreatePipelineLayout) X(DestroyPipelineLayout) X(CreateGraphicsPipelines) X(DestroyPipeline) \
@@ -35,6 +39,9 @@ class DepthSceneRenderer {
     VkBuffer vertices_=VK_NULL_HANDLE;VkDeviceMemory memory_=VK_NULL_HANDLE;VkPipelineLayout layout_=VK_NULL_HANDLE;VkPipeline pipeline_=VK_NULL_HANDLE;
     struct Depth {VkImage image=VK_NULL_HANDLE;VkImageView view=VK_NULL_HANDLE;VkDeviceMemory memory=VK_NULL_HANDLE;};std::array<Depth,2> depth_{};
     std::vector<float> data_;uint32_t count_=0;
+    bool streaming_=false;std::filesystem::path stream_path_;std::filesystem::file_time_type stream_stamp_{};DepthStreamFrame stream_frame_;void* stream_mapped_=nullptr;
+    uint64_t stream_updates_=0,color_changes_=0,depth_changes_=0;std::chrono::steady_clock::time_point stream_received_{};
+    VkDescriptorSetLayout set_layout_=VK_NULL_HANDLE;VkDescriptorPool descriptor_pool_=VK_NULL_HANDLE;VkDescriptorSet descriptor_set_=VK_NULL_HANDLE;
 #define DECL(n) PFN_vk##n n=nullptr;
     DEPTH_SCENE_FUNCTIONS(DECL)
 #undef DECL
@@ -43,6 +50,29 @@ class DepthSceneRenderer {
 public:
     bool enabled()const{return count_!=0;}
     uint32_t vertices()const{return count_;}
+    bool streaming()const{return streaming_;}
+    uint64_t updates()const{return stream_updates_;}
+    uint64_t digest()const{return stream_frame_.digest;}
+    uint64_t color_changes()const{return color_changes_;}
+    uint64_t depth_changes()const{return depth_changes_;}
+    bool fresh()const{return !streaming_||std::chrono::steady_clock::now()-stream_received_<std::chrono::seconds(2);}
+    bool refresh_stream(){
+        if(!streaming_)return false;try{
+            std::error_code error;const auto stamp=std::filesystem::last_write_time(stream_path_,error);if(error||(stream_updates_&&stamp==stream_stamp_))return false;
+            DepthStreamFrame next;if(!read_depth_stream_frame(stream_path_,next))return false;
+            const auto after=std::filesystem::last_write_time(stream_path_,error);if(error||after!=stamp)return false;
+            if(stream_updates_&&next.width==stream_frame_.width&&next.height==stream_frame_.height){
+                const auto count=size_t(next.width)*next.height;
+                color_changes_+=!std::equal(next.pixels.begin(),next.pixels.begin()+count,stream_frame_.pixels.begin());
+                depth_changes_+=!std::equal(next.pixels.begin()+count,next.pixels.end(),stream_frame_.pixels.begin()+count);
+            }
+            if(stream_mapped_)std::memcpy(stream_mapped_,next.pixels.data(),next.pixels.size()*4);
+            stream_frame_=std::move(next);stream_stamp_=stamp;stream_received_=std::chrono::steady_clock::now();++stream_updates_;
+            count_=((stream_frame_.width-1+5)/6)*((stream_frame_.height-1+5)/6)*6;return true;
+        }catch(...){return false;}
+    }
+    void load_stream(const std::string& path){streaming_=true;stream_path_=std::filesystem::u8path(path);if(!refresh_stream())throw std::runtime_error("No complete bounded live depth frame");}
+
     void load(const std::string& path){
         std::ifstream file(std::filesystem::u8path(path),std::ios::binary|std::ios::ate);if(!file)throw std::runtime_error("Cannot open private depth mesh");const auto length=file.tellg();
         if(length<16||length>24000016)throw std::runtime_error("Depth mesh byte budget");file.seekg(0);
@@ -57,18 +87,25 @@ public:
 #define LOAD(n) n=reinterpret_cast<PFN_vk##n>(get(device,"vk" #n));if(!n)throw std::runtime_error("Missing vk" #n);
         DEPTH_SCENE_FUNCTIONS(LOAD)
 #undef LOAD
-        VkBufferCreateInfo buffer{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};buffer.size=data_.size()*4;buffer.usage=VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;buffer.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+        VkBufferCreateInfo buffer{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};buffer.size=streaming_?16*1024*1024:data_.size()*4;buffer.usage=streaming_?VK_BUFFER_USAGE_STORAGE_BUFFER_BIT:VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;buffer.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
         checked(CreateBuffer(device,&buffer,nullptr,&vertices_),"mesh buffer");VkMemoryRequirements req{};GetBufferMemoryRequirements(device,vertices_,&req);
         VkMemoryAllocateInfo alloc{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};alloc.allocationSize=req.size;alloc.memoryTypeIndex=type(req.memoryTypeBits,VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         checked(AllocateMemory(device,&alloc,nullptr,&memory_),"mesh memory");checked(BindBufferMemory(device,vertices_,memory_,0),"bind mesh memory");void* mapped=nullptr;
-        checked(MapMemory(device,memory_,0,buffer.size,0,&mapped),"map mesh");std::memcpy(mapped,data_.data(),size_t(buffer.size));UnmapMemory(device,memory_);data_.clear();data_.shrink_to_fit();
-        VkPushConstantRange push{VK_SHADER_STAGE_VERTEX_BIT,0,64};VkPipelineLayoutCreateInfo li{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};li.pushConstantRangeCount=1;li.pPushConstantRanges=&push;checked(CreatePipelineLayout(device,&li,nullptr,&layout_),"mesh pipeline layout");
+        checked(MapMemory(device,memory_,0,buffer.size,0,&mapped),"map mesh");
+        if(streaming_){stream_mapped_=mapped;std::memcpy(mapped,stream_frame_.pixels.data(),stream_frame_.pixels.size()*4);}else{std::memcpy(mapped,data_.data(),size_t(buffer.size));UnmapMemory(device,memory_);data_.clear();data_.shrink_to_fit();}
+        if(streaming_){
+            VkDescriptorSetLayoutBinding binding{0,VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,1,VK_SHADER_STAGE_VERTEX_BIT,nullptr};VkDescriptorSetLayoutCreateInfo info{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};info.bindingCount=1;info.pBindings=&binding;checked(CreateDescriptorSetLayout(device,&info,nullptr,&set_layout_),"stream descriptor layout");
+            VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,1};VkDescriptorPoolCreateInfo pool{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};pool.maxSets=1;pool.poolSizeCount=1;pool.pPoolSizes=&size;checked(CreateDescriptorPool(device,&pool,nullptr,&descriptor_pool_),"stream descriptor pool");
+            VkDescriptorSetAllocateInfo allocate{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};allocate.descriptorPool=descriptor_pool_;allocate.descriptorSetCount=1;allocate.pSetLayouts=&set_layout_;checked(AllocateDescriptorSets(device,&allocate,&descriptor_set_),"stream descriptor set");
+            VkDescriptorBufferInfo buffer_info{vertices_,0,buffer.size};VkWriteDescriptorSet write{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};write.dstSet=descriptor_set_;write.dstBinding=0;write.descriptorCount=1;write.descriptorType=VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;write.pBufferInfo=&buffer_info;UpdateDescriptorSets(device,1,&write,0,nullptr);
+        }
+        VkPushConstantRange push{VK_SHADER_STAGE_VERTEX_BIT,0,streaming_?112u:64u};VkPipelineLayoutCreateInfo li{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};if(streaming_){li.setLayoutCount=1;li.pSetLayouts=&set_layout_;}li.pushConstantRangeCount=1;li.pPushConstantRanges=&push;checked(CreatePipelineLayout(device,&li,nullptr,&layout_),"mesh pipeline layout");
         VkShaderModule modules[2]{};
         try{
-            for(unsigned i=0;i<2;++i){VkShaderModuleCreateInfo si{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};si.pCode=i?depth_scene_frag_spv:depth_scene_vert_spv;si.codeSize=i?sizeof(depth_scene_frag_spv):sizeof(depth_scene_vert_spv);checked(CreateShaderModule(device,&si,nullptr,&modules[i]),"mesh shader");}
+            for(unsigned i=0;i<2;++i){VkShaderModuleCreateInfo si{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};si.pCode=i?depth_scene_frag_spv:(streaming_?depth_stream_vert_spv:depth_scene_vert_spv);si.codeSize=i?sizeof(depth_scene_frag_spv):(streaming_?sizeof(depth_stream_vert_spv):sizeof(depth_scene_vert_spv));checked(CreateShaderModule(device,&si,nullptr,&modules[i]),"mesh shader");}
             VkPipelineShaderStageCreateInfo stages[2]{};for(unsigned i=0;i<2;++i){stages[i].sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;stages[i].stage=i?VK_SHADER_STAGE_FRAGMENT_BIT:VK_SHADER_STAGE_VERTEX_BIT;stages[i].module=modules[i];stages[i].pName="main";}
             VkVertexInputBindingDescription binding{0,24,VK_VERTEX_INPUT_RATE_VERTEX};VkVertexInputAttributeDescription attrs[2]={{0,0,VK_FORMAT_R32G32B32_SFLOAT,0},{1,0,VK_FORMAT_R32G32B32_SFLOAT,12}};
-            VkPipelineVertexInputStateCreateInfo vi{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};vi.vertexBindingDescriptionCount=1;vi.pVertexBindingDescriptions=&binding;vi.vertexAttributeDescriptionCount=2;vi.pVertexAttributeDescriptions=attrs;
+            VkPipelineVertexInputStateCreateInfo vi{VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};vi.vertexBindingDescriptionCount=1;vi.pVertexBindingDescriptions=&binding;vi.vertexAttributeDescriptionCount=2;vi.pVertexAttributeDescriptions=attrs;if(streaming_)vi.vertexBindingDescriptionCount=vi.vertexAttributeDescriptionCount=0;
             VkPipelineInputAssemblyStateCreateInfo ia{VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};ia.topology=VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
             VkPipelineViewportStateCreateInfo viewport{VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO};viewport.viewportCount=viewport.scissorCount=1;
             VkPipelineRasterizationStateCreateInfo raster{VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};raster.polygonMode=VK_POLYGON_MODE_FILL;raster.cullMode=VK_CULL_MODE_NONE;raster.frontFace=VK_FRONT_FACE_COUNTER_CLOCKWISE;raster.lineWidth=1;
@@ -89,10 +126,17 @@ public:
     }
     void draw(VkCommandBuffer cmd,uint32_t width,uint32_t height,const std::array<float,16>& mvp){
         VkViewport viewport{0,0,float(width),float(height),0,1};VkRect2D scissor{{0,0},{width,height}};VkDeviceSize offset=0;
-        CmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,pipeline_);CmdSetViewport(cmd,0,1,&viewport);CmdSetScissor(cmd,0,1,&scissor);CmdBindVertexBuffers(cmd,0,1,&vertices_,&offset);CmdPushConstants(cmd,layout_,VK_SHADER_STAGE_VERTEX_BIT,0,64,mvp.data());CmdDraw(cmd,count_,1,0,0);
+        CmdBindPipeline(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,pipeline_);CmdSetViewport(cmd,0,1,&viewport);CmdSetScissor(cmd,0,1,&scissor);if(streaming_){
+            struct Parameters {std::array<float,16> matrix;std::array<float,4> projection,optical;std::array<uint32_t,4> dimensions;} parameters{};static_assert(sizeof(Parameters)==112);
+            const auto rotation=depth_stream_rotation(stream_frame_.view);for(int r=0;r<4;++r)for(int c=0;c<4;++c)for(int k=0;k<4;++k)parameters.matrix[4*r+c]+=mvp[4*r+k]*rotation[4*k+c];
+            const auto& p=stream_frame_.projection;parameters.projection={p[0],p[5],p[10],p[11]};parameters.optical={p[2],p[6],1,0};parameters.dimensions={stream_frame_.width,stream_frame_.height,6,stream_frame_.format};
+            CmdBindDescriptorSets(cmd,VK_PIPELINE_BIND_POINT_GRAPHICS,layout_,0,1,&descriptor_set_,0,nullptr);CmdPushConstants(cmd,layout_,VK_SHADER_STAGE_VERTEX_BIT,0,112,&parameters);
+        }else{CmdBindVertexBuffers(cmd,0,1,&vertices_,&offset);CmdPushConstants(cmd,layout_,VK_SHADER_STAGE_VERTEX_BIT,0,64,mvp.data());}CmdDraw(cmd,count_,1,0,0);
     }
     void close(){if(!device_)return;
         for(auto& d:depth_){if(d.view&&DestroyImageView)DestroyImageView(device_,d.view,nullptr);if(d.image&&DestroyImage)DestroyImage(device_,d.image,nullptr);if(d.memory&&FreeMemory)FreeMemory(device_,d.memory,nullptr);d={};}
+        if(descriptor_pool_&&DestroyDescriptorPool)DestroyDescriptorPool(device_,descriptor_pool_,nullptr);if(set_layout_&&DestroyDescriptorSetLayout)DestroyDescriptorSetLayout(device_,set_layout_,nullptr);descriptor_pool_=VK_NULL_HANDLE;set_layout_=VK_NULL_HANDLE;
+        if(stream_mapped_&&UnmapMemory)UnmapMemory(device_,memory_);stream_mapped_=nullptr;
         if(pipeline_&&DestroyPipeline)DestroyPipeline(device_,pipeline_,nullptr);if(layout_&&DestroyPipelineLayout)DestroyPipelineLayout(device_,layout_,nullptr);if(vertices_&&DestroyBuffer)DestroyBuffer(device_,vertices_,nullptr);if(memory_&&FreeMemory)FreeMemory(device_,memory_,nullptr);pipeline_=VK_NULL_HANDLE;layout_=VK_NULL_HANDLE;vertices_=VK_NULL_HANDLE;memory_=VK_NULL_HANDLE;device_=VK_NULL_HANDLE;
     }
 };

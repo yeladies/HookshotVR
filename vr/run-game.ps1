@@ -22,11 +22,17 @@ param(
     [switch]$BaselineDrawPreflight,
     [switch]$IsolatedDrawProbe,
     [switch]$DepthSceneCapture,
+    [switch]$DepthSceneStream,
+    [string]$DepthCapturePath,
+    [string]$StopSignal,
+    [ValidateRange(100,1000)][int]$DepthIntervalMs=200,
+    [ValidateRange(1,300)][int]$DepthMaximumFrames=300,
     [string]$SpirvGrammar,
     [switch]$Audio,
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+if($DepthSceneStream){$DepthSceneCapture=$true}
 if($DepthSceneCapture){if($Seconds -lt 100 -or $IsolatedDrawProbe -or $XrPreview -or $XrSessionProbe -or $XrNegotiation){throw 'Depth capture needs a separate non-XR run of at least 100 seconds.'};$SceneCapture=$true}
 if ($IsolatedDrawProbe) {
     if($XrPreview -or $XrSessionProbe -or $XrNegotiation -or $EyeImageProbe -or $EyeUniformProbe -or $ComputeShaderUniformAudit){throw 'The isolated unchanged draw probe requires its own non-XR run.'}
@@ -147,10 +153,21 @@ if ($EyeImageProbe) { $env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE = Join-Path $runRoot
 else { Remove-Item Env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE -ErrorAction SilentlyContinue }
 if($DepthSceneCapture){
     $env:RX_VK_XR_DEPTH_CAPTURE='1'
+    $env:RX_VK_XR_DEPTH_STREAM=$(if($DepthSceneStream){'1'}else{'0'})
+    $env:HOOKSHOT_VR_DEPTH_INTERVAL_MS=$DepthIntervalMs.ToString()
+    $env:HOOKSHOT_VR_DEPTH_MAX_FRAMES=$DepthMaximumFrames.ToString()
     $env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE=Join-Path $runRoot ('depth-scene-'+[Guid]::NewGuid().ToString('N')+'.hsvrd')
+    if($DepthCapturePath){
+        $DepthCapturePath=[IO.Path]::GetFullPath($DepthCapturePath)
+        $allowedRoot=[IO.Path]::GetFullPath((Join-Path $projectRoot 'work'))+[IO.Path]::DirectorySeparatorChar
+        if(!$DepthCapturePath.StartsWith($allowedRoot,[StringComparison]::OrdinalIgnoreCase)){throw 'Depth stream output must stay inside project/work.'}
+        if(!(Test-Path -LiteralPath (Split-Path -Parent $DepthCapturePath) -PathType Container)){throw 'Depth stream output directory must exist.'}
+        foreach($suffix in @('','.json','.tmp','.armed')){if(Test-Path -LiteralPath ($DepthCapturePath+$suffix)){throw 'Depth capture requires a fresh output path; existing data was not modified.'}}
+        $env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE=$DepthCapturePath
+    }
     $env:HOOKSHOT_VR_DEPTH_CAPTURE_ARM_FILE=$env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE+'.armed'
 } else {
-    $env:RX_VK_XR_DEPTH_CAPTURE='0'
+    $env:RX_VK_XR_DEPTH_CAPTURE='0';$env:RX_VK_XR_DEPTH_STREAM='0'
     Remove-Item Env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE -ErrorAction SilentlyContinue
     Remove-Item Env:HOOKSHOT_VR_DEPTH_CAPTURE_ARM_FILE -ErrorAction SilentlyContinue
 }
@@ -239,8 +256,10 @@ $reason = 'time_limit'
 $peakMB = 0
 $xrNegotiated = $false
 try {
+    if($StopSignal){[ordered]@{native_pid=$p.Id;executable=$exe;started_utc=$p.StartTime.ToUniversalTime().ToString('o')} | ConvertTo-Json | Set-Content -LiteralPath ($StopSignal+'.process.json') -Encoding UTF8}
     for ($elapsed = 0; $elapsed -lt $Seconds; $elapsed += 2) {
         if ($p.WaitForExit(2000)) { $reason = 'process_exited'; break }
+        if($StopSignal -and (Test-Path -LiteralPath $StopSignal)){$reason='stop_requested';break}
         if ($XrNegotiation -and !$xrNegotiated) {
             $log = Read-ExperimentalLog
             $xrNegotiated = $log.Contains('xr: renderer Vulkan device negotiated')
@@ -372,10 +391,10 @@ if($IsolatedDrawProbe -and !$isolatedDrawMatched -and $reason -eq 'time_limit'){
 $depthSceneComplete=$false
 if($DepthSceneCapture -and (Test-Path -LiteralPath ($env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE+'.json')) -and (Test-Path -LiteralPath $env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE)){
     $depthStatus=Get-Content -LiteralPath ($env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE+'.json') -Raw | ConvertFrom-Json
-    $depthSceneComplete=$depthStatus.schema -eq 1 -and $depthStatus.status -eq 'completed' -and $depthStatus.gpu_complete -and $depthStatus.color_view_format -in @(122,123) -and $depthStatus.width -gt 0 -and $depthStatus.height -gt 0 -and (Get-Item -LiteralPath $env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE).Length -eq (132+8*$depthStatus.width*$depthStatus.height)
+    $depthSceneComplete=$depthStatus.schema -eq 1 -and (($DepthSceneStream -and $depthStatus.completed_frames -ge 2 -and $depthStatus.status -in @('streaming','recorded','stream_complete','publication_retry')) -or (!$DepthSceneStream -and $depthStatus.status -eq 'completed' -and $depthStatus.gpu_complete)) -and $depthStatus.color_view_format -in @(122,123) -and $depthStatus.width -gt 0 -and $depthStatus.height -gt 0 -and (Get-Item -LiteralPath $env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE).Length -eq (132+8*$depthStatus.width*$depthStatus.height)
 }
 if($DepthSceneCapture -and !$depthSceneComplete -and $reason -eq 'time_limit'){$reason='depth_scene_capture_unverified'}
-[ordered]@{ depth_scene_capture_completed=$depthSceneComplete;depth_scene_capture_requested=[bool]$DepthSceneCapture;depth_scene_capture_file=$env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE;isolated_draw_requested=[bool]$IsolatedDrawProbe;isolated_draw_matched=$isolatedDrawMatched;isolated_draw_file=$env:HOOKSHOT_VR_BASELINE_DRAW_FILE;baseline_draw_preflight_requested=[bool]$BaselineDrawPreflight;baseline_draw_preflight_file=$env:HOOKSHOT_VR_BASELINE_PREFLIGHT_FILE;eye_uniform_probe_requested=[bool]$EyeUniformProbe;eye_uniform_probe_completed=$eyeUniformProbeComplete;eye_uniform_probe_file=$env:HOOKSHOT_VR_EYE_UNIFORM_PROBE_FILE;eye_image_probe_requested=[bool]$EyeImageProbe;eye_image_probe_completed=$eyeImageProbeComplete;eye_image_probe_file=$env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE; compute_shader_uniform_audit_requested = [bool]$ComputeShaderUniformAudit; shader_uniform_audit_requested = [bool]$ShaderUniformAudit; shader_uniform_audit_observed = $shaderAuditObserved; shader_uniform_audit_directory = $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR; camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
+[ordered]@{ depth_scene_stream_requested=[bool]$DepthSceneStream;depth_scene_capture_completed=$depthSceneComplete;depth_scene_capture_requested=[bool]$DepthSceneCapture;depth_scene_capture_file=$env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE;isolated_draw_requested=[bool]$IsolatedDrawProbe;isolated_draw_matched=$isolatedDrawMatched;isolated_draw_file=$env:HOOKSHOT_VR_BASELINE_DRAW_FILE;baseline_draw_preflight_requested=[bool]$BaselineDrawPreflight;baseline_draw_preflight_file=$env:HOOKSHOT_VR_BASELINE_PREFLIGHT_FILE;eye_uniform_probe_requested=[bool]$EyeUniformProbe;eye_uniform_probe_completed=$eyeUniformProbeComplete;eye_uniform_probe_file=$env:HOOKSHOT_VR_EYE_UNIFORM_PROBE_FILE;eye_image_probe_requested=[bool]$EyeImageProbe;eye_image_probe_completed=$eyeImageProbeComplete;eye_image_probe_file=$env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE; compute_shader_uniform_audit_requested = [bool]$ComputeShaderUniformAudit; shader_uniform_audit_requested = [bool]$ShaderUniformAudit; shader_uniform_audit_observed = $shaderAuditObserved; shader_uniform_audit_directory = $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR; camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]$XrPreview; flat_quad_submitted = $previewSubmitted; readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
              user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
@@ -397,3 +416,5 @@ if ($ShaderUniformAudit -and !$shaderAuditObserved) { exit 1 }
 if($EyeImageProbe -and !$eyeImageProbeComplete){exit 1}
 
 if($EyeUniformProbe -and !$eyeUniformProbeComplete){exit 1}
+
+if($DepthSceneCapture -and !$depthSceneComplete){exit 1}
