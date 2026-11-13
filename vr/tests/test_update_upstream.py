@@ -68,9 +68,21 @@ class UpdateTests(unittest.TestCase):
         self.assertTrue(report["patch_applied"])
         self.assertEqual((Path(report["candidate_directory"])/"vr/shaders/eye_address_copy.comp").read_text(),shader.read_text())
         self.assertEqual(report["compatibility"],"unverified")
+    def test_native_mirror_query_and_validation_record_reapply(self):
+        for name in ("gpu/vk/vk_memory.cpp","docs/tested-configurations.md"):
+            path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_text("// authored synthetic source or validation fixture\n")
+        self.commit("mirror query and validation record")
+        report=update.prepare(self.root,self.manifest,self.base)
+        self.assertTrue(report["patch_applied"])
+        for name in ("gpu/vk/vk_memory.cpp","docs/tested-configurations.md"):
+            self.assertEqual((Path(report["candidate_directory"])/name).read_text(),(self.root/name).read_text())
+        self.assertFalse(report["release_ready"])
     def test_patch_allowlist(self):
-        for path in ("work/image.bin", "vr/game.exe", "../host/hos_main.c", "user/save.sav", "vr/shaders/game.spv", "vr/shaders/unknown.comp", "work/capture.comp"):
+        for path in ("work/image.bin", "vr/game.exe", "../host/hos_main.c", "user/save.sav", "vr/shaders/game.spv", "vr/shaders/unknown.comp", "work/capture.comp", "gpu/vk/unknown.cpp", "docs/unknown.md"):
             self.assertFalse(update.allowed_patch(path))
+        self.assertTrue(update.allowed_patch("gpu/vk/vk_memory.cpp"))
+        self.assertTrue(update.allowed_patch("docs/tested-configurations.md"))
         self.assertTrue(update.allowed_patch("vr/src/mod.cpp"))
         self.assertTrue(update.allowed_patch("vr/shaders/eye_address_copy.comp"))
 
