@@ -6356,9 +6356,14 @@ void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camer
     if(xr_shader_uniform_audit_compute_only()&&
        std::none_of(p.stages.begin(),p.stages.end(),[](const Stage& stage){return stage.vk_stage==VK_SHADER_STAGE_COMPUTE_BIT;}))return;
     if(!xr_shader_uniform_audit_wants_program(p.key))return;
-    std::vector<ShaderUniformAuditBinding> bindings;uint32_t binding=0;
+    std::vector<ShaderUniformAuditBinding> bindings;std::vector<ShaderUniformAuditStage> stages;uint32_t binding=0;
     for(const auto& stage:p.stages){
         const int ns=std::clamp(stage.nvn_stage,0,kNvnStages-1);
+        // Include stages with zero uniform bindings; bindings alone are not a stage inventory.
+        stages.push_back({(uint64_t)stage.module,uint32_t(ns),uint32_t(stage.vk_stage),stage.info.uses_global_memory,
+            std::any_of(stage.info.storage_buffers_descriptors.begin(),stage.info.storage_buffers_descriptors.end(),[](const auto& d){return d.is_written;}),
+            std::any_of(stage.info.image_descriptors.begin(),stage.info.image_descriptors.end(),[](const auto& d){return d.is_written;}),
+            std::any_of(stage.info.image_buffer_descriptors.begin(),stage.info.image_buffer_descriptors.end(),[](const auto& d){return d.is_written;})});
         for(const auto& descriptor:stage.info.constant_buffer_descriptors){
             for(uint32_t element=0;element<descriptor.count;++element){
                 const uint32_t bank=descriptor.index+element;if(bank<3||bank>=19)continue;
@@ -6383,7 +6388,9 @@ void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camer
         binding+=uint32_t(stage.info.storage_buffers_descriptors.size()+stage.info.texture_buffer_descriptors.size()+
             stage.info.image_buffer_descriptors.size()+stage.info.texture_descriptors.size()+stage.info.image_descriptors.size());
     }
-    xr_shader_uniform_audit_program(p.key,bindings);
+    // Keep the bounded graphics quota for programs that actually bind the observed camera.
+    if(!xr_shader_uniform_audit_compute_only()&&std::none_of(bindings.begin(),bindings.end(),[](const auto& b){return b.primary_camera_binding;}))return;
+    xr_shader_uniform_audit_program(p.key,bindings,stages);
 }
 // Observe emitted native compute work separately. No fabricated render attachments,
 // no borrowing the latest host camera, and no claim about non-UBO/hidden pointers.

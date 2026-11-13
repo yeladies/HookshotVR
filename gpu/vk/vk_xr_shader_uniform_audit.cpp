@@ -38,12 +38,21 @@ bool xr_shader_uniform_audit_wants_program(uint64_t program){
     if(!xr_shader_uniform_audit_enabled()||!program)return false;
     auto& s=state();std::lock_guard lock(s.mutex);return s.programs.size()<64&&!s.programs.count(program);
 }
-bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUniformAuditBinding>& bindings){
+bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUniformAuditBinding>& bindings,const std::vector<ShaderUniformAuditStage>& stages){
     if(!xr_shader_uniform_audit_enabled()||!program)return false;
     auto& s=state();std::lock_guard lock(s.mutex);
     if(s.programs.count(program)||s.programs.size()>=64)return false;
     s.programs.insert(program);
-    if(bindings.empty()||bindings.size()>128)return false;
+    if((bindings.empty()&&stages.empty())||bindings.size()>128||stages.size()>8)return false;
+    uint32_t mask=0;
+    for(const auto& stage:stages){
+        if(!stage.module||stage.nvn_stage>=8||!stage.vk_stage||(stage.vk_stage&(stage.vk_stage-1))||stage.vk_stage>128||(mask&stage.vk_stage))return false;
+        mask|=stage.vk_stage;
+    }
+    if(!stages.empty())for(const auto& b:bindings){bool found=false;
+        for(const auto& stage:stages)if(stage.module==b.module&&stage.vk_stage==b.vk_stage&&stage.nvn_stage==b.nvn_stage)found=true;
+        if(!found)return false;
+    }
     for(const auto& b:bindings){
         auto valid=[&](const std::vector<uint32_t>& values,uint32_t size){
             if(values.size()>64)return false;
@@ -54,7 +63,18 @@ bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUn
            !valid(b.camera_candidates.vp_offsets,64))return false;
     }
     std::ostringstream file;
-    file<<"{\"schema\":1,\"program\":"<<program<<",\"bindings\":[";bool first=true;
+    file<<"{\"schema\":1,\"program\":"<<program<<",\"stage_inventory_complete\":"<<(!stages.empty()?"true":"false")<<",\"stages\":[";bool first=true;
+    for(const auto& stage:stages){
+        if(!first)file<<',';first=false;
+        const auto found=s.modules.find(stage.module);const bool available=found!=s.modules.end()&&found->second.written;
+        file<<"{\"module\":";if(available)file<<'\"'<<name(found->second.digest)<<'\"';else file<<"null";
+        file<<",\"nvn_stage\":"<<stage.nvn_stage<<",\"vk_stage\":"<<stage.vk_stage
+            <<",\"uses_global_memory\":"<<(stage.uses_global_memory?"true":"false")
+            <<",\"writes_storage_buffers\":"<<(stage.writes_storage_buffers?"true":"false")
+            <<",\"writes_storage_images\":"<<(stage.writes_storage_images?"true":"false")
+            <<",\"writes_texel_buffers\":"<<(stage.writes_texel_buffers?"true":"false")<<'}';
+    }
+    file<<"],\"bindings\":[";first=true;
     for(const auto& binding:bindings){
         if(!first)file<<',';first=false;
         const auto found=s.modules.find(binding.module);const bool available=found!=s.modules.end()&&found->second.written;

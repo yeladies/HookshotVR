@@ -37,9 +37,10 @@ finds 83 unique modules; 43 fit the initial read-only subset, with no parser err
 The other modules include nonlocal stores, hidden physical reads/conversions and an
 unsupported helper-invocation operation. This is a filter for further inspection,
 not 43 replayable programs: observations span private captures, and the binding
-metadata does not yet guarantee every stage of a program is represented when a
-stage has no uniform bindings. Complete program/stage provenance must be captured
-before selecting a draw. No scene replay is enabled from these reports.
+older binding-only metadata does not guarantee every stage of a program is
+represented when a stage has no uniform bindings. A fresh
+[complete program inventory](vr-graphics-program-inventory.md) now covers that gap;
+additional draw-state/resource checks remain necessary. No scene replay is enabled from these reports.
 
 Raw modules, hashes, individual reports and capture metadata remain in ignored
 `work/validation/graphics-effects-selected-2026-11-13/`. The authored audit source,

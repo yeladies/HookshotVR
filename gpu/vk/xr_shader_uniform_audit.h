@@ -11,9 +11,14 @@ struct ShaderUniformAuditBinding {
     bool primary_camera_binding=false;
     UniformCameraScan camera_candidates;
 };
+struct ShaderUniformAuditStage {
+    uint64_t module=0;uint32_t nvn_stage=0,vk_stage=0;
+    bool uses_global_memory=false,writes_storage_buffers=false,writes_storage_images=false,writes_texel_buffers=false;
+};
 bool xr_shader_uniform_audit_enabled();
 bool xr_shader_uniform_audit_compute_only();
 bool xr_shader_uniform_audit_module(uint64_t module,const uint32_t* words,size_t count);
 bool xr_shader_uniform_audit_wants_program(uint64_t program);
-bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUniformAuditBinding>&);
+bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUniformAuditBinding>&,
+                                    const std::vector<ShaderUniformAuditStage>& stages={});
 }

@@ -10,6 +10,7 @@ No new headset test is required for the completed diagnostics below.
 - Source-submission camera snapshots with guarded live host refresh and expiry/identity rejection.
 - Conservative emitted-command image/storage-range lineage; present-slice analysis and alias closure.
 - Image inventory/reference budgets and a pure per-eye buffer address layout.
+- Complete [program stage inventories](vr-graphics-program-inventory.md): 64 real programs, no missing modules; 19 shader-subset candidates have observed vertex camera-transform reads.
 - Conservative [graphics effect inventory](vr-graphics-effect-audit.md), rejecting shared writes and unresolved effects; full program-stage coverage remains pending.
 - Validated [buffer descriptor candidates](vr-buffer-descriptor-routing.md); authored GPU checks UBO/SSBO/root agreement and detects deliberately crossed eye bindings.
 - Diagnostic [guest-page closure planner](vr-eye-guest-pages.md), with generation checks and alias/read-range expansion, plus atomic CPU address-patch encoding.
@@ -20,12 +21,14 @@ No new headset test is required for the completed diagnostics below.
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 69 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 70 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
 under ignored work directories. Only original source, tests and documentation belong
 in the branch. The stable installation remains read-only input.
+
+Next bounded experiment: [one isolated unchanged draw](vr-isolated-draw-probe-plan.md).
 
 ## Next integration gates
 

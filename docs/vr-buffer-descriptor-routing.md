@@ -49,7 +49,7 @@ mode change or XR session is involved; native execution remains opt-in and outsi
 
 The game-free descriptor test covers private reads/writes, explicit shared-read review,
 atomic failure, partial coverage, bad handles/usage, unsupported dynamic offsets,
-alignment/range bounds, overflow and stale identities. The VR suite contains 69 tests.
+alignment/range bounds, overflow and stale identities. The VR suite contains 70 tests.
 
 Next integration must cover image views/attachments, actual game descriptor bindings,
 compute writes and hidden pointers under a single resource/submit identity. This

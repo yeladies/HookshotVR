@@ -306,3 +306,6 @@ add_test(NAME vr_eye_buffer_descriptors COMMAND hookshot_vr_eye_buffer_descripto
 if(Python3_Interpreter_FOUND)
     add_test(NAME vr_graphics_shader_effects COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audit_graphics_effects.py")
 endif()
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_graphics_program_inventory COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audit_graphics_programs.py")
+endif()

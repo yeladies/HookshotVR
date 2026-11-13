@@ -23,7 +23,7 @@ through the owner lifetime. This is not a renderer-wide retirement system.
 The authored fake-Vulkan test injects all 13 creation/allocation/bind/fence failures,
 checks cleanup, budget and memory-type rejection, distinct eye handles and memory,
 completion polling, duplicate-submit rejection and uncertain-work retention.
-All 69 VR CTest cases pass on Windows.
+All 70 VR CTest cases pass on Windows.
 
 A separately invoked native smoke is excluded from CTest, so CI needs neither a
 GPU nor a Vulkan loader. Build the VR tools normally, then explicitly run:
