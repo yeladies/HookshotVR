@@ -365,3 +365,9 @@ Final quality build `748b4bb4`: 94 VR tests pass; inherited 357 passed / 5 known
 The latest headset retest found no perceptible improvement. The accepted target is now complete same-state eye rendering, GPU-only OpenXR delivery and independently composed readable HUD/text. The old temporal capture path remains a diagnostic, not the target architecture. See [native stereo implementation gates](vr-native-stereo-gates.md) and the new `same_state_plan` output of the lineage analyzer. No new native stereo build or headset success is claimed.
 
 Castellano: la última prueba no mostró mejora perceptible. La prioridad es la escena completa desde el mismo estado para ambos ojos, entrega GPU a OpenXR y HUD/textos independientes y legibles. El estéreo temporal sigue siendo diagnóstico. El nuevo plan de dependencias orienta la implementación; todavía no existe una nueva build estéreo nativa lista para el visor.
+
+## Same-state GPU copy implementation
+
+A new [GPU copy component](vr-same-state-gpu-copy.md) now records complete, matching same-state eye pairs without CPU pixel upload. The actual RTX 2060 SUPER smoke checked 4096 destination pixels in two completed submissions, exchanged eye colors and reused allocations. Negative fixtures reject mismatched producer state, pose, origin, recording and target contracts before recording. The original GPU smoke also passes. This is an offscreen transport component; game scene production and OpenXR submission are not connected yet. It does not change the playable temporal preview.
+
+Castellano: implementada y probada en GPU real la copia conjunta de ojos con el mismo estado, sin subir píxeles desde CPU. Verificados 4096 píxeles en dos envíos, colores intercambiados y recursos reutilizados tras finalizar. Las discrepancias de estado/pose/origen/grabación/destino se rechazan sin comandos. Sigue pendiente conectar escena completa y OpenXR; no cambia todavía la prueba jugable.

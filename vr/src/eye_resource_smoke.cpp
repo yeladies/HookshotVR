@@ -8,6 +8,8 @@
 #include "../../gpu/vk/xr_eye_matrix_patch_spv.h"
 #include "eye_page_patches.h"
 #include "eye_buffer_descriptors.h"
+#include "same_state_gpu_copy.h"
+#include <memory>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -76,14 +78,15 @@ void address_buffer(Context& c,const EyeResourceApi& api,const VkPhysicalDeviceM
     require(out.address&&out.address%16==0&&out.address<=UINT64_MAX-bytes,"valid auxiliary device address");
 }
 int main(int argc,char** argv){
+    const bool gpu_eye_copy=argc==3&&!std::strcmp(argv[2],"--same-state-copy");
     const bool reject_ubo=argc==3&&!std::strcmp(argv[2],"--expect-ubo-rejection");
     const bool reject_ssbo=argc==3&&!std::strcmp(argv[2],"--expect-ssbo-rejection");
     const bool reject_matrix_shift=argc==3&&!std::strcmp(argv[2],"--matrix-patch-reject-shift");
     const bool reject_matrix_view=argc==3&&!std::strcmp(argv[2],"--matrix-patch-reject-view");
     const bool matrix_lens=argc==3&&!std::strcmp(argv[2],"--matrix-patch-lens");
     const bool matrix_patch=matrix_lens||(argc==3&&!std::strcmp(argv[2],"--matrix-patch"))||reject_matrix_shift||reject_matrix_view;
-    if(argc<2||argc>3||std::strcmp(argv[1],"--run")||(argc==3&&!reject_ubo&&!reject_ssbo&&!matrix_patch)){
-        std::cerr<<"Explicit native GPU opt-in: --run [--expect-ubo-rejection|--expect-ssbo-rejection|--matrix-patch|--matrix-patch-lens|--matrix-patch-reject-shift|--matrix-patch-reject-view]\n";return 2;
+    if(argc<2||argc>3||std::strcmp(argv[1],"--run")||(argc==3&&!reject_ubo&&!reject_ssbo&&!matrix_patch&&!gpu_eye_copy)){
+        std::cerr<<"Explicit native GPU opt-in: --run [--same-state-copy|--expect-ubo-rejection|--expect-ssbo-rejection|--matrix-patch|--matrix-patch-lens|--matrix-patch-reject-shift|--matrix-patch-reject-view]\n";return 2;
     }
     const bool expect_rejection=reject_ubo||reject_ssbo;
     try {
@@ -160,6 +163,11 @@ int main(int argc,char** argv){
         require(original==source_before&&((reject_matrix_shift||reject_matrix_view)||payloads[0]!=payloads[1]),"source preserved and eye payloads distinct");
         EyeResourcePair pair;require(pair.create(c.device,api,memory,32,32,VK_FORMAT_R8G8B8A8_UNORM,4096,8*1024*1024,true),"create bounded independent eyes");
         require(pair.eye(0)->address&&pair.eye(1)->address&&pair.eye(0)->address!=pair.eye(1)->address,"independent buffer device addresses");
+        // A target stays alive through the source pair's submission fence. On an
+        // uncertain completion retain its allocations and object for process exit.
+        auto target_delete=[&c](EyeResourcePair* p){if(!c.uncertain)delete p;};
+        std::unique_ptr<EyeResourcePair,decltype(target_delete)> gpu_target(new EyeResourcePair,target_delete);
+        if(gpu_eye_copy)require(gpu_target->create(c.device,api,memory,64,32,VK_FORMAT_R8G8B8A8_UNORM,16,1024*1024),"GPU copy destination images");
         address_buffer(c,api,memory,8192,c.auxiliary[0]);
         for(unsigned index=1;index<4;++index)address_buffer(c,api,memory,kEyeGuestTableBytes,c.auxiliary[index]);
         constexpr uint64_t guest_a=0x1000000000ull,guest_b=0x7f00000000ull;
@@ -198,7 +206,7 @@ int main(int argc,char** argv){
             const bool swap=(binding==0&&reject_ssbo)||(binding==1&&reject_ubo);
             write.pBufferInfo=&descriptor_plan.eyes[swap?(eye^1):eye][binding];}
         c.fn<PFN_vkUpdateDescriptorSets>("vkUpdateDescriptorSets")(c.device,4,writes.data(),0,nullptr);
-        VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bi.size=2*(32*32*4+4096)+3*4096;bi.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;bi.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
+        VkBufferCreateInfo bi{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};bi.size=2*(32*32*4+4096)+3*4096+(gpu_eye_copy?8192:0);bi.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;bi.sharingMode=VK_SHARING_MODE_EXCLUSIVE;
         checked(api.create_buffer(c.device,&bi,nullptr,&c.staging),"create readback");VkMemoryRequirements req{};api.buffer_requirements(c.device,c.staging,&req);require(req.size<=1024*1024,"bounded staging allocation");
         uint32_t type=UINT32_MAX;bool coherent=false;
         for(uint32_t i=0;i<memory.memoryTypeCount;++i)if((req.memoryTypeBits&(1u<<i))&&(memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)){type=i;coherent=memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;break;}
@@ -274,6 +282,25 @@ int main(int argc,char** argv){
             read_page(c.auxiliary[eye+1].address,*eye_guest_page_index((round+eye)%2?guest_b:guest_a),staging_address+eye*8192+4096,true);
             read_page(c.auxiliary[eye+1].address,1,staging_address+16384+eye*4096);
         }
+        if(gpu_eye_copy){
+            std::array<VkImageMemoryBarrier,2> ready{};
+            std::array<SameStateEyeImage,2> eyes{};
+            for(unsigned eye=0;eye<2;++eye){auto& b=ready[eye];b.sType=VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                b.srcAccessMask=VK_ACCESS_TRANSFER_READ_BIT;b.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;
+                b.oldLayout=VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;b.newLayout=VK_IMAGE_LAYOUT_GENERAL;
+                b.srcQueueFamilyIndex=b.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;b.image=pair.eye(eye)->image;b.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
+                eyes[eye]={b.image,round+1,1,round+1,round+1,eye,32,32,family,VK_FORMAT_R8G8B8A8_UNORM};
+            }
+            barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,2,ready.data());
+            const SameStateCopyTarget target{gpu_target->eye(0)->image,64,32,family,VK_FORMAT_R8G8B8A8_UNORM,true,true};
+            require(record_same_state_eye_copy(command,round+1,eyes,target,barrier,c.fn<PFN_vkCmdCopyImage>("vkCmdCopyImage")),"record same-state GPU pair");
+            VkImageMemoryBarrier read{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};read.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;
+            read.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;read.oldLayout=VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;read.newLayout=VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            read.srcQueueFamilyIndex=read.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;read.image=target.image;read.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};
+            barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&read);
+            VkBufferImageCopy out{};out.bufferOffset=28672;out.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};out.imageExtent={64,32,1};
+            c.fn<PFN_vkCmdCopyImageToBuffer>("vkCmdCopyImageToBuffer")(command,target.image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,c.staging,1,&out);
+        }
         read_page(c.auxiliary[3].address,0,staging_address+24576);
         VkMemoryBarrier host{VK_STRUCTURE_TYPE_MEMORY_BARRIER};host.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT|VK_ACCESS_SHADER_WRITE_BIT;host.dstAccessMask=VK_ACCESS_HOST_READ_BIT;
         barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_HOST_BIT,0,1,&host,0,nullptr,0,nullptr);
@@ -303,6 +330,8 @@ int main(int argc,char** argv){
             const auto expected=std::to_integer<unsigned char>(source_before[offset]);
             original_correct&=bytes[16384+offset]==expected&&bytes[20480+offset]==expected&&bytes[24576+offset]==expected;
         }
+        if(gpu_eye_copy)for(unsigned y=0;y<32;++y)for(unsigned x=0;x<64;++x)for(unsigned channel=0;channel<4;++channel)
+            require(bytes[28672+(y*64+x)*4+channel]==((channel==((x/32+round)%2)||channel==3)?255:0),"GPU pair target pixel mismatch");
         c.fn<PFN_vkUnmapMemory>("vkUnmapMemory")(c.device,c.memory);
         require(pixels_correct&&original_correct,"image/shared/original root readback mismatch");
         for(auto count:mismatches)require(expect_rejection?count>0:count==0,"descriptor disagreement detection did not match the requested test mode");
@@ -312,6 +341,7 @@ int main(int argc,char** argv){
             if(!matrix_patch)for(auto& payload:payloads)payload[0x300]^=std::byte{7};
         }
         }
+        if(gpu_eye_copy)std::cout<<"same_state_gpu_copy=true; target_pixels_checked=4096; CPU_pixel_upload=false; XR_swapchain=false; ";
         if(matrix_patch)std::cout<<"gpu_lens_shift="<<(matrix_lens?"true":"false")<<"; gpu_matrix_patch=true; same_source_for_both_eyes=true; matrix_rejection_verified="<<((reject_matrix_shift||reject_matrix_view)?"true":"false")<<"; projected_point_displacement_verified="<<((!reject_matrix_shift&&!reject_matrix_view)?"true":"false")<<"; game_draw_transformed=false; ";
         std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; auxiliary_allocation_bytes="<<c.auxiliary_bytes<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; physical_address_shader_readback=true; private_ubo_routes=2; private_ssbo_routes=2; descriptor_root_agreement_verified="<<(!expect_rejection?"true":"false")<<"; expected_descriptor_rejection_verified="<<(expect_rejection?"true":"false")<<"; private_shader_words_checked=4096; shared_shader_words_checked=4096; original_root_shader_words_checked=2048; gpu_root_copy_verified=true; private_guest_roots=2; guest_table_bytes_per_eye=25165824; guest_window_aliases_checked=true; original_gpu_bytes_checked=8192; image_pixels_checked=4096; buffer_bytes_checked=16384; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
         return 0;
