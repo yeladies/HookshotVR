@@ -359,3 +359,9 @@ All 94 VR tests pass. Actual mono HD +25% margin passed (6618 MiB peak); actual 
 Castellano: el usuario observó negros intermitentes en estéreo, poca nitidez en mono y bordes rectangulares en ambos. Se añadieron perfiles optativos HD/margen, conservación acotada de pares y registros por ejecución. Pasan 94 pruebas; mono HD y estéreo 720p con margen pasaron sin visor. Estéreo HD no pasó frescura y no se entrega como validado. Se detectaron poses/imágenes antiguas rechazadas; no se ampliaron los límites para ocultar el problema. Falta comprobar la nueva imagen en Quest.
 
 Final quality build `748b4bb4`: 94 VR tests pass; inherited 357 passed / 5 known failures / 59 skipped in 341 seconds. Default-off startup passed at 3032 MiB, XR off; 19 stable hashes match. New private launchers separate mono HD + margin from temporal 720p + margin. Human retest requested only after build/source checks completed.
+
+## Native stereo priority after failed human retest
+
+The latest headset retest found no perceptible improvement. The accepted target is now complete same-state eye rendering, GPU-only OpenXR delivery and independently composed readable HUD/text. The old temporal capture path remains a diagnostic, not the target architecture. See [native stereo implementation gates](vr-native-stereo-gates.md) and the new `same_state_plan` output of the lineage analyzer. No new native stereo build or headset success is claimed.
+
+Castellano: la última prueba no mostró mejora perceptible. La prioridad es la escena completa desde el mismo estado para ambos ojos, entrega GPU a OpenXR y HUD/textos independientes y legibles. El estéreo temporal sigue siendo diagnóstico. El nuevo plan de dependencias orienta la implementación; todavía no existe una nueva build estéreo nativa lista para el visor.

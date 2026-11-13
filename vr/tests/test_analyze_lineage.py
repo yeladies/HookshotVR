@@ -76,4 +76,49 @@ class LineageTests(unittest.TestCase):
         capture = self.capture(); original = copy.deepcopy(capture)
         lineage.analyze(capture); self.assertEqual(capture, original)
 
+
+
+class SameStatePlanTests(unittest.TestCase):
+    def analyze(self, events):
+        return lineage.analyze(dict(schema=1, replay_ready=False, coverage_complete=False,
+                                    present_image=14, events=events))['same_state_plan']
+    def test_orders_full_chain_and_keeps_shared_work_once(self):
+        result=self.analyze(LineageTests().capture()['events'])
+        self.assertEqual(result['shared_work_review_indices'], [0])
+        self.assertEqual(result['per_eye_work_review_indices'], [1,2,3,4])
+        self.assertEqual(result['per_eye_image_ids'], [11,12,14])
+        self.assertEqual(result['work'][-1]['parents'], [3])
+        self.assertEqual(result['simulation_updates_per_pair'], 1)
+        self.assertTrue(result['atomic_pair_submission_required'])
+        self.assertFalse(result['replay_ready'])
+    def test_recomputes_flags_instead_of_trusting_capture(self):
+        events=LineageTests().capture()['events'];events[2]['dependent']=False
+        result=self.analyze(events)
+        self.assertEqual(result['dependency_flag_mismatch_indices'], [2])
+        self.assertIn(2,result['per_eye_work_review_indices'])
+        self.assertFalse(result['replay_ready'])
+    def test_shared_buffer_producer_and_eye_buffer_consumer(self):
+        producer=event(1,[],[]);producer['buffer_writes']=[[5,0,16,1]]
+        seed=event(1,[],[],seed=True,dependent=True)
+        seed['buffer_reads']=[[5,0,16,1]];seed['buffer_writes']=[[6,0,16,2]]
+        consumer=event(0,[],[[14,1]],dependent=True)
+        consumer['buffer_reads']=[[6,0,16,2]]
+        result=self.analyze([producer,seed,consumer])
+        self.assertEqual(result['shared_work_review_indices'],[0])
+        self.assertEqual(result['per_eye_work_review_indices'],[1,2])
+        self.assertEqual(result['per_eye_buffer_ranges'],[(6,0,16)])
+    def test_imported_history_never_becomes_proven_shared(self):
+        result=self.analyze([event(0,[[99,0]],[[14,1]],seed=True,dependent=True)])
+        self.assertEqual(result['imported_image_review_ids'],[99])
+        self.assertTrue(any('imported resources' in s for s in result['blockers']))
+        self.assertFalse(result['replay_ready'])
+    def test_overlay_dependency_is_not_a_world_or_hud_identity(self):
+        result=self.analyze(LineageTests().capture()['events'])
+        self.assertEqual(result['unseeded_graphics_review_indices'],[4])
+        self.assertFalse(result['hud_separation_verified'])
+    def test_no_camera_seed_never_claims_stereo(self):
+        result=self.analyze([event(0,[],[[14,1]])])
+        self.assertEqual(result['per_eye_work_review_indices'],[])
+        self.assertFalse(result['replay_ready'])
+
 if __name__ == '__main__': unittest.main()

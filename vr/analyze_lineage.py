@@ -1,6 +1,7 @@
 """Inspect a private incomplete image-lineage capture; never executes a replay."""
 import argparse
 import json
+import importlib.util
 from pathlib import Path
 
 
@@ -111,7 +112,11 @@ def analyze(data):
     described_private = [descriptions[identity] for identity in private_images if identity in descriptions]
     image_bytes = sum(description['allocation_bytes'] for description in described_private)
     alias_plan = buffer_alias_closure(private_buffers, private_reads)
-    return {'schema': 1, 'observed_events': len(events), 'present_slice_events': len(selected),
+    spec = importlib.util.spec_from_file_location('same_state_plan', Path(__file__).with_name('same_state_plan.py'))
+    planner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(planner)
+    same_state = planner.plan(events, selected, dependencies, imported, imported_buffers, descriptions)
+    return {'schema': 1, 'same_state_plan': same_state, 'observed_events': len(events), 'present_slice_events': len(selected),
             'present_slice_kinds': counts,
             'camera_seed_events_in_slice': sum(events[i]['seed'] for i in selected),
             'camera_dependent_events_in_slice': sum(events[i]['dependent'] for i in selected),
