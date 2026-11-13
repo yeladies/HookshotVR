@@ -315,3 +315,13 @@ work/game-build/inherited-stereo-corrected-tests.log;
 work/game-build/stereo-default-off-result.txt;
 work/validation/stereo-stable-hashes.json. The existing base is unchanged; this does
 not integrate the newer upstream development branch or promise future compatibility.
+
+## 2026-11-13 — Remote source-eye inspection and menu diagnosis
+
+ABI20 source `04e3fcb8` builds on Windows. All 91 VR tests pass, including bounded private PPM capture, distinct eye input, menu portrait classification and rejection of a resized main-aspect scene without camera provenance. The inherited suite remains 357 passed / 5 known baseline-environment failures / 59 skipped (336 seconds). Default-off startup ran for its 20-second limit at 3023 MiB peak. All 19 monitored stable-install hashes remain unchanged.
+
+Two actual-game, synthetic-pose, non-XR checks produced distinct temporal eye views at 110° horizontal and 100° vertical. The second recovered from the menu with 72 left and 70 right source images. Private captures show the game world and inventory; they are excluded from Git. Continuous inventory delivery still fails. Diagnostics identify a 1536×864 perspective candidate while the tracked world target is 1152×648; both have the same aspect. Resolution or aspect alone cannot safely distinguish a UI portrait from dynamic scene resolution. Retain rejection of unassociated 3D frames until a source-backed inventory/render-target identity is established. One or two accepted menu images do not establish a continuously visible menu.
+
+Wide-view screenshots also show edge geometry needing culling investigation. Next human gate is wide-FOV / temporal-stereo perception and audio in Quest; no headset session was opened remotely. Same-simulation-frame stereo, first-person body handling and motion-controlled weapons remain separate work.
+
+Castellano: build ABI20 `04e3fcb8`, 91 pruebas VR correctas, regresiones 357 correctas / 5 fallos conocidos / 59 omitidas. Arranque sin VR verificado y 19 hashes estables intactos. Las capturas privadas reales muestran ambos ojos y el inventario, pero la entrega continua del menú sigue fallando: un candidato 1536×864 comparte aspecto con la escena 1152×648. Hace falta identificar su origen, sin usar únicamente resolución ni relajar el rechazo de escenas sin cámara. Revisar también el culling en los bordes. La próxima comprobación humana debe validar FOV, estéreo temporal y audio; no se ha abierto XR en remoto. No se implementaron todavía estéreo simultáneo, cuerpo en primera persona ni armas físicas.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "vk_xr.h"
 #include "xr_preview_feed.h"
+#include "xr_preview_capture.h"
 namespace mkwvk { void logf(const char*, ...); }
 #ifdef HOOKSHOT_OPENXR
 #define XR_NO_PROTOTYPES
@@ -142,6 +143,11 @@ void xr_preview_publish(std::shared_ptr<const std::vector<uint8_t>> pixels,uint3
     const auto now=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     if(bridge.preview_feed.publish(std::move(pixels),width,height,present,now,xr_immersive_frame_tag(present))&&bridge.readback_only.load()) {
         const auto image=bridge.preview_feed.latest(now);
+        // Capture only accepted readback images, never XR session frames. The
+        // runner supplies a fresh private directory under work/.
+        if(const char* path=std::getenv("HOOKSHOT_VR_PREVIEW_CAPTURE_DIR"))if(*path){
+            static PreviewCapture capture(path);try{if(capture.offer(image))logf("xr-preview: private bounded image sample saved");}catch(...){logf("xr-preview: optional image sample failed");}
+        }
         if(image.right_pixels){static uint64_t pairs=0;if(++pairs==1||pairs%60==0)logf("xr-preview: temporal stereo pairs %llu, distinct images %d, left present %lld right serial %llu",(unsigned long long)pairs,*image.pixels!=*image.right_pixels,(long long)image.game_present,(unsigned long long)image.right_serial);}
         if(image.serial==1||image.serial%60==0)logf("xr-preview: readback frames %llu, %ux%u RGBA, no XR session",
             (unsigned long long)image.serial,width,height);

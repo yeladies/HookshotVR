@@ -13,7 +13,7 @@ bool temporal(){static const bool v=[] {const auto* s=std::getenv("RX_VK_XR_TEMP
 bool synthetic(){static const bool v=[] {const auto* s=std::getenv("HOOKSHOT_VR_IMMERSIVE_TEST");return s&&std::strcmp(s,"1")==0;}();return v;}
 int64_t now_ns(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 struct State {
-    std::mutex mutex;ImmersiveCamera camera;ImmersiveTag scene;uint64_t scene_frame=UINT64_MAX,candidate_frame=UINT64_MAX;
+    std::mutex mutex;ImmersiveCamera camera;ImmersiveTag scene;uint64_t scene_frame=UINT64_MAX,candidate_frame=UINT64_MAX;uint32_t scene_width=0,scene_height=0;
     struct Present {int64_t id=-1;ImmersiveTag tag;};std::array<Present,32> presents{};
     uint64_t applied=0,matched=0,tagged=0,published=0,menu_images=0,eye_images[2]{},lens_updates=0;float horizontal_fov=0,vertical_fov=0,requested_vertical=0,requested_aspect=0;int64_t epoch=0;
 };
@@ -56,12 +56,21 @@ int xr_immersive_head_lens(float* vertical,float* aspect){
     {auto& s=state();std::lock_guard lock(s.mutex);++s.lens_updates;s.requested_vertical=fov;s.requested_aspect=ratio;}
     *vertical=fov;*aspect=ratio;return 1;
 }
-void xr_immersive_note_scene_candidate(uint64_t frame){
-    if(!enabled())return;auto& s=state();std::lock_guard lock(s.mutex);s.candidate_frame=frame;
+void xr_immersive_note_scene_candidate(uint64_t frame,uint32_t width,uint32_t height){
+    if(!enabled())return;auto& s=state();std::lock_guard lock(s.mutex);
+    // Preserve fail-closed behavior for a main-aspect perspective, including
+    // dynamic resolution. A separately rendered inventory portrait is not the world.
+    if(s.scene_width&&s.scene_height&&width&&height){
+        const double expected=double(height)*s.scene_width;
+        if(std::abs(double(width)*s.scene_height-expected)>expected*.01)return;
+    }
+    if(synthetic()&&s.scene.valid&&now_ns()-s.scene.observed_ns>250000000){static uint64_t last=UINT64_MAX;if(last==UINT64_MAX||frame-last>=60){last=frame;logf("vr-immersive: blocked stale-world candidate %ux%u, main %ux%u",width,height,s.scene_width,s.scene_height);}}
+    s.candidate_frame=frame;
 }
 void xr_immersive_note_camera(uint64_t frame,const float* block,size_t count){
     if(!enabled()||!block||count<0x230/4)return;auto& s=state();std::lock_guard lock(s.mutex);
     auto tag=s.camera.match(block,block+0x70/4,now_ns());if(!tag.valid)return;
+    if(block[0x120/4]>0&&block[0x120/4]<=16384&&block[0x124/4]>0&&block[0x124/4]<=16384){s.scene_width=uint32_t(block[0x120/4]);s.scene_height=uint32_t(block[0x124/4]);}
     s.scene=tag;s.scene_frame=frame;++s.matched;s.horizontal_fov=tag.fov[1]-tag.fov[0];s.vertical_fov=tag.fov[2]-tag.fov[3];
 }
 void xr_immersive_tag_present(int64_t present,uint64_t frame){
@@ -77,6 +86,6 @@ void xr_immersive_tag_present(int64_t present,uint64_t frame){
 }
 ImmersiveTag xr_immersive_frame_tag(int64_t present){
     if(!enabled()||present<0)return {};auto& s=state();std::lock_guard lock(s.mutex);const auto& p=s.presents[uint64_t(present)%s.presents.size()];
-    if(p.id!=present||(!p.tag.valid&&!p.tag.menu))return {};++s.published;if(p.tag.menu)++s.menu_images;else if(p.tag.temporal_stereo&&p.tag.eye<2)++s.eye_images[p.tag.eye];if(s.published==1||s.published%30==0)report(s);return p.tag;
+    if(p.id!=present||(!p.tag.valid&&!p.tag.menu))return {};++s.published;if(p.tag.menu)++s.menu_images;else if(p.tag.temporal_stereo&&p.tag.eye<2)++s.eye_images[p.tag.eye];if(s.published==1||s.published%30==0||(p.tag.menu&&s.menu_images%30==1))report(s);return p.tag;
 }
 }

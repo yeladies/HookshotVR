@@ -30,3 +30,7 @@ The order is incremental, not a release schedule. [oot-vr](https://github.com/gi
 ## Headset check update
 
 The user subsequently confirmed a persistent moving depth scene, apparently correct scale and depth, and pixelation. The session accepted 254 source updates in 60 seconds and closed normally. Native stereo remains pending. See [native camera work and test limits](../../vr-native-camera-aliases.md).
+
+## Remote eye-image inspection — 2026-11-13
+
+A real-game offscreen run now saves bounded, private left/right eye samples. The source lens is 110° horizontal / 100° vertical with synthetic tracking; temporal eye images are distinct. One inventory image was captured, but continuous menu delivery still needs correction. Wide-view edge geometry needs culling review. This does not establish perceived stereo, comfort, audio or performance in Quest. No XR session is opened while the user is remote. See the [current experiment and capture instructions](../../vr-temporal-stereo-preview.md).

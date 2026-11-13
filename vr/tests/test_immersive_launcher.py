@@ -10,6 +10,10 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'vr/run-game.ps1'),*args],capture_output=True,text=True,timeout=20)
         self.assertNotEqual(result.returncode,0)
         self.assertIn(message,result.stdout+result.stderr)
+    def test_private_capture_cannot_open_xr(self):
+        self.reject(['-Seconds','180','-ImmersivePreview','-PreviewCaptureDirectory','unused'],'Private image capture requires the non-XR immersive readback test')
+    def test_private_capture_cannot_escape_work(self):
+        self.reject(['-Seconds','180','-ImmersiveReadbackTest','-PreviewCaptureDirectory',str(ROOT.parent/'outside-preview')],'Image captures require a fresh direct child of project/work')
     def test_lens_and_stereo_require_isolated_immersive_mode(self):
         for mode in ('-WideFov','-TemporalStereo'):
             self.reject([mode],'Wide FOV/stereo require an isolated immersive mode')

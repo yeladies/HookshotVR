@@ -25,8 +25,10 @@ int main(int argc,char** argv){using namespace mkwvk;try {
     const bool stereo=initial_mode&&(!std::strcmp(initial_mode,"preview_immersive_stereo")||!std::strcmp(initial_mode,"preview_immersive_stereo_missing"));
     const bool stereo_missing=initial_mode&&!std::strcmp(initial_mode,"preview_immersive_stereo_missing");
     const bool transition=initial_mode&&!std::strcmp(initial_mode,"preview_immersive_transition");
+    const bool portrait=initial_mode&&!std::strcmp(initial_mode,"preview_immersive_menu_portrait");
+    const bool resized_missing=initial_mode&&!std::strcmp(initial_mode,"preview_immersive_missing_resized");
     const bool menu=initial_mode&&!std::strcmp(initial_mode,"preview_immersive_menu");
-    const bool missing=stereo_missing||(initial_mode&&!std::strcmp(initial_mode,"preview_immersive_missing"));
+    const bool missing=stereo_missing||resized_missing||(initial_mode&&!std::strcmp(initial_mode,"preview_immersive_missing"));
     if(immersive){
 #ifdef _WIN32
         _putenv_s("RX_VK_XR_IMMERSIVE","1");if(stereo){_putenv_s("RX_VK_XR_TEMPORAL_STEREO","1");_putenv_s("RX_VK_XR_WIDE_FOV","1");}
@@ -61,7 +63,13 @@ int main(int argc,char** argv){using namespace mkwvk;try {
         (*pixels)[0]=17;(*pixels)[1]=34;(*pixels)[2]=51;(*pixels)[3]=255;
         if(immersive){
             XrFrameSnapshot snapshot;bool ready=false;for(int i=0;i<100;++i){if(xr_vulkan_latest_frame(&snapshot)&&snapshot.focused){ready=true;break;}std::this_thread::sleep_for(std::chrono::milliseconds(2));}check(ready,"fresh fake head pose");
-            if(menu){xr_immersive_tag_present(12,77);}
+            if(portrait||resized_missing){
+                float view[12]={1,0,0,0,0,1,0,0,0,0,1,0};check(xr_immersive_head_camera(7,view),"establish primary camera aspect");
+                float block[0x230/4]{};std::memcpy(block,view,sizeof view);const float p[16]={1,0,0,0,0,2,0,0,0,0,-1,-.2f,0,0,-1,0};std::memcpy(block+0x70/4,p,sizeof p);block[0x120/4]=1152;block[0x124/4]=648;
+                xr_immersive_note_camera(76,block,0x230/4);
+                xr_immersive_note_scene_candidate(77,portrait?512:1920,portrait?512:1080);xr_immersive_tag_present(12,77);
+            }
+            else if(menu){xr_immersive_tag_present(12,77);}
             else if(missing&&!stereo_missing){xr_immersive_note_scene_candidate(77);xr_immersive_tag_present(12,77);}
             else{
             float view[12]={1,0,0,0,0,1,0,0,0,0,1,0};check(xr_immersive_head_camera(7,view),"real pose camera callback");

@@ -57,3 +57,19 @@ All 88 VR tests pass. Inherited regression result:357 passed, 5 known baseline/e
 El ensayo real sin visor pasó con fuente `c5617507`, ABI20: FOV vertical solicitado y observado de 100° y horizontal de 110°, imágenes distintas y correctamente asociadas a ambos ojos, y cierre normal. Los ángulos sintéticos prueban la misma ruta que obtendrá el FOV de los ojos del runtime en Quest; no son una medición del FOV físico, FPS o latencia del visor. Pico de memoria: 6632 MiB.
 
 Pasan 88 pruebas VR. Regresiones heredadas:357 correctas, los 5 fallos conocidos y 59 omitidas. Arranque ordinario correcto y 19 hashes estables intactos. La prueba del menú no pasó; cerrarlo recuperó las imágenes del juego. El sonido en Quest sigue pendiente de comprobar. La nueva versión todavía requiere su primera prueba visual en el visor.
+
+## Private remote inspection / Inspección privada en remoto
+
+The offscreen real-game check can save a bounded set of accepted eye images:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File vr/tests/run_stereo_game_check.ps1 -Seconds 180 -CaptureImages
+```
+
+This never opens XR. It uses synthetic head poses and writes at most three left/right PPM pairs, their source metadata, and one later UI image into a fresh direct child of `work/`. Captures are game-derived private data: do not commit or upload them. PNG conversion must preserve the original pixels. These are source eye views, not photographs through a headset, and do not validate perceived depth, comfort, audio or headset frame rate. Both eye images come from nearby simulation frames.
+
+La prueba anterior nunca abre XR. Usa poses sintéticas y guarda como máximo tres pares de ojos en PPM, sus metadatos y una imagen posterior de interfaz, en una carpeta nueva de `work/`. Son datos privados derivados del juego: no se publican ni se incluyen en Git. Convertirlos a PNG conserva los píxeles. Son las vistas fuente de cada ojo; no son fotos del visor ni validan profundidad percibida, comodidad, audio o rendimiento en Quest. Cada ojo procede de un fotograma cercano.
+
+The first remote inspection produced distinct source-eye images at 110° horizontal / 100° vertical FOV and a visible inventory image. The continuous-menu transition gate still failed: one accepted UI image is insufficient proof of a stable menu. Main-aspect 3D frames without camera provenance remain suppressed. Edge geometry visible in the wide view also needs culling review; headset acceptance remains pending.
+
+La primera inspección remota obtuvo imágenes distintas a 110° horizontal / 100° vertical y un inventario visible. El criterio de transición continua del menú siguió fallando: una sola imagen de interfaz no demuestra estabilidad. Se siguen rechazando escenas 3D sin procedencia de cámara. La geometría visible en los bordes de la vista amplia también requiere revisar el culling; falta la prueba en Quest.

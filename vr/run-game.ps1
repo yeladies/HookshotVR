@@ -28,6 +28,7 @@ param(
     [switch]$DepthSceneCapture,
     [switch]$DepthSceneStream,
     [string]$DepthCapturePath,
+    [string]$PreviewCaptureDirectory,
     [string]$StopSignal,
     [ValidateRange(100,1000)][int]$DepthIntervalMs=200,
     [ValidateRange(1,300)][int]$DepthMaximumFrames=300,
@@ -36,6 +37,7 @@ param(
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+if($PreviewCaptureDirectory -and !$ImmersiveReadbackTest){throw 'Private image capture requires the non-XR immersive readback test.'}
 if(($WideFov -or $TemporalStereo) -and !($ImmersivePreview -or $ImmersiveReadbackTest)){throw 'Wide FOV/stereo require an isolated immersive mode.'}
 if($TemporalStereo){$WideFov=$true}
 if($ImmersivePreview -or $ImmersiveReadbackTest){
@@ -73,6 +75,16 @@ if ($PreviewReadbackTest -and ($XrPreview -or $XrSessionProbe -or $XrNegotiation
 if ($PreviewReadbackTest) { $ExperimentalXrRenderer = $true }
 if ($XrSessionProbe) { $XrNegotiation = $true }
 $projectRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
+Remove-Item Env:HOOKSHOT_VR_PREVIEW_CAPTURE_DIR -ErrorAction SilentlyContinue
+if($PreviewCaptureDirectory){
+    $PreviewCaptureDirectory=[IO.Path]::GetFullPath($PreviewCaptureDirectory)
+    $workParent=[IO.Path]::GetFullPath((Join-Path $projectRoot 'work')).TrimEnd('\','/')
+    if(![string]::Equals((Split-Path -Parent $PreviewCaptureDirectory).TrimEnd('\','/'),$workParent,[StringComparison]::OrdinalIgnoreCase)){throw 'Image captures require a fresh direct child of project/work.'}
+    if(Test-Path -LiteralPath $PreviewCaptureDirectory){throw 'Image capture directory already exists; no files were overwritten.'}
+    if((Get-Item -LiteralPath $workParent -Force).Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Capture root must not be a link.'}
+    New-Item -ItemType Directory -Path $PreviewCaptureDirectory | Out-Null
+    $env:HOOKSHOT_VR_PREVIEW_CAPTURE_DIR=$PreviewCaptureDirectory
+}
 $InstallationRoot = (Resolve-Path -LiteralPath $InstallationRoot).Path
 $buildRoot = Join-Path $projectRoot 'work/game-build/sa/build'
 $runRoot = [IO.Path]::GetFullPath((Join-Path $projectRoot 'work/game-run'))
