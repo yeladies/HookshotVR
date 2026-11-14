@@ -1,5 +1,7 @@
 # Estado, resultados y hoja de ruta
 
+La build Tuned `33fe8ca1` ya está compilada: pasan ambos giros de ±45° con vista/lente coherentes, 660/780 pares GPU, seis muestras cambiantes y cero fallos del productor. Pasa el arranque sin VR y siguen intactos 19 hashes de la instalación estable. El siguiente paso requiere valoración visual en Quest/VDXR, incluidos los nuevos contadores de apagones. No se da por aceptada en visor.
+
 La siguiente [candidata Tuned y diagnóstico de apagones](../../vr-coherent-view-and-gaps.md) usa fuente 3584 / ojos 2304 con autorización del usuario, sincroniza datos derivados de vista, recupera campos compartidos de proyección coherentes y añade giros automáticos de ±45°. La corrección visual sigue pendiente.
 
 El usuario confirma mucho más detalle y movimiento percibido fluido con fuente 4096 y ojos 2560. Desactivar la oclusión solo mejoró algo: siguen desapareciendo Link/enemigos fuera del centro y continúan los apagones. [Resultados y propuesta de diagnóstico de cámaras/visibilidad y fotogramas sin capa](../../vr-combined-visibility-quality.md). Se conserva la calidad; la aceptación visual global sigue pendiente.

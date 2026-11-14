@@ -1,5 +1,7 @@
 # Status, evidence and roadmap
 
+Tuned native source `33fe8ca1` is now compiled: both ±45° private-save sweeps pass with coherent view/lens data, 660/780 GPU pairs, six changing samples and zero producer failures. A default-off run passes and 19 stable hashes are unchanged. The next required step is Quest/VDXR visual validation, including the new blackout counters. No new headset acceptance is claimed.
+
 The next [Tuned coherence candidate and gap diagnostics](../../vr-coherent-view-and-gaps.md) uses source 3584 / eyes 2304 with the user's approval, synchronizes derived view parameters, restores coherent shared projection fields and adds ±45° unattended sweeps. Headset correction remains unconfirmed.
 
 The user confirms much better detail and perceived smooth motion at 4096 source / 2560 eyes. Disabling engine occlusion only helped slightly: Link/enemies still disappear off-center and blackouts continue. [Results and proposed camera/visibility and no-layer diagnostics](../../vr-combined-visibility-quality.md). The quality profile is retained; overall visual acceptance still fails.
