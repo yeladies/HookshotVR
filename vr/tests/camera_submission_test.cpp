@@ -6,6 +6,7 @@
 #include <thread>
 #include <cstdlib>
 #include <string>
+#include <limits>
 using namespace mkwvk;
 namespace mkwvk {void logf(const char*,...){} void xr_immersive_note_camera(uint64_t,const float*,size_t){} void xr_immersive_note_scene_candidate(uint64_t,uint32_t,uint32_t){}}
 void check(bool x,const char* why){if(!x)throw std::runtime_error(why);}
@@ -38,6 +39,15 @@ int main(){try {
     check(!match_submitted_uniform(&ambiguous,t+7,1280,720,block,0x230/4).matched,"compute rejects ambiguous identities");
     history.clear();for(uint64_t i=0;i<100;++i)history.observe(pair(i+1),t+i);
     check(history.snapshot(t+101).count==16,"history bounded");
+    auto sixteen=history.snapshot(t+101);
+    check(match_submitted_uniform(&sixteen,t+102,1280,720,block,0x230/4).equivalent==16,"every equivalent identity is still compared after one prefix validation");
+    block[0x30/4]+=1;
+    check(!match_submitted_uniform(&sixteen,t+102,1280,720,block,0x230/4).matched,"incoherent VP rejected before candidate comparisons");
+    block[0x30/4]-=1;block[0x22c/4]=std::numeric_limits<float>::quiet_NaN();
+    check(!match_submitted_uniform(&sixteen,t+102,1280,720,block,0x230/4).matched,"validation still covers the complete declared prefix");
+    block[0x22c/4]=0;
+    check(!match_submitted_uniform(&sixteen,t+102,1280,720,block,0x230/4-1).matched,"short block cannot use the validated comparison path");
+    check(match_submitted_uniform(&sixteen,t+102,1280,720,block,0x230/4).matched,"new immutable block is validated on every call");
     SceneSubmissionStore store;auto pinned=std::make_shared<const SceneSubmissionSnapshot>(first);
     store.bind(1,pinned);for(uint64_t i=2;i<=258;++i)store.bind(i,pinned);
     check(!store.get(1)&&store.get(258)==pinned,"bounded store evicts without a latest fallback");

@@ -9,6 +9,7 @@
 #include "vk_xfer.h"
 #include "vk_draw.h"   // (end_pass: a pass cannot stay open across a transfer)
 #include "vk_texture.h"
+#include "xr_image_lineage.h"
 #include "vk_gprof.h"
 #ifndef HOOKSHOT_ENV_H   // (env_on: the switches' one rule)
 #include "hookshot_env.h"
@@ -18,6 +19,21 @@
 namespace mkwvk {
 namespace {
 
+// Observe only emitted transfer work. Whole-image versions are conservative:
+// partial writes/clears retain the old destination, never imply overwrite proof.
+void transfer_lineage(ImageWorkKind kind,const Texture* source,const Texture* destination,const BufferRef* buffer=nullptr,uint64_t bytes=0,bool buffer_written=false) {
+    if(!xr_image_lineage_enabled())return;
+    ImageWork work{};work.kind=kind;
+    for(const auto* texture:{source,destination})if(texture){
+        const ImageResourceDescription description{texture->id,texture->bytes,uint32_t(texture->format),texture->width,texture->height,texture->depth,
+            texture->levels,texture->layers,uint32_t(texture->samples),uint32_t(texture->aspect),uint32_t(texture->type),texture->sparse};
+        xr_image_lineage_resource(texture_frame_no(),description);
+    }
+    if(source)work.reads.push_back(source->id);
+    if(destination){work.writes.push_back(destination->id);work.width=destination->width;work.height=destination->height;}
+    if(buffer){if(buffer->buffer&&bytes)work.buffers.push_back({{uint64_t(buffer->buffer),buffer->offset,bytes},buffer_written});else work.opaque_buffers=true;}
+    xr_image_lineage_work(texture_frame_no(),std::move(work));
+}
 /// One side of a copy: the texture's level, layers (or 3D slices), and the region of it in texels
 struct Sub {
     Texture* tex = nullptr;
@@ -230,9 +246,11 @@ void copy_b2t(VkCommandBuffer cmd, NvnState& st, const nvn_p_copy_bt& p, bool to
     full_barrier(cmd);
     if (to_image) {
         vkCmdCopyBufferToImage(cmd, span.buffer, s.tex->image, VK_IMAGE_LAYOUT_GENERAL, 1, &c);
+        transfer_lineage(ImageWorkKind::Transfer,nullptr,s.tex,&span,size,false);
         texture_written(s.tex, "a buffer-to-texture copy");
     } else {
         vkCmdCopyImageToBuffer(cmd, s.tex->image, VK_IMAGE_LAYOUT_GENERAL, span.buffer, 1, &c);
+        transfer_lineage(ImageWorkKind::Transfer,s.tex,nullptr,&span,size,true);
         const uint64_t guest = host->gpu_guest(p.buf);
         if (guest) memory_stamp_gpu(guest, size);   // (textures over that memory are uploaded again)
         texture_gpu_wrote(p.buf, size);           // (and once the copy is done: the stamp came before it ran)
@@ -296,7 +314,7 @@ void copy_t2t(VkCommandBuffer cmd, NvnState& st, const nvn_p_copy_tt& p) {
         }
         if (!done) warn(10, "texture copy into or out of a BC3-kept ASTC texture it cannot make: skipped");
         full_barrier(cmd);
-        if (done) texture_written(d.tex, "a copy into a BC texture");
+        if (done) {transfer_lineage(ImageWorkKind::Transfer,s.tex,d.tex);texture_written(d.tex, "a copy into a BC texture");}
         return;
     }
     if (s.tex->samples != VK_SAMPLE_COUNT_1_BIT && d.tex->samples == VK_SAMPLE_COUNT_1_BIT && same_size) {
@@ -318,6 +336,7 @@ void copy_t2t(VkCommandBuffer cmd, NvnState& st, const nvn_p_copy_tt& p) {
                        linear ? VK_FILTER_LINEAR : VK_FILTER_NEAREST);
     }
     full_barrier(cmd);
+    transfer_lineage(ImageWorkKind::Transfer,s.tex,d.tex);
     texture_written(d.tex, "a texture-to-texture copy");
 }
 
@@ -338,11 +357,13 @@ void clear_tex(VkCommandBuffer cmd, NvnState& st, const nvn_p_clear_tex& p) {
             VkClearColorValue cv{};
             std::memcpy(&cv, &p.c, sizeof cv);
             vkCmdClearColorImage(cmd, s.tex->image, VK_IMAGE_LAYOUT_GENERAL, &cv, 1, &rng);
+            transfer_lineage(ImageWorkKind::Clear,nullptr,s.tex);
         } else {
             VkClearDepthStencilValue dv{};
             if (s.tex->aspect & VK_IMAGE_ASPECT_DEPTH_BIT) dv.depth = p.c.f[0];
             if (s.tex->aspect & VK_IMAGE_ASPECT_STENCIL_BIT) dv.stencil = (uint32_t)p.c.u[0];
             vkCmdClearDepthStencilImage(cmd, s.tex->image, VK_IMAGE_LAYOUT_GENERAL, &dv, 1, &rng);
+            transfer_lineage(ImageWorkKind::Clear,nullptr,s.tex);
         }
     } else {   // (a region: a pass over that level and layer, and vkCmdClearAttachments)
         const nvn_view* v = p.has_view ? &p.view : nullptr;
@@ -386,6 +407,7 @@ void clear_tex(VkCommandBuffer cmd, NvnState& st, const nvn_p_clear_tex& p) {
             else ca.clearValue.depthStencil = {p.c.f[0], p.c.u[0]};
             const VkClearRect rect{{{rx, ry}, {rw, rh}}, 0, 1};
             vkCmdClearAttachments(cmd, 1, &ca, 1, &rect);
+            transfer_lineage(ImageWorkKind::Clear,nullptr,s.tex);
             vkCmdEndRendering(cmd);
             if (attachment.blocks) {
                 full_barrier(cmd);

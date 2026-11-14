@@ -18,7 +18,7 @@ def analyze(data):
     imported = []
     imported_buffers = []
     for index, event in enumerate(events):
-        if event.get('kind') not in (0, 1, 2):
+        if type(event.get('kind')) is not int or event['kind'] not in (0, 1, 2, 3, 4):
             raise ValueError('Unknown work kind')
         if not all(isinstance(event.get(key), bool) for key in ('seed', 'dependent', 'opaque_buffers')):
             raise ValueError('Invalid event flags')
@@ -80,16 +80,18 @@ def analyze(data):
         roots.update(imported[index])
         buffer_roots.update(imported_buffers[index])
         pending.extend(dependencies[index] - selected)
-    counts = {'graphics': 0, 'compute': 0, 'replacement': 0}
+    kinds = ('graphics', 'compute', 'replacement', 'transfer', 'clear')
+    active_kinds = kinds[:3] + tuple(name for k, name in enumerate(kinds[3:], 3) if any(events[i]['kind'] == k for i in selected))
+    counts = dict.fromkeys(active_kinds, 0)
     for index in selected:
-        counts[('graphics', 'compute', 'replacement')[events[index]['kind']]] += 1
-    per_eye = {'graphics': 0, 'compute': 0, 'replacement': 0}
+        counts[kinds[events[index]['kind']]] += 1
+    per_eye = dict.fromkeys(active_kinds, 0)
     private_images = set()
     private_buffers = set()
     for index in selected:
         event = events[index]
         if event['dependent']:
-            per_eye[('graphics', 'compute', 'replacement')[event['kind']]] += 1
+            per_eye[kinds[event['kind']]] += 1
             private_images.update(raw[0] for raw in event['writes'])
             private_buffers.update(tuple(raw[:3]) for raw in event.get('buffer_writes', []))
     private_reads = set()

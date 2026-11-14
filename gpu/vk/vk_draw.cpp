@@ -6437,6 +6437,7 @@ void shader_uniform_compute_note(const Program& p,const NvnState& s) {
     }
     shader_uniform_audit_note(p,s,0,&cameras);
 }
+bool xr_color_probe_mode(){static const bool enabled=env_on("RX_VK_XR_VIEW_COLOR_PROBE");return enabled;}
 // Eligibility reads existing state without another import or descriptor build. The
 // separate baseline-only switch additionally requires current-process stage review
 // before delegating preparation to the private recorder; the preflight alone is read-only.
@@ -6459,6 +6460,7 @@ void baseline_draw_preflight(VkCommandBuffer command,const Program& p,const NvnS
         }
         if(mask!=17)return "unsupported_stages";
         if(!target_write_mask(p,s,0)){
+            if(env_on("RX_VK_XR_VIEW_COLOR_PROBE"))return "view_color_probe_requires_color_output";
             if(!env_on("RX_VK_XR_SHIFTED_DRAW_PROBE"))return "no_primary_color_write";
             if(sw().no_depth||!s.ds.dt||!s.ds.dw)return "no_depth_reference_write";
             replay.depth_reference=true;
@@ -6505,7 +6507,12 @@ void baseline_draw_preflight(VkCommandBuffer command,const Program& p,const NvnS
         return "live_state_candidate_requires_shader_review";
     };
     note.reason=examine();xr_baseline_preflight_note(note);
-    if(std::strcmp(note.reason,"live_state_candidate_requires_shader_review")==0&&xr_baseline_draw_selected(p))xr_baseline_draw_prepare(replay);
+    if(std::strcmp(note.reason,"live_state_candidate_requires_shader_review")==0){
+        // In the color-only experiment reserve the bounded shader inventory for
+        // live-eligible programs instead of exhausting it on rejected depth/mesh work.
+        if(xr_color_probe_mode())shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+        if(xr_baseline_draw_selected(p))xr_baseline_draw_prepare(replay);
+    }
 }
 void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     xr_depth_capture_tick(texture_frame_no());
@@ -6985,7 +6992,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
             st_draws++, pass().draws++;
             eye_image_probe_note(cmd,at,s,vr_camera_seed);
             lineage_note(p,&at,vr_camera_seed,true);
-            if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+            if(vr_camera_seed&&!xr_color_probe_mode())shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
             return;
         }
         {   // (amd-fix, diagnosis) RX_VK_LOG_MESH_PROGS=1: each mesh program's first draw and every 600th, with what its
@@ -7053,7 +7060,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                 st_draws++, pass().draws++;
                 eye_image_probe_note(cmd,at,s,vr_camera_seed);
                 lineage_note(p,&at,vr_camera_seed,true);
-                if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+                if(vr_camera_seed&&!xr_color_probe_mode())shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
                 return;
             }
             if (d.max < 0 || d.stride < 0) SKIP_HERE();   // (hookshot: the game's ints; a negative count was ~4e9 draws)
@@ -7087,7 +7094,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         st_draws++, pass().draws++;
         eye_image_probe_note(cmd,at,s,vr_camera_seed);
         lineage_note(p,&at,vr_camera_seed,true);
-        if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+        if(vr_camera_seed&&!xr_color_probe_mode())shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
     }
     // vertex streams (from their pools, strides dynamic) and the zero stream
@@ -7180,7 +7187,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         st_draws++, pass().draws++;
         eye_image_probe_note(cmd,at,s,vr_camera_seed);
         lineage_note(p,&at,vr_camera_seed,true);
-        if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+        if(vr_camera_seed&&!xr_color_probe_mode())shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
         return;
     }
     if (d.indirect) {
@@ -7221,7 +7228,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
     if(xr_baseline_draw_enabled())xr_baseline_draw_finish(baseline_draw_serial,rec_value,p.key,cmd,dw().writes);
     eye_image_probe_note(cmd,at,s,vr_camera_seed);
     lineage_note(p,&at,vr_camera_seed,true);
-    if(vr_camera_seed)shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
+    if(vr_camera_seed&&!xr_color_probe_mode())shader_uniform_audit_note(p,s,s.ubo[0][0].addr);
 }
 
 /// A dispatch over 2 ms is logged, 60 times, and only while RX_VK_SLOW_DISPATCH is set. Off, the clock is not read.

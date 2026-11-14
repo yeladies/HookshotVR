@@ -143,16 +143,24 @@ def analyze_directory(directory,grammar,require_association=False):
         "pipeline_state_coverage_complete":False,"resource_alias_coverage_complete":False,"safe_to_replay":False,
         "baseline_preflight":baseline_preflight(root,reports),"programs":reports}
 
-def baseline_selection_text(report,nonce,source,lens_shift=False):
+def baseline_selection_text(report,nonce,source,lens_shift=False,view_shift=False,view_color=False):
     if not isinstance(nonce,str) or not re.fullmatch("[0-9a-f]{32}",nonce) or not isinstance(source,str) or not re.fullmatch("[0-9a-f]{8}",source):raise ValueError("Invalid baseline run/build identity")
     if report.get("safe_to_replay") is not False:raise ValueError("Expected diagnostic-only program report")
+    if view_color:view_shift=True
+    if view_shift:lens_shift=True
     selected=[];seen=set()
     for program in report.get("programs",[]):
         if program.get("shader_subset_candidate") is not True or program.get("vertex_camera_transform_reads_observed") is not True:continue
         if lens_shift:
             footprint=program.get("eye_patch_preflight") or {}
-            if footprint.get("status")!="matrix_footprint_only" or not footprint.get("all_primary_footprints_resolved"):continue
-            if any(row.get("vk_stage")!=1 and row.get("matrix_patch_read_byte_offsets") for row in footprint.get("primary_binding_footprints",[])):continue
+            if not footprint.get("all_primary_footprints_resolved"):continue
+            rows=footprint.get("primary_binding_footprints",[])
+            if view_color:
+                if footprint.get("status") not in ("matrix_footprint_only","unreviewed_preserved_fields"):continue
+                if not rows or any(any(offset not in (224,256,296,300) for offset in row.get("preserved_fields_requiring_review",[])) for row in rows):continue
+            else:
+                if footprint.get("status")!="matrix_footprint_only":continue
+                if any(row.get("vk_stage")!=1 and row.get("matrix_patch_read_byte_offsets") for row in rows):continue
         key=program.get("program");stages=program.get("stages",[])
         if type(key) is not int or not 0<key<(1<<64) or key in seen or len(stages)!=2:raise ValueError("Invalid baseline program identity")
         seen.add(key);mask=set();lines=[]
@@ -167,7 +175,7 @@ def baseline_selection_text(report,nonce,source,lens_shift=False):
         selected.append(f"{key:016x} 2\n"+"\n".join(lines))
         if len(selected)==32:break
     if not selected:raise ValueError("No inspected baseline shader candidates yet")
-    magic="HSVR_LENS_SHIFT_DRAW_V1" if lens_shift else "HSVR_BASELINE_DRAW_V1"
+    magic="HSVR_VIEW_COLOR_DRAW_V1" if view_color else ("HSVR_VIEW_SHIFT_DRAW_V1" if view_shift else ("HSVR_LENS_SHIFT_DRAW_V1" if lens_shift else "HSVR_BASELINE_DRAW_V1"))
     text=f"{magic}\n{nonce} {source} {len(selected)}\n"+"\n".join(selected)+"\n"
     if len(text.encode("ascii"))>8192:raise ValueError("Baseline selection exceeds native bound")
     return text
@@ -179,13 +187,15 @@ def main():
     parser.add_argument("--require-associated-lineage",action="store_true")
     parser.add_argument("--baseline-selection",type=Path);parser.add_argument("--nonce");parser.add_argument("--source-fingerprint")
     parser.add_argument("--lens-shift-selection",action="store_true",help="Select only resolved matrix-prefix vertex reads for the isolated lens-shift experiment")
+    parser.add_argument("--view-shift-selection",action="store_true")
+    parser.add_argument("--view-color-selection",action="store_true")
     args=parser.parse_args()
     if args.grammar.stat().st_size>8*1024*1024:parser.error("Grammar size exceeds bound")
     try:report=analyze_directory(args.directory,json.loads(args.grammar.read_text(encoding="utf-8")),args.require_associated_lineage)
     except (ValueError,KeyError,TypeError,OSError) as error:parser.error(str(error))
     args.output.write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
     if args.baseline_selection:
-        try:text=baseline_selection_text(report,args.nonce,args.source_fingerprint,args.lens_shift_selection)
+        try:text=baseline_selection_text(report,args.nonce,args.source_fingerprint,args.lens_shift_selection,args.view_shift_selection,args.view_color_selection)
         except (ValueError,TypeError) as error:parser.error(str(error))
         temporary=args.baseline_selection.with_name(args.baseline_selection.name+"."+args.nonce+".tmp")
         temporary.write_text(text,encoding="ascii",newline="\n");temporary.replace(args.baseline_selection)

@@ -19,7 +19,7 @@ def resolve(root, revision):
 
 
 def allowed_patch(path):
-    exact = {".gitignore", "readme.md", ".github/workflows/vr-bootstrap.yml", "host/hos_main.c", "host/rx_backend.c", "host/vr_camera_read.h", "nx2/build.py", "nx2/oot_wide.py", "nx2/test_timeline_modes.py", "gpu/vk/vk_api.h", "gpu/vk/vk_main.cpp", "gpu/vk/vk_replay.cpp", "gpu/vk/vk_draw.cpp", "gpu/vk/vk_shader.cpp", "gpu/vk/vk_internal.h", "gpu/vk/vk_memory.cpp", "docs/tested-configurations.md", "gpu/vk/vk_vma.cpp", "tests/temporal_jitter_test.cpp", "tests/test_temporal_jitter.py", "tests/capture_slot_ownership_test.cpp", "tests/test_capture_slot_ownership.py", "tests/test_upscale_fallback.py", "tests/test_program_cache_cleanup.py"}
+    exact = {".gitignore", "readme.md", ".github/workflows/vr-bootstrap.yml", "host/hos_main.c", "host/rx_backend.c", "host/vr_camera_read.h", "nx2/build.py", "nx2/oot_wide.py", "nx2/test_timeline_modes.py", "gpu/vk/vk_api.h", "gpu/vk/vk_main.cpp", "gpu/vk/vk_replay.cpp", "gpu/vk/vk_draw.cpp", "gpu/vk/vk_shader.cpp", "gpu/vk/vk_internal.h", "gpu/vk/vk_memory.cpp", "gpu/vk/vk_xfer.cpp", "docs/tested-configurations.md", "gpu/vk/vk_vma.cpp", "tests/temporal_jitter_test.cpp", "tests/test_temporal_jitter.py", "tests/capture_slot_ownership_test.cpp", "tests/test_capture_slot_ownership.py", "tests/test_upscale_fallback.py", "tests/test_program_cache_cleanup.py"}
     prefixes = ("vr/", "docs/vr-", "gpu/vk/vk_xr", "gpu/vk/xr_", "tests/test_vr_")
     if path.startswith(("work/", "/")) or ".." in Path(path).parts:
         return False

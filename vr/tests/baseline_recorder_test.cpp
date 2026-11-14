@@ -57,9 +57,9 @@ void vkCmdDispatch(VkCommandBuffer,uint32_t x,uint32_t y,uint32_t z){
     const size_t offset=p.source&((1u<<20)-1);check(offset+p.bytes<=source.size()&&p.bytes==target.size(),"bounded matrix source and destination");
     std::memcpy(target.data(),source.data()+offset,p.bytes);
     using namespace hookshot::vr;float base[56];std::memcpy(base,target.data(),sizeof base);EyeMatrices m{};
-    for(int r=0;r<3;++r)for(int c=0;c<4;++c)m.view.rows[r][c]=base[4*r+c];if(!p.mode)m.view.rows[0][3]=float(base[3]+p.shift);
+    for(int r=0;r<3;++r)for(int c=0;c<4;++c)m.view.rows[r][c]=base[4*r+c];if(p.mode!=1)m.view.rows[0][3]=float(base[3]+p.shift);
     float view[12],inverse[12];for(int i=0;i<12;++i)view[i]=float(m.view.rows[i/4][i%4]);uniform_detail::inverse(view,inverse);for(int r=0;r<3;++r)m.view.eye[r]=inverse[4*r+3];
-    for(int i=0;i<16;++i)m.projection[i]=base[28+i];if(p.mode)m.projection[2]=float(base[30]+p.shift);for(int r=0;r<4;++r)for(int c=0;c<4;++c)for(int k=0;k<4;++k)m.world_to_clip[4*r+c]+=m.projection[4*r+k]*(k==3?(c==3?1:0):m.view.rows[k][c]);
+    for(int i=0;i<16;++i)m.projection[i]=base[28+i];if(p.mode==1)m.projection[2]=float(base[30]+p.shift);for(int r=0;r<4;++r)for(int c=0;c<4;++c)for(int k=0;k<4;++k)m.world_to_clip[4*r+c]+=m.projection[4*r+k]*(k==3?(c==3?1:0):m.view.rows[k][c]);
     std::vector<std::byte> result;if(prepare_eye_uniform_copy(target.data(),p.bytes,m,ClipDepth::MinusOneToOne,result))std::memcpy(target.data(),result.data(),p.bytes);
     if(fake.matrix_corrupt)target[0xe0]^=1;if(fake.matrix_touch_source&&fake.matrix_dispatches==1)source.back()^=1;
 }
@@ -75,7 +75,7 @@ void vkCmdCopyImageToBuffer(VkCommandBuffer,VkImage image,VkImageLayout,VkBuffer
 void vkCmdBeginRendering(VkCommandBuffer,const VkRenderingInfo* rendering){check(rendering->layerCount==1&&rendering->colorAttachmentCount==1&&rendering->pDepthAttachment,"private color and depth rendering");fake.active=fake.views.at(rendering->pColorAttachments[0].imageView);fake.active_depth=fake.views.at(rendering->pDepthAttachment->imageView);}
 void vkCmdEndRendering(VkCommandBuffer){}
 void large_draw(VkImage image,int shift){auto& pixels=fake.images.at(image);for(int y=8;y<12;++y)for(int x=70+shift;x<78+shift;++x)pixels[(y*160+x)*4]=7;}
-void vkCmdDraw(VkCommandBuffer,uint32_t n,uint32_t instances,uint32_t first,uint32_t base){check(n==3&&instances==1&&first==0&&base==0,"exact native geometry");if(fake.large_scene){float p02=0;std::memcpy(&p02,fake.buffers.at(fake.last_ubo).data()+0x78,4);int shift=-int(std::round(p02*80));if(fake.wrong_shift)shift=-shift;large_draw(fake.active,shift);large_draw(fake.active_depth,shift);}else fake.images.at(fake.active)[0]=7;++fake.draws;if(fake.draws==fake.corrupt_draw)fake.images.at(fake.active)[1]=99;}
+void vkCmdDraw(VkCommandBuffer,uint32_t n,uint32_t instances,uint32_t first,uint32_t base){check(n==3&&instances==1&&first==0&&base==0,"exact native geometry");if(fake.large_scene){float p02=0;std::memcpy(&p02,fake.buffers.at(fake.last_ubo).data()+0x78,4);float tx=0;std::memcpy(&tx,fake.buffers.at(fake.last_ubo).data()+12,4);int shift=-int(std::round(p02*80))+int(std::round(tx*2));if(fake.wrong_shift)shift=-shift;large_draw(fake.active,shift);large_draw(fake.active_depth,shift);}else fake.images.at(fake.active)[0]=7;++fake.draws;if(fake.draws==fake.corrupt_draw)fake.images.at(fake.active)[1]=99;}
 void vkCmdDrawIndexed(VkCommandBuffer c,uint32_t n,uint32_t i,uint32_t first,int32_t vertex,uint32_t base){check(vertex==-2,"signed indexed vertex offset");vkCmdDraw(c,n,i,first,base);}
 VKAPI_ATTR void VKAPI_CALL push_descriptors(VkCommandBuffer,VkPipelineBindPoint,VkPipelineLayout,uint32_t,uint32_t count,const VkWriteDescriptorSet* writes){check(count==1,"full bounded descriptor set");fake.last_ubo=writes[0].pBufferInfo[0].buffer;++fake.pushes;}
 PFN_vkCmdPushDescriptorSetKHR vkCmdPushDescriptorSetKHR=push_descriptors;
@@ -105,7 +105,7 @@ int main(){try{
     for(int failure=1;failure<=12;++failure){reset();in=input(buffer);in.matrix_probe=true;fake.fail=failure;check(!xr_baseline_recorder_create(in),"matrix setup failure unwinds");cleaned();check(!fake.draws&&!fake.pushes&&!fake.ends&&!fake.matrix_dispatches,"failed optional setup records no commands");}
     for(int fault=0;fault<3;++fault){
         reset();in=input(buffer);in.matrix_probe=true;if(fault==0){in.camera.range=buffer.range=176;}float base[56]{};for(int i=0;i<3;++i){base[4*i+i]=1;base[44+4*i+i]=1;}
-        base[28]=base[33]=1;base[38]=-1.001f;base[39]=-.1f;base[42]=-1;for(int i=0;i<16;++i)base[12+i]=base[28+i];
+        base[28]=base[33]=1;base[38]=-(100.f+.05f)/(100.f-.05f);base[39]=-2.f*100.f*.05f/(100.f-.05f);base[42]=-1;for(int i=0;i<16;++i)base[12+i]=base[28+i];
         std::memcpy(fake.buffers.at(handle<VkBuffer>(10)).data(),base,sizeof base);const auto original=fake.buffers.at(handle<VkBuffer>(10));
         fake.matrix_corrupt=fault==1;fake.matrix_touch_source=fault==2;
         p=xr_baseline_recorder_create(in);check(p&&xr_baseline_recorder_prepare(p)&&fake.matrix_dispatches==2,"same GPU source patched twice");
@@ -121,14 +121,17 @@ int main(){try{
         check(!xr_baseline_recorder_create(in),"shifted setup failure unwinds every extra image, view, buffer and pipeline");cleaned();check(!fake.draws&&!fake.pushes&&!fake.ends&&!fake.matrix_dispatches,"shifted setup failure records no GPU work");}
     reset();in=input(buffer);in.shifted_draw_probe=true;check(!xr_baseline_recorder_create(in)&&!fake.allocations,"shifted draws require matrix validation");cleaned();
     // The lens experiment preserves two exact reference copies before two shifted draws.
-    for(bool depth:{false,true})for(bool wrong:{false,true}){
-        reset();in=input(buffer);in.matrix_probe=in.shifted_draw_probe=true;in.depth_reference=depth;in.color.width=in.depth.width=160;in.color.height=in.depth.height=32;
+    for(bool translated:{false,true})for(bool depth:{false,true})for(bool wrong:{false,true}){
+
+        reset();in=input(buffer);in.matrix_probe=in.shifted_draw_probe=true;in.depth_reference=depth;in.view_shift_probe=translated;in.view_color_probe=translated&&!depth;in.view_shift_units=translated?2.f:.01f;in.color.width=in.depth.width=160;in.color.height=in.depth.height=32;
         fake.large_scene=true;fake.wrong_shift=wrong;fake.images[handle<VkImage>(11)].resize(160*32*4);fake.images[handle<VkImage>(12)].resize(160*32*4);
-        float base[56]{};for(int i=0;i<3;++i){base[4*i+i]=1;base[44+4*i+i]=1;}base[28]=base[33]=1;base[38]=-1.001f;base[39]=-.1f;base[42]=-1;for(int i=0;i<16;++i)base[12+i]=base[28+i];std::memcpy(fake.buffers.at(handle<VkBuffer>(10)).data(),base,sizeof base);
+        float base[56]{};for(int i=0;i<3;++i){base[4*i+i]=1;base[44+4*i+i]=1;}base[28]=base[33]=1;base[38]=-(100.f+.05f)/(100.f-.05f);base[39]=-2.f*100.f*.05f/(100.f-.05f);base[42]=-1;for(int i=0;i<16;++i)base[12+i]=base[28+i];std::memcpy(fake.buffers.at(handle<VkBuffer>(10)).data(),base,sizeof base);
+        if(in.view_color_probe){auto& bytes=fake.buffers.at(handle<VkBuffer>(10));
+            for(auto field:std::initializer_list<std::pair<unsigned,float>>{{56,.05f},{57,100.f},{64,99.95f},{72,160.f},{73,32.f},{74,1.f/160},{75,1.f/32}})std::memcpy(bytes.data()+field.first*4,&field.second,4);}
         p=xr_baseline_recorder_create(in);check(p&&xr_baseline_recorder_prepare(p),"prepare baseline and shifted private images");large_draw(handle<VkImage>(11),0);large_draw(handle<VkImage>(12),0);
         check(xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes)&&fake.draws==4&&fake.pushes==5&&fake.last_ubo==handle<VkBuffer>(10),"four private draws, complete source restore");
         check(!xr_baseline_recorder_retire(p,comparison),"all shifted storage waits for completion");fake.completed=9;check(xr_baseline_recorder_retire(p,comparison),"shifted resources retired");
-        check(comparison.result==XrBaselineComparison::Result::Match&&comparison.depth_reference==depth&&comparison.matrix_probe_validated&&comparison.shifted_draw_requested&&comparison.shifted_draw_verified==!wrong,"correct shifted masks pass; wrong raster direction fails without weakening baseline");cleaned();
+        check(comparison.result==XrBaselineComparison::Result::Match&&comparison.depth_reference==depth&&comparison.view_shift_requested==translated&&comparison.matrix_probe_validated&&comparison.shifted_draw_requested&&comparison.shifted_draw_verified==!wrong,"correct shifted masks pass; wrong raster direction fails without weakening baseline");cleaned();
     }
     // A second view begins inside the first and extends the copied camera span.
     reset();in=input(buffer);VkDescriptorBufferInfo aliases[2]={{handle<VkBuffer>(10),0,256},{handle<VkBuffer>(10),128,432}};

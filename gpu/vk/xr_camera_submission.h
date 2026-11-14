@@ -43,10 +43,13 @@ inline SubmittedCameraMatch match_submitted_uniform(const SceneSubmissionSnapsho
                                                     uint32_t width,uint32_t height,const float* block,size_t count) {
     SubmittedCameraMatch out{};
     if(!snapshot||snapshot->captured_ns<=0||now<snapshot->captured_ns||now-snapshot->captured_ns>500000000)return out;
+    // All candidates share this copied block: validate shape/coherence once,
+    // then retain individual freshness, identity and exact camera comparisons.
+    if(match_camera_uniform(block,count,width,height,nullptr)!=SceneCameraMatch::NoCamera)return out;
     for(size_t i=0;i<snapshot->count&&i<snapshot->cameras.size();++i) {
         const auto& c=snapshot->cameras[i];
         if(c.received_ns<=0||c.received_ns>snapshot->captured_ns||snapshot->captured_ns-c.received_ns>250000000)continue;
-        if(match_camera_uniform(block,count,width,height,&c.pair)!=SceneCameraMatch::Match)continue;
+        if(match_validated_camera_pair(block,&c.pair)!=SceneCameraMatch::Match)continue;
         if(out.camera_id&&out.camera_id!=c.pair.primary.camera_id){out.ambiguous=true;out.matched=false;return out;}
         out.camera_id=c.pair.primary.camera_id;out.revision=c.pair.revision;++out.equivalent;out.matched=true;
     }

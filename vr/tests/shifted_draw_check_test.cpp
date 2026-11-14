@@ -19,5 +19,10 @@ int main(){try{
     pixels.assign(frame*6,0);check(!compare().verified,"invisible reference is inconclusive");
     valid();check(!compare_xr_shifted_draw(pixels.data(),pixels.size()-1,160,32).verified,"truncated readback rejected");
     check(!compare_xr_shifted_draw(nullptr,pixels.size(),160,32).verified&&!compare_xr_shifted_draw(pixels.data(),pixels.size(),4097,32).verified,"invalid bounds rejected");
+    valid();check(compare_xr_shifted_draw(pixels.data(),pixels.size(),160,32,true).verified,"translated displacement control");
+    valid();std::memset(pixels.data()+4*frame,0,frame);std::memset(pixels.data()+5*frame,0,frame);fill(4,-2);fill(5,2);
+    check(compare_xr_shifted_draw(pixels.data(),pixels.size(),160,32,true).verified&&!compare().verified,"translated mode is not a fixed lens-shift oracle");
+    valid();std::memset(pixels.data()+5*frame,0,frame);fill(5,10);
+    check(!compare_xr_shifted_draw(pixels.data(),pixels.size(),160,32,true).verified,"unbalanced translated corruption rejected");
     std::cout<<"Shifted raster masks require exact baselines, visible output and opposite bounded displacement\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

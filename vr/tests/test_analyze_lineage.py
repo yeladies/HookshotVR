@@ -121,4 +121,16 @@ class SameStatePlanTests(unittest.TestCase):
         self.assertEqual(result['per_eye_work_review_indices'],[])
         self.assertFalse(result['replay_ready'])
 
+class TransferLineageTests(unittest.TestCase):
+    def test_transfer_and_partial_clear_keep_source_chain(self):
+        events=[event(0,[],[[1,1]],seed=True,dependent=True),event(3,[[1,1]],[[2,1]],dependent=True),event(4,[[2,1]],[[2,2]],dependent=True)]
+        result=lineage.analyze(dict(schema=1,replay_ready=False,coverage_complete=False,present_image=2,events=events))
+        self.assertEqual(result['present_slice_kinds']['transfer'],1)
+        self.assertEqual(result['per_eye_work_candidates']['clear'],1)
+        self.assertEqual(result['same_state_plan']['per_eye_work_review_indices'],[0,1,2])
+        self.assertFalse(result['replay_ready'])
+    def test_boolean_kind_is_not_a_work_type(self):
+        capture=LineageTests().capture();capture['events'][0]['kind']=True
+        with self.assertRaises(ValueError):lineage.analyze(capture)
+
 if __name__ == '__main__': unittest.main()

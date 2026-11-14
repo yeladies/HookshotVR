@@ -68,7 +68,14 @@ class ProgramTests(unittest.TestCase):
         self.record["stages"][0]["module"]=self.vertex;self.record["bindings"][0]["module"]=self.vertex
         report=self.analyze();text=audit.baseline_selection_text(report,"a"*32,"1234abcd",True)
         self.assertTrue(text.startswith("HSVR_LENS_SHIFT_DRAW_V1\n"))
+        view=audit.baseline_selection_text(report,"a"*32,"1234abcd",view_shift=True)
+        self.assertTrue(view.startswith("HSVR_VIEW_SHIFT_DRAW_V1\n"))
         program=report["programs"][0];program["eye_patch_preflight"]["status"]="unreviewed_preserved_fields"
+        rows=program["eye_patch_preflight"]["primary_binding_footprints"]
+        rows[0]["preserved_fields_requiring_review"]=[224,256,296,300]
+        self.assertTrue(audit.baseline_selection_text(report,"a"*32,"1234abcd",view_color=True).startswith("HSVR_VIEW_COLOR_DRAW_V1\n"))
+        rows[0]["preserved_fields_requiring_review"].append(324)
+        with self.assertRaises(ValueError):audit.baseline_selection_text(report,"a"*32,"1234abcd",view_color=True)
         with self.assertRaises(ValueError):audit.baseline_selection_text(report,"a"*32,"1234abcd",True)
     def test_lens_selection_rejects_primary_fragment_matrix_reads(self):
         binding=self.record["bindings"][0]

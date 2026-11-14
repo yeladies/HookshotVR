@@ -21,7 +21,13 @@ int main(){try {
     check(graph.stats().opaque==1&&graph.dependent(14),"unresolved buffer dependencies remain visible");
     auto huge=work(ImageWorkKind::Compute,{},{});huge.reads.resize(65,11);const auto before=graph.records().size();graph.observe(huge);
     check(graph.stats().overflow&&graph.records().size()==before,"oversized descriptor lists rejected without partial record");
-    graph.reset();check(!graph.dependent(14)&&!graph.stats().overflow,"new frame has no stale image identity");
+    graph.reset();graph.observe(work(ImageWorkKind::Graphics,{}, {1},true));
+    graph.observe(work(ImageWorkKind::Transfer,{1},{2}));
+    graph.observe(work(ImageWorkKind::Clear,{}, {2}));
+    check(graph.dependent(2)&&graph.records()[2].inputs[0].version==1,"transfer follows source; clear conservatively retains partial destination");
+    auto to_buffer=work(ImageWorkKind::Transfer,{2},{});to_buffer.buffers.push_back({{900,0,16},true});graph.observe(to_buffer);
+    auto from_buffer=work(ImageWorkKind::Transfer,{}, {3});from_buffer.buffers.push_back({{900,0,16},false});graph.observe(from_buffer);
+    check(graph.dependent(3),"texture-buffer-texture chain preserves eye dependence");    graph.reset();check(!graph.dependent(14)&&!graph.stats().overflow,"new frame has no stale image identity");
     for(size_t i=0;i<FrameImageGraph::max_events+1;++i)graph.observe(work(ImageWorkKind::Graphics,{},{1},true));
     check(graph.stats().overflow&&graph.records().size()==FrameImageGraph::max_events,"event storage bounded");
     graph.reset();for(uint64_t i=1;i<=FrameImageGraph::max_images;++i)graph.observe(work(ImageWorkKind::Compute,{}, {i}));

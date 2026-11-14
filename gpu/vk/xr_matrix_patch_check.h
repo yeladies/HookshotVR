@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "xr_eye_uniform_copy.h"
+#include "xr_projection_constants.h"
 namespace mkwvk {
 // Source before/after and two unbound private patches. Does not validate a game draw.
-inline bool xr_matrix_patch_payloads(const unsigned char* data,size_t bytes,size_t range,bool lens=false,float magnitude=.01f){
+inline bool xr_matrix_patch_payloads(const unsigned char* data,size_t bytes,size_t range,bool lens=false,float magnitude=.01f,bool raw_view_diagnostic=false,bool projection_constants=false,uint32_t width=0,uint32_t height=0){
     using namespace hookshot::vr;
-    if(!data||range<0x230||range>65536||range%4||!std::isfinite(magnitude)||magnitude<=0||magnitude>.05f||bytes!=4*range||std::memcmp(data,data+range,range))return false;
+    if(!data||range<0x230||range>65536||range%4||!std::isfinite(magnitude)||magnitude<=0||magnitude>(raw_view_diagnostic&&!lens?8.f:.05f)||bytes!=4*range||std::memcmp(data,data+range,range))return false;
+    if(projection_constants){float constants[76];std::memcpy(constants,data,sizeof constants);
+        if(!raw_view_diagnostic||lens||!xr_projection_constants_valid(constants,76,width,height))return false;}
+
     float base[56];std::memcpy(base,data,sizeof base);
     float translations[2]{};
     for(unsigned eye=0;eye<2;++eye){

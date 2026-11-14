@@ -11,7 +11,7 @@ void main() {
     if(parameters.bytes<0x230 || parameters.bytes>65536 || parameters.bytes%4!=0) return;
     // Copy the actual submitted GPU bytes, including fields whose semantics are unknown.
     for(uint i=0;i<parameters.bytes/4;++i) parameters.destination.words[i]=parameters.source.words[i];
-    if(!finiteValue(parameters.shift)||abs(parameters.shift)>0.05||parameters.mode>1) return;
+    if(!finiteValue(parameters.shift)||abs(parameters.shift)>(parameters.mode>=2?8.0:0.05)||parameters.mode>3) return;
     float b[56]; for(uint i=0;i<56;++i) { b[i]=uintBitsToFloat(parameters.source.words[i]); if(!finiteValue(b[i])) return; }
     // Reviewed affine rigid-view and perspective prefix only. Invalid source remains unchanged.
     for(int r=0;r<3;++r) for(int s=0;s<3;++s) {
@@ -31,7 +31,16 @@ void main() {
         float t=0;for(int k=0;k<3;++k)t-=b[4*k+r]*b[4*k+3];
         if(!closeValue(t,b[44+4*r+3]))return;
     }
-    if(parameters.mode==0)b[3]+=parameters.shift; // Uncalibrated view displacement.
+    if(parameters.mode==3){
+        float n=uintBitsToFloat(parameters.source.words[56]),f=uintBitsToFloat(parameters.source.words[57]);
+        float span=uintBitsToFloat(parameters.source.words[64]),width=uintBitsToFloat(parameters.source.words[72]),height=uintBitsToFloat(parameters.source.words[73]);
+        float iw=uintBitsToFloat(parameters.source.words[74]),ih=uintBitsToFloat(parameters.source.words[75]);
+        if(!finiteValue(n)||!finiteValue(f)||!finiteValue(span)||!finiteValue(width)||!finiteValue(height)||!finiteValue(iw)||!finiteValue(ih)||n<=0||f<=n||f>100000000.0||
+           width!=float(parameters.reserved&65535u)||height!=float(parameters.reserved>>16)||width<1||height<1||width>16384||height>16384)return;
+        if(abs(b[38]+(f+n)/(f-n))>0.00001+abs((f+n)/(f-n))*0.0001||abs(b[39]+2*f*n/(f-n))>0.00001+abs(2*f*n/(f-n))*0.0001||
+           abs(span-(f-n))>0.00001+(f-n)*0.0001||abs(iw-1/width)>0.000000001+0.00001/width||abs(ih-1/height)>0.000000001+0.00001/height)return;
+    }
+    if(parameters.mode!=1)b[3]+=parameters.shift; // Uncalibrated view displacement.
     else b[30]+=parameters.shift; // Bounded lens-center shift for a raster displacement test.
     for(int r=0;r<4;++r)for(int c=0;c<4;++c) {
         float v=0;for(int k=0;k<4;++k)v+=b[28+4*r+k]*(k==3?(c==3?1.0:0.0):b[4*k+c]);

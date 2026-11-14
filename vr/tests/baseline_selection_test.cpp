@@ -8,7 +8,7 @@ int main(int argc,char** argv){try{
     if(argc==4&&std::string(argv[1])=="--check"){
         std::string text;char c;while(std::cin.get(c)){if(text.size()>=8192)throw std::runtime_error("selection size bound");text+=c;}
         XrBaselineSelection parsed;check(parse_xr_baseline_selection(text,argv[2],argv[3],parsed),"invalid generated baseline selection");
-        std::cout<<"Baseline protocol verified; programs="<<parsed.programs.size()<<'\n';return 0;
+    std::cout<<"Baseline protocol verified; programs="<<parsed.programs.size()<<'\n';return 0;
     }
     check(argc==1,"unsupported protocol checker arguments");
     const std::string nonce(32,'a'),source="1234abcd";
@@ -34,5 +34,13 @@ int main(int argc,char** argv){try{
     check(!parse(lens),"baseline mode rejects lens-shift selection");
     check(parse_xr_baseline_selection(lens,nonce,source,out,true),"explicit lens mode accepts its own protocol");
     check(!parse_xr_baseline_selection(header+"1\n"+body,nonce,source,out,true),"lens mode rejects unchanged baseline selection");
+        const auto view=std::string("HSVR_VIEW_SHIFT_DRAW_V1\n")+nonce+" "+source+" 1\n"+body;
+    check(parse_xr_baseline_selection(view,nonce,source,out,true,true),"explicit translated mode accepts its own protocol");
+    check(!parse_xr_baseline_selection(view,nonce,source,out,true),"lens mode rejects translated protocol");
+    check(!parse_xr_baseline_selection(lens,nonce,source,out,true,true),"translated mode rejects lens protocol");
+    const auto color=std::string("HSVR_VIEW_COLOR_DRAW_V1\n")+nonce+" "+source+" 1\n"+body;
+    check(parse_xr_baseline_selection(color,nonce,source,out,true,true,true),"color view mode accepts its own protocol");
+    check(!parse_xr_baseline_selection(color,nonce,source,out,true,true),"depth view mode rejects color mode");
+    check(!parse_xr_baseline_selection(view,nonce,source,out,true,true,true),"color mode rejects depth view selection");
     std::cout<<"Baseline selection is bounded, run/build scoped and atomic on malformed identities\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

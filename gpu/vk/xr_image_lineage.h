@@ -9,7 +9,7 @@
 #include <vector>
 #include <map>
 namespace mkwvk {
-enum class ImageWorkKind { Graphics, Compute, Replacement };
+enum class ImageWorkKind { Graphics, Compute, Replacement, Transfer, Clear };
 struct BufferSpan {
     uint64_t object=0,offset=0,size=0;
     bool valid()const{return object&&size&&offset<=UINT64_MAX-size;}

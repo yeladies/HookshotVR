@@ -24,6 +24,16 @@ class ImmersiveLaunchGuards(unittest.TestCase):
                 result=subprocess.run(['powershell','-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=20)
                 self.assertEqual(result.returncode,0,result.stderr)
                 self.assertEqual(json.loads(result.stdout),['--lens-shift-selection'] if enabled else [])
+    def test_view_shift_units_require_explicit_translated_probe(self):
+        self.reject(['-ViewShiftUnits','.01'],'View shift units require the translated non-XR probe')
+    def test_color_draw_requires_isolated_baseline(self):
+        self.reject(['-TranslatedColorDrawProbe'],'Translated color probe requires the isolated non-XR baseline')
+    def test_color_draw_cannot_open_xr(self):
+        self.reject(['-TranslatedColorDrawProbe','-IsolatedDrawProbe','-XrPreview'],'requires its own non-XR run')
+    def test_translated_draw_requires_isolated_baseline(self):
+        self.reject(['-TranslatedDrawProbe'],'Translated draw probe requires the isolated non-XR baseline')
+    def test_translated_draw_cannot_open_xr(self):
+        self.reject(['-TranslatedDrawProbe','-IsolatedDrawProbe','-XrPreview'],'requires its own non-XR run')
     def test_shifted_draw_requires_isolated_baseline(self):
         self.reject(['-ShiftedDrawProbe'],'Lens-shift draw probe requires the isolated non-XR baseline')
     def test_shifted_draw_cannot_open_xr(self):

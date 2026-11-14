@@ -83,10 +83,13 @@ int main(int argc,char** argv){
     const bool reject_ssbo=argc==3&&!std::strcmp(argv[2],"--expect-ssbo-rejection");
     const bool reject_matrix_shift=argc==3&&!std::strcmp(argv[2],"--matrix-patch-reject-shift");
     const bool reject_matrix_view=argc==3&&!std::strcmp(argv[2],"--matrix-patch-reject-view");
+    const bool reject_color=argc==3&&!std::strcmp(argv[2],"--matrix-patch-color-invalid-viewport");
+    const bool matrix_color=reject_color||(argc==3&&!std::strcmp(argv[2],"--matrix-patch-color-view"));
+    const bool matrix_raw=matrix_color||(argc==3&&!std::strcmp(argv[2],"--matrix-patch-view-diagnostic"));
     const bool matrix_lens=argc==3&&!std::strcmp(argv[2],"--matrix-patch-lens");
-    const bool matrix_patch=matrix_lens||(argc==3&&!std::strcmp(argv[2],"--matrix-patch"))||reject_matrix_shift||reject_matrix_view;
+    const bool matrix_patch=matrix_raw||matrix_lens||(argc==3&&!std::strcmp(argv[2],"--matrix-patch"))||reject_matrix_shift||reject_matrix_view||reject_color;
     if(argc<2||argc>3||std::strcmp(argv[1],"--run")||(argc==3&&!reject_ubo&&!reject_ssbo&&!matrix_patch&&!gpu_eye_copy)){
-        std::cerr<<"Explicit native GPU opt-in: --run [--same-state-copy|--expect-ubo-rejection|--expect-ssbo-rejection|--matrix-patch|--matrix-patch-lens|--matrix-patch-reject-shift|--matrix-patch-reject-view]\n";return 2;
+        std::cerr<<"Explicit native GPU opt-in: --run [--matrix-patch-color-view|--matrix-patch-color-invalid-viewport|--matrix-patch-view-diagnostic|--same-state-copy|--expect-ubo-rejection|--expect-ssbo-rejection|--matrix-patch|--matrix-patch-lens|--matrix-patch-reject-shift|--matrix-patch-reject-view]\n";return 2;
     }
     const bool expect_rejection=reject_ubo||reject_ssbo;
     try {
@@ -142,15 +145,17 @@ int main(int argc,char** argv){
             base[12+4*r+col]+=base[28+4*r+k]*(k==3?(col==3?1.f:0.f):base[4*k+col]);
         uniform_detail::inverse(base,base+0xb0/4);std::memcpy(original.data(),base,sizeof base);
         if(reject_matrix_view){float invalid=2;std::memcpy(original.data(),&invalid,4);}
+        if(matrix_color)for(auto field:std::initializer_list<std::pair<unsigned,float>>{{56,.05f},{57,1000.f},{64,999.95f},{72,32.f},{73,32.f},{74,reject_color?0.f:1.f/32},{75,1.f/32}})
+            std::memcpy(original.data()+field.first*4,&field.second,4);
         const auto source_before=original;std::array<std::vector<std::byte>,2> payloads;
         for(unsigned eye=0;eye<2;++eye){
-            if(reject_matrix_shift||reject_matrix_view){payloads[eye]=original;continue;}
+            if(reject_matrix_shift||reject_matrix_view||reject_color){payloads[eye]=original;continue;}
             EyeMatrices matrices{};TrackingOrigin origin{};origin.yaw_radians=.3;
             XrPosef pose{{0,0,float(std::sin(.1)),float(std::cos(.1))},{eye?.032f:-.032f,1,2}};
             require(tracked_camera_view(origin,pose,XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT,matrices.view),"authored tracked eye");
             if(matrix_patch){
                 for(int r=0;r<3;++r)for(int col=0;col<4;++col)matrices.view.rows[r][col]=base[4*r+col];
-                matrices.view.rows[0][3]=float(base[3]+(matrix_lens?0:(eye?.01f:-.01f)));
+                matrices.view.rows[0][3]=float(base[3]+(matrix_lens?0:(matrix_raw?(eye?2.f:-2.f):(eye?.01f:-.01f))));
                 float view[12],inverse[12];for(int i=0;i<12;++i)view[i]=float(matrices.view.rows[i/4][i%4]);
                 uniform_detail::inverse(view,inverse);for(int r=0;r<3;++r)matrices.view.eye[r]=inverse[4*r+3];
             }
@@ -160,7 +165,7 @@ int main(int argc,char** argv){
                 matrices.world_to_clip[4*r+col]+=matrices.projection[4*r+k]*(k==3?(col==3?1:0):matrices.view.rows[k][col]);
             require(prepare_eye_uniform_copy(original.data(),original.size(),matrices,ClipDepth::MinusOneToOne,payloads[eye]),"prepare complete eye payload");
         }
-        require(original==source_before&&((reject_matrix_shift||reject_matrix_view)||payloads[0]!=payloads[1]),"source preserved and eye payloads distinct");
+        require(original==source_before&&((reject_matrix_shift||reject_matrix_view||reject_color)||payloads[0]!=payloads[1]),"source preserved and eye payloads distinct");
         EyeResourcePair pair;require(pair.create(c.device,api,memory,32,32,VK_FORMAT_R8G8B8A8_UNORM,4096,8*1024*1024,true),"create bounded independent eyes");
         require(pair.eye(0)->address&&pair.eye(1)->address&&pair.eye(0)->address!=pair.eye(1)->address,"independent buffer device addresses");
         // A target stays alive through the source pair's submission fence. On an
@@ -268,7 +273,7 @@ int main(int argc,char** argv){
                 VkMemoryBarrier ready{VK_STRUCTURE_TYPE_MEMORY_BARRIER};ready.srcAccessMask=VK_ACCESS_MEMORY_READ_BIT|VK_ACCESS_MEMORY_WRITE_BIT;ready.dstAccessMask=VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT;
                 barrier(command,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,1,&ready,0,nullptr,0,nullptr);
                 struct MatrixParameters {VkDeviceAddress source,destination;uint32_t bytes;float shift;uint32_t mode,reserved;};static_assert(sizeof(MatrixParameters)==32);
-                const MatrixParameters parameters{c.auxiliary[0].address,e.address,4096,reject_matrix_shift?.1f:(matrix_lens?(eye?-.01f:.01f):(eye?.01f:-.01f)),matrix_lens?1u:0u,0};
+                const MatrixParameters parameters{c.auxiliary[0].address,e.address,4096,reject_matrix_shift?.1f:(matrix_lens?(eye?-.01f:.01f):(matrix_raw?(eye?2.f:-2.f):(eye?.01f:-.01f))),matrix_color?3u:(matrix_raw?2u:(matrix_lens?1u:0u)),matrix_color?(32u|(32u<<16)):0};
                 c.fn<PFN_vkCmdBindPipeline>("vkCmdBindPipeline")(command,VK_PIPELINE_BIND_POINT_COMPUTE,c.matrix_pipeline);
                 c.fn<PFN_vkCmdPushConstants>("vkCmdPushConstants")(command,c.layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof parameters,&parameters);
                 c.fn<PFN_vkCmdDispatch>("vkCmdDispatch")(command,1,1,1);
@@ -314,10 +319,10 @@ int main(int argc,char** argv){
         for(unsigned eye=0;eye<2;++eye){for(unsigned pixel=0;pixel<1024;++pixel)for(unsigned channel=0;channel<4;++channel)
                 pixels_correct&=bytes[eye*8192+pixel*4+channel]==((channel==(eye+round)%2||channel==3)?255:0);
             for(unsigned offset=0;offset<4096;++offset){
-                if(matrix_patch&&!reject_matrix_shift&&!reject_matrix_view&&offset<0xe0&&(offset<0x70||offset>=0xb0))continue;
+                if(matrix_patch&&!reject_matrix_shift&&!reject_matrix_view&&!reject_color&&offset<0xe0&&(offset<0x70||offset>=0xb0))continue;
                 mismatches[eye]+=bytes[eye*8192+4096+offset]!=std::to_integer<unsigned char>(payloads[eye][offset]);
             }
-            if(matrix_patch&&!reject_matrix_shift&&!reject_matrix_view){
+            if(matrix_patch&&!reject_matrix_shift&&!reject_matrix_view&&!reject_color){
                 float actual[56],expected[56];std::memcpy(actual,bytes+eye*8192+4096,sizeof actual);std::memcpy(expected,payloads[eye].data(),sizeof expected);
                 for(int i=0;i<56;++i)mismatches[eye]+=!std::isfinite(actual[i])||std::abs(actual[i]-expected[i])>0.00003f*(1+std::abs(expected[i]));
                 // Independently project a point five units ahead of the source camera.
@@ -342,7 +347,9 @@ int main(int argc,char** argv){
         }
         }
         if(gpu_eye_copy)std::cout<<"same_state_gpu_copy=true; target_pixels_checked=4096; CPU_pixel_upload=false; XR_swapchain=false; ";
-        if(matrix_patch)std::cout<<"gpu_lens_shift="<<(matrix_lens?"true":"false")<<"; gpu_matrix_patch=true; same_source_for_both_eyes=true; matrix_rejection_verified="<<((reject_matrix_shift||reject_matrix_view)?"true":"false")<<"; projected_point_displacement_verified="<<((!reject_matrix_shift&&!reject_matrix_view)?"true":"false")<<"; game_draw_transformed=false; ";
+        if(matrix_color)std::cout<<"projection_scalar_guard=true; invalid_viewport_rejection="<<(reject_color?"true":"false")<<"; ";
+        if(matrix_raw)std::cout<<"raw_view_diagnostic=true; raw_view_displacement=2; calibrated_IPD=false; ";
+        if(matrix_patch)std::cout<<"gpu_lens_shift="<<(matrix_lens?"true":"false")<<"; gpu_matrix_patch=true; same_source_for_both_eyes=true; matrix_rejection_verified="<<((reject_matrix_shift||reject_matrix_view||reject_color)?"true":"false")<<"; projected_point_displacement_verified="<<((!reject_matrix_shift&&!reject_matrix_view&&!reject_color)?"true":"false")<<"; game_draw_transformed=false; ";
         std::cout<<"GPU="<<props.deviceName<<"; eye_allocation_bytes="<<pair.allocated_bytes()<<"; auxiliary_allocation_bytes="<<c.auxiliary_bytes<<"; independent_images=2; independent_buffers=2; disjoint_device_addresses=true; physical_address_shader_readback=true; private_ubo_routes=2; private_ssbo_routes=2; descriptor_root_agreement_verified="<<(!expect_rejection?"true":"false")<<"; expected_descriptor_rejection_verified="<<(expect_rejection?"true":"false")<<"; private_shader_words_checked=4096; shared_shader_words_checked=4096; original_root_shader_words_checked=2048; gpu_root_copy_verified=true; private_guest_roots=2; guest_table_bytes_per_eye=25165824; guest_window_aliases_checked=true; original_gpu_bytes_checked=8192; image_pixels_checked=4096; buffer_bytes_checked=16384; full_uniform_payloads_checked=4; submissions=2; resource_allocations_reused=true; original_payload_unchanged=true; fence_complete=true; XR=false; game=false\n";
         return 0;
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

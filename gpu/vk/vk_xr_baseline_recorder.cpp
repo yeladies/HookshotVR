@@ -97,6 +97,8 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& reques
     // Validate and own the writer payload before examining raw descriptor arrays.
     XrDescriptorSnapshot checked;if(!checked.capture(in.writes))return nullptr;
     in.writes=checked.writes();
+    if(in.view_shift_probe&&(!in.shifted_draw_probe||in.depth_reference==in.view_color_probe||!std::isfinite(in.view_shift_units)||in.view_shift_units<=0||in.view_shift_units>8))return nullptr;
+    if(in.view_color_probe&&!in.view_shift_probe)return nullptr;
     if(in.depth_reference&&!in.shifted_draw_probe)return nullptr;
     if(in.shifted_draw_probe&&(!in.matrix_probe||in.color.width<160))return nullptr;
     // A shader may consume only 0xb0 bytes of a much larger declared view block.
@@ -206,7 +208,7 @@ bool xr_baseline_recorder_prepare(XrBaselineRecorder* p){
         vkCmdBindPipeline(in.command,VK_PIPELINE_BIND_POINT_COMPUTE,p->matrix_pipeline);
         for(unsigned eye=0;eye<2;++eye){
             struct Parameters {VkDeviceAddress source,destination;uint32_t bytes;float shift;uint32_t mode,reserved;};static_assert(sizeof(Parameters)==32);
-            const Parameters parameters{p->matrix_source,p->matrix_destinations[eye],uint32_t(in.camera.range),in.shifted_draw_probe?(eye?-8.f:8.f)/in.color.width:(eye?.01f:-.01f),in.shifted_draw_probe?1u:0u,0};
+            const Parameters parameters{p->matrix_source,p->matrix_destinations[eye],uint32_t(in.camera.range),in.view_shift_probe?(eye?in.view_shift_units:-in.view_shift_units):(in.shifted_draw_probe?(eye?-8.f:8.f)/in.color.width:(eye?.01f:-.01f)),in.view_color_probe?3u:(in.view_shift_probe?2u:(in.shifted_draw_probe?1u:0u)),in.view_color_probe?(in.color.width|(in.color.height<<16)):0};
             vkCmdPushConstants(in.command,p->matrix_layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof parameters,&parameters);vkCmdDispatch(in.command,1,1,1);
         }
         // No compute descriptors are touched. Ordinary compute dispatches rebind
@@ -251,11 +253,11 @@ bool xr_baseline_recorder_retire(XrBaselineRecorder*& p,XrBaselineComparison& co
     comparison={};if(finished){invalidate_mapped(p->readback_memory,p->readback_bytes);comparison=compare_xr_baseline(p->mapped,size_t(4*p->frame_bytes),p->source.color.width,p->source.color.height);
         if(p->source.matrix_probe){const auto n=size_t(p->source.camera.range);const auto* bytes=static_cast<const unsigned char*>(p->mapped)+(p->source.shifted_draw_probe?6:4)*p->frame_bytes;
             comparison.depth_reference=p->source.depth_reference;comparison.matrix_probe_requested=true;comparison.matrix_payload_bytes=n;comparison.matrix_source_unchanged=!std::memcmp(bytes,bytes+n,n);
-            comparison.matrix_probe_validated=xr_matrix_patch_payloads(bytes,4*n,n,p->source.shifted_draw_probe, p->source.shifted_draw_probe?8.f/p->source.color.width:.01f);
+            comparison.matrix_probe_validated=xr_matrix_patch_payloads(bytes,4*n,n,p->source.shifted_draw_probe&&!p->source.view_shift_probe, p->source.view_shift_probe?p->source.view_shift_units:(p->source.shifted_draw_probe?8.f/p->source.color.width:.01f),p->source.view_shift_probe,p->source.view_color_probe,p->source.color.width,p->source.color.height);
         }
     }
-    if(finished&&p->source.shifted_draw_probe){const auto shifted=compare_xr_shifted_draw(p->mapped,size_t(6*p->frame_bytes),p->source.color.width,p->source.color.height);
-        comparison.shifted_draw_requested=true;comparison.shifted_draw_verified=shifted.verified;comparison.shifted_centroid_x=shifted.x;comparison.shifted_centroid_y=shifted.y;comparison.shifted_changed_pixels=shifted.changed;
+    if(finished&&p->source.shifted_draw_probe){const auto shifted=compare_xr_shifted_draw(p->mapped,size_t(6*p->frame_bytes),p->source.color.width,p->source.color.height,p->source.view_shift_probe);
+        comparison.view_color_requested=p->source.view_color_probe;comparison.view_shift_requested=p->source.view_shift_probe;comparison.view_shift_units=p->source.view_shift_units;comparison.shifted_draw_requested=true;comparison.shifted_draw_verified=shifted.verified;comparison.shifted_centroid_x=shifted.x;comparison.shifted_centroid_y=shifted.y;comparison.shifted_changed_pixels=shifted.changed;
     }
     if(!p->color.retire(completed)||!p->depth.retire(completed)||!p->shift_color.retire(completed)||!p->shift_depth.retire(completed))return false;
     release_buffers(*p);delete p;p=nullptr;return true;

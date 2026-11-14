@@ -71,13 +71,13 @@ class UpdateTests(unittest.TestCase):
             self.assertEqual((Path(report["candidate_directory"])/("vr/shaders/"+name)).read_text(),(self.root/("vr/shaders/"+name)).read_text())
         self.assertEqual(report["compatibility"],"unverified")
     def test_native_mirror_query_and_validation_record_reapply(self):
-        for name in ("gpu/vk/vk_memory.cpp","docs/tested-configurations.md"):
+        for name in ("gpu/vk/vk_memory.cpp","gpu/vk/vk_xfer.cpp","docs/tested-configurations.md"):
             path=self.root/name;path.parent.mkdir(parents=True,exist_ok=True)
             path.write_text("// authored synthetic source or validation fixture\n")
         self.commit("mirror query and validation record")
         report=update.prepare(self.root,self.manifest,self.base)
         self.assertTrue(report["patch_applied"])
-        for name in ("gpu/vk/vk_memory.cpp","docs/tested-configurations.md"):
+        for name in ("gpu/vk/vk_memory.cpp","gpu/vk/vk_xfer.cpp","docs/tested-configurations.md"):
             self.assertEqual((Path(report["candidate_directory"])/name).read_text(),(self.root/name).read_text())
         self.assertFalse(report["release_ready"])
     def test_patch_allowlist(self):

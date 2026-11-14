@@ -8,6 +8,17 @@ struct SceneCameraEvidence {
     uint32_t width=0,height=0;
 };
 enum class SceneCameraMatch { Invalid, NoCamera, ViewMismatch, ProjectionMismatch, Match };
+// Caller must have validated the complete prefix against the same width/height.
+// This compares a previously validated immutable stack copy to one host observation.
+inline SceneCameraMatch match_validated_camera_pair(const float* c,const CameraCapturePair* pair) {
+    if(!pair||!pair->revision)return SceneCameraMatch::NoCamera;
+    if(!camera_matrix_matches(c,pair->primary.view))return SceneCameraMatch::ViewMismatch;
+    for(int i=0;i<16;++i) {
+        const double tolerance=(i==2||i==6)?0.01:0.0001;
+        if(std::abs(double(c[0x70/4+i])-pair->uniforms.projection[i])>tolerance)return SceneCameraMatch::ProjectionMismatch;
+    }
+    return SceneCameraMatch::Match;
+}
 // Submitted vertex c3 layout already used by temporal_note_scene_draw. No guest writes.
 inline SceneCameraMatch match_camera_uniform(const float* c,size_t count,uint32_t width,uint32_t height,
                                              const CameraCapturePair* pair) {
@@ -21,14 +32,7 @@ inline SceneCameraMatch match_camera_uniform(const float* c,size_t count,uint32_
         double expected=0;for(int k=0;k<4;++k)expected+=double(c[0x70/4+4*r+k])*(k==3?(col==3?1:0):c[4*k+col]);
         if(std::abs(expected-c[0x30/4+4*r+col])>0.02+std::abs(expected)*0.0001)return SceneCameraMatch::Invalid;
     }
-    if(!pair||!pair->revision)return SceneCameraMatch::NoCamera;
-    if(!camera_matrix_matches(c,pair->primary.view))return SceneCameraMatch::ViewMismatch;
-    for(int i=0;i<16;++i) {
-        // Host observation precedes the existing subpixel jitter at P02/P12.
-        const double tolerance=(i==2||i==6)?0.01:0.0001;
-        if(std::abs(double(c[0x70/4+i])-pair->uniforms.projection[i])>tolerance)return SceneCameraMatch::ProjectionMismatch;
-    }
-    return SceneCameraMatch::Match;
+    return match_validated_camera_pair(c,pair);
 }
 // A uniform match alone is not evidence of a rendered scene attachment.
 inline SceneCameraMatch match_scene_camera(const float* c,size_t count,const SceneCameraEvidence& draw,
