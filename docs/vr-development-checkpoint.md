@@ -484,3 +484,12 @@ Added CPU observation-age instrumentation at successful xrEndFrame return, prese
 Castellano: prueba HD técnicamente correcta, pero sin mejora sustancial percibida; no se acepta como arreglo visual. Se añade medición de antigüedad de observaciones al enviar cada capa, con comprobaciones de causalidad y reutilización. 135 pruebas VR pasan; todavía no hay distribución real de antigüedades ni medición de latencia de pantalla. El segundo vídeo sigue pendiente; la siguiente ruta propuesta reconstruirá desde el propietario XR, sin confundirla con estéreo de geometría completa.
 
 Timing-checkpoint validation: 135 VR cases passed; native SDK build 7091cf39 and default-off isolated startup passed; inherited suite 358 passed / 5 known environment failures / 59 skipped (319 seconds); stable-install hashes 19/19 unchanged. Instrumented real headset timing data and second-video analysis remain pending.
+
+
+## 2026-11-14 — Second headset video inspected
+
+The second private video is 58.83 seconds at 854x480. Inspection confirms jagged dark strips along an arch/Link (~7 seconds) and a sign silhouette (~37 seconds), plus complete black intervals. Threshold-based detection found a 13.2-second interval during a zone transition and shorter intervals later. Their cause cannot be assigned from the recording: game loading, absence of an eligible XR layer and session closure are not distinguishable without synchronized diagnostics. The file has no absolute creation timestamp. The two videos show different routes and are not a controlled sharpness comparison. The user's no-substantial-improvement result remains unchanged.
+
+Next diagnostics should identify omitted-layer reasons on a monotonic timeline, without extending stale-image acceptance. XR-owner reconstruction remains a separate planned implementation, not an implemented fix. Color/depth silhouette coherence and hidden surfaces still need review/full geometry rendering. Raw videos, frame extracts, hashes and detection reports stay private under work/.
+
+Castellano: segundo vídeo revisado; confirma franjas negras en arco, Link y cartel y tramos completamente negros. El tramo de unos 13,2 segundos coincide visualmente con un cambio de zona, pero no prueba su causa. Sin marcas absolutas no se puede alinear con los registros. No se considera arreglada la calidad visual; quedan diagnóstico de capas omitidas, reconstrucción desde XR y geometría/siluetas. Vídeos y capturas siguen privados.

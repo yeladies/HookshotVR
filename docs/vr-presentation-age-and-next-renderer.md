@@ -2,7 +2,7 @@
 
 ## English
 
-The first GPU world test delivered a visible 3D world, but the user reported pixelation, black turn boundaries and silhouette defects. The HD test really used 1920x1080 world rendering, 1080-square eyes, 25% source overscan, 10% rendered-eye overscan and depth-aware filtering. It closed cleanly after 1,399 pair copies and 3,568 projection submissions. The user reported **no substantial improvement**. Neither profile is visually accepted. A second recorded video is pending attachment; it has not been inspected.
+The first GPU world test delivered a visible 3D world, but the user reported pixelation, black turn boundaries and silhouette defects. The HD test really used 1920x1080 world rendering, 1080-square eyes, 25% source overscan, 10% rendered-eye overscan and depth-aware filtering. It closed cleanly after 1,399 pair copies and 3,568 projection submissions. The user reported **no substantial improvement**. Neither profile is visually accepted. The second reduced video has now been inspected. It shows jagged dark strips along the arch, Link and a sign, plus complete black intervals. A roughly 13.2-second interval occurs during a zone transition; shorter intervals also appear later. The video has no absolute creation timestamp and cannot establish whether each interval is game loading, an omitted projection or session closure. Both videos are 854x480, use different scenes and do not form a matched sharpness comparison.
 
 ### What the new counters mean
 
@@ -18,6 +18,8 @@ The next implementation should move the reconstruction command into the XR owner
 
 The XR owner must independently validate source/device generation, queue family, byte ranges, origin, source freshness and shader capability. Use a dedicated command pool, reusable device-local allocation, explicit barriers, bounded fence polling and the shared queue mutex only for queue operations. A pending job may reuse the last valid pair; it cannot overwrite leased storage or publish before completion. Recenter invalidates old-origin output while permitting its job to retire. Timeouts/device-loss keep uncertain ownership pinned through process exit.
 
+Frame diagnostics must also distinguish successful black image submissions from frames with no eligible projection, with a bounded monotonic timeline for source absence/staleness, wrong origin, pending GPU completion and shouldRender/focus changes. Never relax freshness gates merely to suppress black intervals.
+
 Admission tests should simulate a 30 Hz scene with 90 Hz XR view samples: multiple output pose samples may share one source state, but both eyes in each output must share source/origin/target identity. Check deferred XR image waits, pending compute/copy, no-CPU-pixel transport, origin/device changes, partial initialization and conservative failure retention. Native GPU tests must independently compare reconstructed pixels and unchanged source packets. Only after that should another bounded headset comparison be requested.
 
 ### Silhouettes and full geometry remain separate
@@ -26,7 +28,7 @@ Fresh reconstruction can reduce eye-pose age; it cannot reveal surfaces absent f
 
 ## Castellano
 
-La primera prueba GPU mostró el mundo 3D, pero con pixelado, límites negros al girar y contornos defectuosos. La prueba HD sí usó mundo a 1920x1080, ojos de 1080x1080, margen de captura del 25%, margen de ojo del 10% y filtrado por profundidad. Cerró correctamente con 1.399 copias y 3.568 proyecciones. El usuario indicó **ninguna mejora sustancial**. Ningún perfil está aceptado visualmente. El segundo vídeo está pendiente de adjuntar y todavía no se ha analizado.
+La primera prueba GPU mostró el mundo 3D, pero con pixelado, límites negros al girar y contornos defectuosos. La prueba HD sí usó mundo a 1920x1080, ojos de 1080x1080, margen de captura del 25%, margen de ojo del 10% y filtrado por profundidad. Cerró correctamente con 1.399 copias y 3.568 proyecciones. El usuario indicó **ninguna mejora sustancial**. Ningún perfil está aceptado visualmente. El segundo vídeo ya está analizado: muestra franjas negras dentadas en el arco, Link y un cartel, además de intervalos completamente negros. Uno de unos 13,2 segundos aparece al cambiar de zona y hay otros más breves después. El archivo no contiene una marca absoluta de grabación; no permite atribuir cada intervalo a carga, ausencia de proyección o cierre de sesión. Ambos vídeos están reducidos a 854x480 y muestran escenas distintas; no sirven como comparación controlada de nitidez.
 
 El nuevo bloque privado `presentation_timing` mide antigüedades de observaciones con reloj monotónico de CPU al volver correctamente de `xrEndFrame`: pose de origen, pose usada para reconstruir los ojos, par GPU listo y reutilización de pares. Incluye sumas, máximos e intervalos de antigüedad. No mide tiempos GPU, instante real de pantalla ni latencia de movimiento a fotones. Conserva la edad de las poses originales al reutilizar imágenes. Las pruebas del runtime simulado contrastan las muestras del informe con las proyecciones enviadas. Aún no hay distribución real con esta instrumentación.
 
