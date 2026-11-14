@@ -602,7 +602,7 @@ target_link_libraries(hookshot_vr_gpu_late_tests PRIVATE OpenXR::headers ${CMAKE
 if(MINGW)
  target_link_options(hookshot_vr_gpu_late_tests PRIVATE -static)
 endif()
-foreach(mode success missing stale synthetic wrong_device wrong_origin wrong_size no_format pool_error invalid_index gpu_timeout image_timeout submit_error release_error gpu_deferred image_deferred no_capability allocation_error pipeline_error generation_change)
+foreach(mode success missing stale synthetic wrong_device wrong_origin wrong_size no_format pool_error invalid_index gpu_timeout image_timeout submit_error release_error gpu_deferred image_deferred no_capability allocation_error pipeline_error generation_change every_frame_deferred)
  add_test(NAME vr_gpu_late_${mode} COMMAND hookshot_vr_gpu_late_tests "$<TARGET_FILE:hookshot_vr_fake_loader>")
  set_tests_properties(vr_gpu_late_${mode} PROPERTIES ENVIRONMENT "XR_FAKE_MODE=preview_pair_late_${mode}" TIMEOUT 20)
 endforeach()

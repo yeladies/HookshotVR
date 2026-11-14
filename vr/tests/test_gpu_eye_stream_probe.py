@@ -22,7 +22,7 @@ $script:checks=0
 function Assert-Stream([bool]$expected){$script:checks++;$accepted=Test-VrGpuEyeStreamProbe -Report $report -ImageBase $base -SourceReport $source -ImmersiveReport $immersive;if($accepted -ne $expected){throw ('stream receipt mismatch at check '+$script:checks+' expected '+$expected+' actual '+$accepted)}}
 Assert-Stream $true
 $original=[IO.File]::ReadAllText($report)
-foreach($mutation in @({$r.completed_pairs=2},{$r.probe_samples=2},{$r.failures=1},{$r.intermediate_CPU_pixels=$true},{$r.XR_consumer_connected=$true},{$r.synthetic_tracking=$false},{$r.last_rgb_span=14},{$r.last_eye_difference=0},{$r.allocated_bytes=67108865})){$r=$original|ConvertFrom-Json;& $mutation;[IO.File]::WriteAllText($report,($r|ConvertTo-Json));Assert-Stream $false}
+foreach($mutation in @({$r.completed_pairs=2},{$r.probe_samples=2},{$r.failures=1},{$r.intermediate_CPU_pixels=$true},{$r.XR_consumer_connected=$true},{$r.synthetic_tracking=$false},{$r.last_rgb_span=14},{$r.last_eye_difference=0},{$r.allocated_bytes=134217729})){$r=$original|ConvertFrom-Json;& $mutation;[IO.File]::WriteAllText($report,($r|ConvertTo-Json));Assert-Stream $false}
 [IO.File]::WriteAllText($report,$original)
 Copy-Item -LiteralPath ($base+'-1.ppm') -Destination ($base+'-2.ppm') -Force
 Copy-Item -LiteralPath ($base+'-1.ppm') -Destination ($base+'-3.ppm') -Force

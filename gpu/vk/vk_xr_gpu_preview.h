@@ -67,7 +67,9 @@ struct GpuPairPreview {
         pending=false;if(!release_image())return false;last_metadata=late?late->completed(now_ns()):metadata(*held);last_state=late?late->state:held->state;if(late)late->discard();released_valid=true;++image_updates;held.reset();return show_previous(local,origin,now_ns());
     }
     bool frame(XrSpace local,uint64_t origin,const hookshot::vr::DepthPairTrackingTarget* current=nullptr){
-        layer_ready=false;if(uncertain)return false;if(pending)return finish(local,origin,0);
+        layer_ready=false;if(uncertain)return false;if(pending){if(!finish(local,origin,0))return false;if(pending||!late)return true;}
+        // A completed XR-owned job can start its successor in this same frame.
+        // Only one job is pending; its output buffer is reused after the fence.
         if(late&&!acquired){if(!current||!late->prepare(*current,now_ns())){if(late->fault){uncertain=true;return false;}return show_previous(local,origin,now_ns());}generation=late->generation;XrSwapchainImageAcquireInfo info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};{std::lock_guard lock(queue_mutex);if(!ok(acquire(chain,&info,&index),"acquire late GPU image")){late->discard();return false;}}acquired=true;waited=false;}
         if(!late&&!acquired){auto next=xr_gpu_eye_stream_acquire(device,origin,now_ns());if(!next||!valid(*next,origin,now_ns()))return show_previous(local,origin,now_ns());
             if(generation&&generation!=next->generation){uncertain=true;return false;}if(!generation)generation=next->generation;

@@ -39,11 +39,11 @@ void eye_stream_report(const EyeStream& p,const char* status){
 }
 void eye_stream_free(EyeStream& p,EyeStreamBuffer& b){if(b.mapped)p.unmap(p.device,b.memory);if(b.buffer)vkDestroyBuffer(p.device,b.buffer,nullptr);if(b.memory)vkFreeMemory(p.device,b.memory,nullptr);p.allocated-=b.allocated;b={};}
 bool eye_stream_allocate(EyeStream& p,uint64_t bytes,bool host,EyeStreamBuffer& out){
-    if(!bytes||bytes>16ull*1024*1024)return false;EyeStreamBuffer b;
+    if(!bytes||bytes>32ull*1024*1024)return false;EyeStreamBuffer b;
     VkBufferCreateInfo create{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};create.size=bytes;create.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT;if(!host)create.usage|=VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     if(vkCreateBuffer(p.device,&create,nullptr,&b.buffer)!=VK_SUCCESS)return false;
     auto fail=[&](){if(b.mapped)p.unmap(p.device,b.memory);if(b.buffer)vkDestroyBuffer(p.device,b.buffer,nullptr);if(b.memory)vkFreeMemory(p.device,b.memory,nullptr);return false;};
-    VkMemoryRequirements requirements{};vkGetBufferMemoryRequirements(p.device,b.buffer,&requirements);if(!requirements.size||requirements.size>16ull*1024*1024||requirements.size>64ull*1024*1024-p.allocated)return fail();
+    VkMemoryRequirements requirements{};vkGetBufferMemoryRequirements(p.device,b.buffer,&requirements);if(!requirements.size||requirements.size>32ull*1024*1024||requirements.size>128ull*1024*1024-p.allocated)return fail();
     VkPhysicalDeviceMemoryProperties memory{};vkGetPhysicalDeviceMemoryProperties(dev.physical,&memory);uint32_t type=UINT32_MAX;const auto wanted=host?VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT:VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     for(uint32_t i=0;i<memory.memoryTypeCount;++i)if((requirements.memoryTypeBits&(1u<<i))&&(memory.memoryTypes[i].propertyFlags&wanted)==wanted){type=i;break;}if(type==UINT32_MAX)return fail();b.coherent=(memory.memoryTypes[type].propertyFlags&VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)!=0;
     VkMemoryAllocateFlagsInfo flags{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO};flags.flags=VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};allocation.pNext=host?nullptr:&flags;allocation.allocationSize=requirements.size;allocation.memoryTypeIndex=type;

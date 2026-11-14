@@ -53,6 +53,7 @@ int main(int argc,char** argv){using namespace mkwvk;try{
     const bool rejected=is("missing")||is("stale")||is("synthetic")||is("bad_eye")||is("wrong_origin")||is("wrong_device")||is("wrong_size");
     if(rejected)check(count(12)==0&&count(17)==0,"invalid/unavailable paired frames rejected before XR image acquisition");
     if(!init_error&&!retained&&!rejected&&!is("invalid_index")&&!is("origin_pending")){check(count(19)>0&&count(20)==0&&count(14)>=(is("gpu_deferred")?1:2)&&count(12)==count(13)&&count(26)>=2*count(14),"multiple fresh XR pairs use the same immutable scene state and newly located poses");}
+    if(is("every_frame_deferred"))check(count(2)>=3&&count(14)>=count(2)-1,"completed work must start its successor without an idle XR iteration");
     if(generation_fault)check(count(14)==0&&count(16)==0,"device generation change before submission retains uncertain Vulkan allocations without inventing a pending scene lease");
     if(is("origin_pending"))check(count(19)==0&&count(13)==1,"old-origin in-flight copy may retire but never becomes a new-origin layer");
     if(is("gpu_deferred")||is("origin_pending"))check(count(23)>=4,"GPU timeout is polled without premature release");if(is("image_deferred"))check(count(24)>=2,"XR image wait is retried before copying");

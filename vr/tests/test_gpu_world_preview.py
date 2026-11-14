@@ -24,7 +24,7 @@ $original=[IO.File]::ReadAllText($world)
 foreach($mutation in @({$r.status='retained'},{$r.gpu_pair_copies=0},{$r.projection_frames_submitted=0},{$r.CPU_pixel_staging=$true},{$r.production_pose_metadata=$false},{$r.same_source_state=$false},{$r.pending=$true},{$r.acquired=$true},{$r.uncertain=$true},{$r.origin=0},{$r.width_per_eye=8})){$r=$original|ConvertFrom-Json;& $mutation;[IO.File]::WriteAllText($world,($r|ConvertTo-Json));Assert-World $false}
 [IO.File]::WriteAllText($world,$original)
 $original=[IO.File]::ReadAllText($stream)
-foreach($mutation in @({$r.depth_aware_color_filter=$false},{$r.eye_tangent_scale=1.1},{$r.synthetic_tracking=$true},{$r.output_validation_readback=$true},{$r.XR_consumer_connected=$false},{$r.source_CPU_upload=$true},{$r.failures=1},{$r.allocated_bytes=67108865})){$r=$original|ConvertFrom-Json;& $mutation;[IO.File]::WriteAllText($stream,($r|ConvertTo-Json));Assert-World $false}
+foreach($mutation in @({$r.depth_aware_color_filter=$false},{$r.eye_tangent_scale=1.1},{$r.synthetic_tracking=$true},{$r.output_validation_readback=$true},{$r.XR_consumer_connected=$false},{$r.source_CPU_upload=$true},{$r.failures=1},{$r.allocated_bytes=134217729})){$r=$original|ConvertFrom-Json;& $mutation;[IO.File]::WriteAllText($stream,($r|ConvertTo-Json));Assert-World $false}
 [IO.File]::WriteAllText($stream,$original)
 $r=Get-Content -LiteralPath $source -Raw|ConvertFrom-Json;$r.validation_packet_readback=$true;[IO.File]::WriteAllText($source,($r|ConvertTo-Json));Assert-World $false
 $r.validation_packet_readback=$false;[IO.File]::WriteAllText($source,($r|ConvertTo-Json))
@@ -39,7 +39,7 @@ $r|Add-Member presentation_timing ([pscustomobject]@{samples=160;invalid_samples
 $r.width_per_eye=1440;$r.height=1440
 [IO.File]::WriteAllText($world,($r|ConvertTo-Json))
 if(!(Test-VrGpuWorldPreview -Report $world -StreamReport 'Z:/missing-stream' -SourceReport $source -XrOwned $true)){throw 'XR-owned report must not depend on game-paced stream report'}
-$r.reprojection_allocated_bytes=16777217;[IO.File]::WriteAllText($world,($r|ConvertTo-Json))
+$r.reprojection_allocated_bytes=33554433;[IO.File]::WriteAllText($world,($r|ConvertTo-Json))
 if(Test-VrGpuWorldPreview -Report $world -SourceReport $source -XrOwned $true){throw 'XR-owned allocation overflow must be rejected'}
 
 '''

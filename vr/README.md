@@ -1,7 +1,7 @@
 # HookshotVR development
 
 Experimental PCVR adaptation for Quest 3 on Windows, initially through Virtual Desktop / VDXR.
-**The game is not playable in native VR yet.** The tools now include frozen and moving depth-reconstructed previews, verified offscreen; their headset checks remain pending.
+**Experimental in-game depth reconstruction is visible in Quest through VDXR.** The user reports improved contours/turn edges but incomplete geometry and low resolution. The latest [XR-owned candidate](../docs/vr-xr-owned-reconstruction.md) removes scheduling delays and adds an opt-in 1920-square profile; its headset retest is pending. Full native per-eye geometry, menus/HUD and motion controls remain work in progress.
 
 **Project pages:** [English](../docs/vr-guide/en/index.md) · [Castellano](../docs/vr-guide/es/index.md).
 

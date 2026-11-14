@@ -58,8 +58,9 @@ VkResult VKAPI_CALL pv_end(VkCommandBuffer){return VK_SUCCESS;}
 VkResult VKAPI_CALL pv_fence(VkDevice,const VkFenceCreateInfo*,const VkAllocationCallbacks*,VkFence* out){*out=ph<VkFence>(505);return VK_SUCCESS;}
 void VKAPI_CALL pv_destroy_fence(VkDevice,VkFence,const VkAllocationCallbacks*){if(gpu_pending)++counts[5];}
 VkResult VKAPI_CALL pv_reset_fence(VkDevice,uint32_t,const VkFence*){if(gpu_pending)++counts[5];return VK_SUCCESS;}
-VkResult VKAPI_CALL pv_wait(VkDevice,uint32_t,const VkFence*,VkBool32,uint64_t){
+VkResult VKAPI_CALL pv_wait(VkDevice,uint32_t,const VkFence*,VkBool32,uint64_t timeout){
     if(queue_check&&queue_check())++counts[5];
+    if(pair_case("every_frame_deferred")&&timeout>0&&timeout<250000000)return VK_TIMEOUT;
     if(mode("preview_gpu_timeout")||pair_case("gpu_timeout"))return VK_TIMEOUT;
     if((pair_case("gpu_deferred")||pair_case("origin_pending"))&&++counts[23]<=3)return VK_TIMEOUT;gpu_pending=false;return VK_SUCCESS;}
 VkResult VKAPI_CALL pv_submit(VkQueue,uint32_t,const VkSubmitInfo*,VkFence){if(!queue_check||!queue_check())++counts[5];

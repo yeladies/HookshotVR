@@ -70,7 +70,7 @@ public:
     }
 };
 inline bool immersive_lens_from_fovs(const float left[4],const float right[4],float& vertical,float& aspect,float tangent_scale=1.f){
-    if(!std::isfinite(tangent_scale)||tangent_scale<1||tangent_scale>1.25f)return false;
+    if(!std::isfinite(tangent_scale)||tangent_scale<1||tangent_scale>1.35f)return false;
     double horizontal=0,height=0;
     for(const auto* eye:{left,right}){
         if(!eye)return false;

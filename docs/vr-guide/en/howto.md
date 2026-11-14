@@ -1,5 +1,7 @@
 # How to build and try the previews
 
+Latest in-game candidate: [XR-owned reconstruction](../../vr-xr-owned-reconstruction.md). Use `-Profile Sharp` for the optional 1920-square comparison; Balanced remains 1440-square. This profile still needs headset acceptance.
+
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/howto.md)
 
 ## Requirements
@@ -18,13 +20,13 @@ ctest --test-dir work/vr-build --output-on-failure
 This builds the tools and runs game-free tests. It does not create a working game build. With the headset connected, the capability probe is:
 
 ```powershell
-.\workr-build\hookshot_vr_probe.exe
+.\work\vr-build\hookshot_vr_probe.exe
 ```
 
 The probe checks advertised capabilities; success does not establish working stereo, tracking or performance. The standalone synthetic scene opens a headset session:
 
 ```powershell
-.\workr-build\hookshot_vr_scene.exe --seconds 20
+.\work\vr-build\hookshot_vr_scene.exe --seconds 20
 ```
 
 ## Build the isolated game

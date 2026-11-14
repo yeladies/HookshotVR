@@ -20,7 +20,7 @@ class ProbeReceipt(unittest.TestCase):
 function Assert-Receipt([bool]$expected){if((Test-VrGpuSourceProbe -Report $report -Packet $packet) -ne $expected){throw 'receipt acceptance mismatch'}}
 Assert-Receipt $true
 $original=[IO.File]::ReadAllText($report)
-foreach($case in @(@('completed',2),@('published',0),@('failures',1),@('allocations',5),@('allocated_bytes',67108865),@('probe_complete',$false),@('source_publication_CPU_pixels',$true),@('XR_consumer_connected',$true),@('native_stereo',$true))){$r=$original|ConvertFrom-Json;$r.($case[0])=$case[1];[IO.File]::WriteAllText($report,($r|ConvertTo-Json));Assert-Receipt $false}
+foreach($case in @(@('completed',2),@('published',0),@('failures',1),@('allocations',5),@('allocated_bytes',134217729),@('probe_complete',$false),@('source_publication_CPU_pixels',$true),@('XR_consumer_connected',$true),@('native_stereo',$true))){$r=$original|ConvertFrom-Json;$r.($case[0])=$case[1];[IO.File]::WriteAllText($report,($r|ConvertTo-Json));Assert-Receipt $false}
 [IO.File]::WriteAllText($report,$original)
 $bytes=[IO.File]::ReadAllBytes($packet)
 $bytes[0]=0;[IO.File]::WriteAllBytes($packet,$bytes);Assert-Receipt $false

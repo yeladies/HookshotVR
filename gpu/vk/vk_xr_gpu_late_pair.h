@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include <chrono>
 #include "xr_gpu_scene_source.h"
 #include "xr_depth_pair_reproject_spv.h"
 #include "xr_gpu_projection_layer.h"
@@ -18,7 +19,7 @@ struct GpuLatePair {
 #undef DECL
     bool initialize(Bridge& bridge,VkInstance instance,VkPhysicalDevice physical,VkDevice d,uint32_t f,uint32_t w,uint32_t h){
         device=d;family=f;width=w;height=h;bytes=uint64_t(w)*h*8;
-        if(!bridge.reproject_capable||bytes+256>16ull*1024*1024)return false;
+        if(!bridge.reproject_capable||bytes+256>32ull*1024*1024)return false;
         if(const char* value=std::getenv("HOOKSHOT_VR_GPU_EYE_TANGENT_SCALE")){char* end=nullptr;guard=std::strtof(value,&end);if(end==value||*end||!std::isfinite(guard)||guard<1||guard>1.25f)return false;}
         auto get=reinterpret_cast<PFN_vkGetDeviceProcAddr>(bridge.vulkan_get(instance,"vkGetDeviceProcAddr"));if(!get)return false;
 #define LOAD(n) n=reinterpret_cast<PFN_vk##n>(get(device,"vk" #n));if(!n)return false;
@@ -26,7 +27,7 @@ struct GpuLatePair {
 #undef LOAD
         auto properties=reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(bridge.vulkan_get(instance,"vkGetPhysicalDeviceMemoryProperties"));if(!properties)return false;
         VkBufferCreateInfo ci{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};ci.size=bytes+256;ci.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-        if(CreateBuffer(device,&ci,nullptr,&buffer)!=VK_SUCCESS)return false;VkMemoryRequirements req{};GetBufferMemoryRequirements(device,buffer,&req);if(req.size<ci.size||req.size>16ull*1024*1024)return false;
+        if(CreateBuffer(device,&ci,nullptr,&buffer)!=VK_SUCCESS)return false;VkMemoryRequirements req{};GetBufferMemoryRequirements(device,buffer,&req);if(req.size<ci.size||req.size>32ull*1024*1024)return false;
         VkPhysicalDeviceMemoryProperties props{};properties(physical,&props);uint32_t type=UINT32_MAX;for(uint32_t i=0;i<props.memoryTypeCount;++i)if((req.memoryTypeBits&(1u<<i))&&(props.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)){type=i;break;}if(type==UINT32_MAX)return false;
         VkMemoryAllocateFlagsInfo flags{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO};flags.flags=VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;VkMemoryAllocateInfo mi{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};mi.pNext=&flags;mi.allocationSize=req.size;mi.memoryTypeIndex=type;
         if(AllocateMemory(device,&mi,nullptr,&memory)!=VK_SUCCESS||BindBufferMemory(device,buffer,memory,0)!=VK_SUCCESS)return false;allocated=req.size;
@@ -38,6 +39,9 @@ struct GpuLatePair {
     }
     bool prepare(const hookshot::vr::DepthPairTrackingTarget& target,int64_t now){
         auto source=xr_gpu_scene_source_acquire(device,target.origin,now);held.reset();
+        // Acquisition may observe a newly completed packet. Validate against the
+        // clock after that observation, not a timestamp taken before the query.
+        now=std::max(now,std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
         if(!source||source->device!=device||!source->buffer||!source->address||source->address%16||source->queue_family!=family||!source->state||!source->recording||!source->generation||source->synthetic_pose||source->bytes!=uint64_t(source->width)*source->height*8||source->ready_ns<=0||source->ready_ns>now)return false;
         if(generation&&generation!=source->generation){fault=true;return false;}
         auto expanded=target;if(!hookshot::vr::expand_depth_pair_fovs(expanded,guard))return false;

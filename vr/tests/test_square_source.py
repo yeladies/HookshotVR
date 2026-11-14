@@ -22,8 +22,9 @@ setenv("HOS_VR_SQUARE_SOURCE",argv[1],1);
 #endif
 uint32_t w,h;bool enabled=!strcmp(argv[1],"1");
 assert(hos_output_parse("1440x1440",&w,&h)==enabled);if(enabled)assert(w==1440&&h==1440&&uint64_t(w)*h==1920ull*1080);
+assert(hos_output_parse("1920x1920",&w,&h)==enabled);
 assert(hos_output_parse("640x640",&w,&h)==enabled);
-for(const char* text:{"1448x1448","1920x1920","640x800","0x0"})assert(!hos_output_parse(text,&w,&h));
+for(const char* text:{"1928x1928","2048x2048","640x800","0x0"})assert(!hos_output_parse(text,&w,&h));
 assert(hos_output_parse("1920x1080",&w,&h)&&w==1920&&h==1080);
 }
 '''

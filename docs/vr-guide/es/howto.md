@@ -1,5 +1,7 @@
 # Cómo compilar y probar
 
+Candidata actual del juego: [reconstrucción desde OpenXR](../../vr-xr-owned-reconstruction.md). Usa `-Profile Sharp` para comparar a 1920 cuadrados; Balanced conserva 1440. El nuevo perfil sigue pendiente de valoración en visor.
+
 [Inicio](index.md) · [Cómo empezar](howto.md) · [Estado](status.md) · [Desarrollo](development.md) · [Ayuda](help.md) · [English / Castellano](../en/howto.md)
 
 ## Requisitos
@@ -18,13 +20,13 @@ ctest --test-dir work/vr-build --output-on-failure
 Esto compila herramientas y ejecuta pruebas sin juego; no crea una compilación jugable. Con el visor conectado, comprueba capacidades:
 
 ```powershell
-.\workr-build\hookshot_vr_probe.exe
+.\work\vr-build\hookshot_vr_probe.exe
 ```
 
 Un resultado correcto solo confirma capacidades anunciadas, no estereoscopía, seguimiento ni rendimiento real. La escena sintética independiente sí abre una sesión en el visor:
 
 ```powershell
-.\workr-build\hookshot_vr_scene.exe --seconds 20
+.\work\vr-build\hookshot_vr_scene.exe --seconds 20
 ```
 
 ## Compilar el juego aislado

@@ -1,6 +1,6 @@
 # Estado, resultados y hoja de ruta
 
-Nueva implementación preparada para validación en visor: [reconstrucción desde XR, corrección periférica, reparación acotada y fuente cuadrada](../../vr-xr-owned-reconstruction.md). Todavía no está aceptada visualmente.
+Última prueba en visor: mejoran contornos y bordes al girar, pero siguen faltando geometría y resolución. La siguiente candidata elimina esperas de publicación/iteración y añade el perfil Sharp opcional de 1920 cuadrados. [Implementación, pruebas y comando](../../vr-xr-owned-reconstruction.md). Falta contrastar la nueva cadencia y calidad en el visor.
 
 La primera sesión VDXR por GPU mostró el mundo 3D (2.654 pares / 6.363 proyecciones y cierre correcto). El usuario señaló pixelado, bordes al girar y contornos oscuros. La comparación con fuente HD, margen en los ojos y filtrado no produjo mejora sustancial según el usuario. Ningún perfil está aceptado visualmente. [Siguiente etapa e instrumentación](../../vr-presentation-age-and-next-renderer.md).
 

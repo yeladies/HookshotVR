@@ -21,7 +21,7 @@ inline bool depth_pair_parameters_valid(const DepthPairParameters& p){
     for(float f:p.source_from_eye)if(!std::isfinite(f))return false;
     for(const auto* fields:{&p.eye_tangents,&p.projection,&p.optical})for(float f:*fields)if(!std::isfinite(f))return false;
     const auto& d=p.dimensions;const auto& t=p.eye_tangents;const auto& q=p.projection;const auto& o=p.optical;
-    if(d[0]<2||d[1]<2||d[0]>1920||d[1]>1920||uint64_t(d[0])*d[1]>2073600||d[2]<2||d[3]<2||d[2]>4096||d[3]>4096||uint64_t(d[2])*d[3]>8388608||
+    if(d[0]<2||d[1]<2||d[0]>1920||d[1]>1920||uint64_t(d[0])*d[1]>3686400||d[2]<2||d[3]<2||d[2]>4096||d[3]>4096||uint64_t(d[2])*d[3]>8388608||
        t[0]>=-.0001f||t[1]<=.0001f||t[2]<=.0001f||t[3]>=-.0001f||
        q[0]<.0001f||q[1]<.0001f||q[0]>10000||q[1]>10000||q[2]>-1||q[3]>=0||
        std::abs(o[0])>4||std::abs(o[1])>4||o[2]<=0||o[2]>100000||o[3]<.05f||o[3]>2||
@@ -61,7 +61,7 @@ inline bool prepare_depth_pair_dispatches(const DepthPairSource& source,uint64_t
         const std::array<DepthPairOutput,2>& eyes,const std::array<DepthPairParameters,2>& parameters,
         std::array<DepthPairDispatch,2>& out){
     if(!recording||!generation||!source.state||!source.origin||!source.capture_pose||!source.recording||source.recording>recording||source.generation!=generation||
-       !source.immutable||!source.ordered_before_consumer||!source.bytes||source.bytes>16ull*1024*1024)return false;
+       !source.immutable||!source.ordered_before_consumer||!source.bytes||source.bytes>32ull*1024*1024)return false;
     std::array<DepthPairDispatch,2> next{};
     for(unsigned eye=0;eye<2;++eye){const auto& e=eyes[eye];const auto& p=parameters[eye];
         if(e.eye!=eye||!e.pose_sample||e.origin!=source.origin||e.recording!=recording||e.generation!=generation||e.queue_family!=source.queue_family||
