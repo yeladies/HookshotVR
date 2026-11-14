@@ -19,7 +19,7 @@ The playable Quest experiment has head-tracked game-image transport and audio, b
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 105 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 106 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
@@ -402,3 +402,10 @@ Castellano: el inventario distingue auxiliares sin ejecutar de escrituras alcanz
 The [full camera payload audit](vr-camera-payload-audit.md) preserves every source word after GPU completion and byte-exact before/after comparison. Three isolated game runs passed root, indirect and depth controls and produced three distinct camera views. Motion ruled out several stationary matrix matches; remaining offsets are algebraic candidates only. No new camera field is patched or global draw enabled. All 105 VR tests pass; inherited 358 passed / 5 known failures / 59 skipped. Raw payloads remain local. No headset session is requested while the user is unavailable.
 
 Castellano: captura completa después de finalizar GPU y comprobar la fuente intacta. Tres pruebas aisladas correctas con vistas distintas permiten descartar coincidencias engañosas en reposo. Los campos restantes son candidatos algebraicos, sin modificar ni habilitar nuevos dibujos globales. 105 pruebas VR correctas; regresiones 358 / 5 conocidas / 59 omitidas. Datos crudos locales y sin pedir el visor.
+
+
+## Same-source GPU depth reconstruction
+
+The [same-source depth pair](vr-same-source-depth-pair.md) reconstructs both eyes from one color/depth packet and composes the complete pair on GPU. The actual RTX 2060 SUPER test checks 32,768 pixels across four reused submissions, both packed formats, a rotated plane and invalid depth. All 106 VR tests pass. This is an offscreen authored-data component; native geometry stereo, a live immutable game source and OpenXR integration remain pending. No headset session is opened.
+
+Castellano: nuevo productor de ambos ojos desde un solo paquete color/profundidad, con copia conjunta GPU. Comprobados 32.768 píxeles, cuatro envíos reutilizados, dos formatos, rotación y profundidad inválida. Pasan 106 pruebas VR. Sigue sin conectar al juego en directo ni a OpenXR y no equivale a renderizar toda la geometría por ojo.

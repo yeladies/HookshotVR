@@ -25,7 +25,7 @@ def allowed_patch(path):
         return False
     if path not in exact and not path.startswith(prefixes):
         return False
-    return path in {".gitignore", "vr/shaders/eye_address_copy.comp", "vr/shaders/eye_matrix_patch.comp", "vr/shaders/eye_root_alias_patch.comp", "vr/shaders/depth_scene.vert", "vr/shaders/depth_scene.frag", "vr/shaders/depth_stream.vert"} or Path(path).suffix in {".md", ".ps1", ".py", ".cpp", ".c", ".h", ".json", ".yml", ".txt"}
+    return path in {".gitignore", "vr/shaders/eye_address_copy.comp", "vr/shaders/eye_matrix_patch.comp", "vr/shaders/eye_root_alias_patch.comp", "vr/shaders/depth_pair_reproject.comp", "vr/shaders/depth_scene.vert", "vr/shaders/depth_scene.frag", "vr/shaders/depth_stream.vert"} or Path(path).suffix in {".md", ".ps1", ".py", ".cpp", ".c", ".h", ".json", ".yml", ".txt"}
 
 
 def audit(root, manifest, revision):

@@ -474,3 +474,17 @@ add_test(NAME vr_camera_payload_capture COMMAND hookshot_vr_camera_payload_captu
 if(Python3_Interpreter_FOUND)
     add_test(NAME vr_camera_payload_audit COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_camera_payload_audit.py")
 endif()
+
+add_executable(hookshot_vr_depth_pair_reproject_tests tests/depth_pair_reproject_test.cpp)
+target_include_directories(hookshot_vr_depth_pair_reproject_tests PRIVATE src)
+if(MINGW)
+    target_link_options(hookshot_vr_depth_pair_reproject_tests PRIVATE -static)
+endif()
+add_test(NAME vr_depth_pair_reproject_parameters COMMAND hookshot_vr_depth_pair_reproject_tests)
+
+add_executable(hookshot_vr_depth_pair_smoke src/depth_pair_smoke.cpp)
+target_include_directories(hookshot_vr_depth_pair_smoke PRIVATE src "${vr_vulkan_include}")
+target_link_libraries(hookshot_vr_depth_pair_smoke PRIVATE ${CMAKE_DL_LIBS})
+if(MINGW)
+    target_link_options(hookshot_vr_depth_pair_smoke PRIVATE -static)
+endif()

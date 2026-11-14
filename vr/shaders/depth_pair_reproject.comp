@@ -1,0 +1,56 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x=8,local_size_y=8) in;
+layout(buffer_reference,std430,buffer_reference_align=16) readonly buffer Source {uint words[];};
+layout(buffer_reference,std430,buffer_reference_align=16) buffer Output {uint words[];};
+layout(buffer_reference,std430,buffer_reference_align=16) buffer Counters {uint words[];};
+layout(buffer_reference,std430,buffer_reference_align=16) readonly buffer Parameters {
+    vec4 row0;vec4 row1;vec4 row2;vec4 tangents;vec4 projection;vec4 optical;uvec4 dimensions;uvec4 settings;
+};
+layout(push_constant,std430) uniform Dispatch {Source source;Output destination;Parameters camera;Counters counters;} p;
+void finish(uint index,uint color,uint category){p.destination.words[index]=color;if(uint64_t(p.counters)!=0ul)atomicAdd(p.counters.words[category],1u);}
+vec2 project_source(vec3 value){vec2 ndc=p.camera.projection.xy*value.xy/(-value.z)-p.camera.optical.xy;return vec2((ndc.x+1)*.5,(1-ndc.y)*.5);}
+bool pixel_at(vec2 uv,out uvec2 pixel){if(any(isnan(uv))||any(isinf(uv))||any(lessThan(uv,vec2(0)))||any(greaterThanEqual(uv,vec2(1))))return false;pixel=uvec2(uv*vec2(p.camera.dimensions.xy));return true;}
+bool depth_at(uvec2 pixel,out float z){
+    uint index=pixel.y*p.camera.dimensions.x+pixel.x;
+    float d=uintBitsToFloat(p.source.words[p.camera.dimensions.x*p.camera.dimensions.y+index]);
+    if(isnan(d)||isinf(d)||d<0||d>1)return false;
+    if(d>=.999999){z=-p.camera.optical.z;return true;}
+    float denominator=2*d-1+p.camera.projection.z;if(abs(denominator)<1e-12)return false;
+    z=-p.camera.projection.w/denominator;return !isnan(z)&&!isinf(z)&&z<0&&z>=-p.camera.optical.z;
+}
+float channel(uint bits,uint mantissa){uint exponent=bits>>mantissa;uint fraction=bits&((1u<<mantissa)-1u);if(exponent==31u)return 0;return exponent==0u?float(fraction)*exp2(float(-14-int(mantissa))):(1+float(fraction)/float(1u<<mantissa))*exp2(float(int(exponent)-15));}
+uint color_at(uvec2 pixel){
+    uint bits=p.source.words[pixel.y*p.camera.dimensions.x+pixel.x];
+    vec3 rgb=p.camera.settings.x==123u?vec3(bits&511u,(bits>>9)&511u,(bits>>18)&511u)*exp2(float(int(bits>>27)-24)):
+        vec3(channel(bits&2047u,6u),channel((bits>>11)&2047u,6u),channel(bits>>22,5u));
+    uvec3 value=uvec3(clamp(rgb,vec3(0),vec3(1))*255+.5);return value.x|(value.y<<8)|(value.z<<16)|0xff000000u;
+}
+void main(){
+    uvec2 pixel=gl_GlobalInvocationID.xy;if(any(greaterThanEqual(pixel,p.camera.dimensions.zw)))return;
+    uint index=pixel.y*p.camera.dimensions.z+pixel.x;vec2 fraction=(vec2(pixel)+.5)/vec2(p.camera.dimensions.zw);
+    vec3 eye_ray=vec3(mix(p.camera.tangents.x,p.camera.tangents.y,fraction.x),mix(p.camera.tangents.z,p.camera.tangents.w,fraction.y),-1);
+    vec3 ray=vec3(dot(p.camera.row0.xyz,eye_ray),dot(p.camera.row1.xyz,eye_ray),dot(p.camera.row2.xyz,eye_ray));
+    vec3 origin=vec3(p.camera.row0.w,p.camera.row1.w,p.camera.row2.w);uvec2 source_pixel;float z;
+    if(ray.z>=-.00001||!pixel_at(project_source(ray),source_pixel)){finish(index,0xff000000u,1u);return;}
+    if(!depth_at(source_pixel,z)){finish(index,0xff000000u,2u);return;}
+    float t=(z-origin.z)/ray.z;
+    for(uint iteration=0u;iteration<p.camera.settings.y;++iteration){
+        vec3 point=origin+ray*t;
+        if(t<=0||point.z>=0||!pixel_at(project_source(point),source_pixel)){finish(index,0xff000000u,1u);return;}
+        if(!depth_at(source_pixel,z)){finish(index,0xff000000u,2u);return;}
+        t=(z-origin.z)/ray.z;
+    }
+    vec3 point=origin+ray*t;
+    if(t<=0||point.z>=0||!pixel_at(project_source(point),source_pixel)){finish(index,0xff000000u,1u);return;}
+    if(!depth_at(source_pixel,z)){finish(index,0xff000000u,2u);return;}
+    vec2 ndc=vec2(2*(float(source_pixel.x)+.5)/p.camera.dimensions.x-1,1-2*(float(source_pixel.y)+.5)/p.camera.dimensions.y);
+    vec3 surface=vec3(-z*(ndc+p.camera.optical.xy)/p.camera.projection.xy,z)-origin;
+    vec3 eye=p.camera.row0.xyz*surface.x+p.camera.row1.xyz*surface.y+p.camera.row2.xyz*surface.z;
+    vec2 tan_eye=eye.xy/(-eye.z);
+    vec2 target=vec2((tan_eye.x-p.camera.tangents.x)/(p.camera.tangents.y-p.camera.tangents.x),(p.camera.tangents.z-tan_eye.y)/(p.camera.tangents.z-p.camera.tangents.w))*vec2(p.camera.dimensions.zw);
+    if(eye.z>=0||any(isnan(target))||any(isinf(target))||length(target-(vec2(pixel)+.5))>p.camera.optical.w){finish(index,0xff000000u,3u);return;}
+    finish(index,color_at(source_pixel),0u);
+}

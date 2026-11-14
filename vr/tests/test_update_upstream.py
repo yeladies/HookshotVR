@@ -60,7 +60,7 @@ class UpdateTests(unittest.TestCase):
         with self.assertRaises(RuntimeError): update.prepare(self.root, self.manifest, self.base)
         self.assertEqual((self.root / "readme.md").read_text(), "user edit\n")
     def test_authored_shader_reapplies(self):
-        names=("eye_address_copy.comp","eye_matrix_patch.comp","eye_root_alias_patch.comp")
+        names=("eye_address_copy.comp","eye_matrix_patch.comp","eye_root_alias_patch.comp","depth_pair_reproject.comp")
         for name in names:
             shader=self.root/("vr/shaders/"+name);shader.parent.mkdir(parents=True,exist_ok=True)
             shader.write_text("// authored synthetic shader source\n")
