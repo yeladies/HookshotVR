@@ -22,6 +22,11 @@ void check(bool b){if(!b)throw std::runtime_error("lens hook register/culling mi
 int main(){Ctx c;alignas(16) unsigned char object[512]{};input(c,object,.7f,16.f/9);patch(&c);check(lane(c,0)==.7f&&lane(c,RATIO)==16.f/9);
 hos_vr_fov=1.1917536f;hos_vr_aspect=.9f;patch(&c);check(lane(c,0)==1.1917536f&&lane(c,RATIO)==.9f);float f,a;std::memcpy(&f,object+0xac,4);std::memcpy(&a,object+0xb0,4);check(f==1.1917536f&&a==.9f);
 input(c,object,.7f,1.f);patch(&c);check(lane(c,0)==.7f&&lane(c,RATIO)==1.f);
+// The picture-ratio hook may have converted the main camera before this site.
+hos_wide_ratio=1.25f;input(c,object,.7f,16.f/9);patch(&c);check(lane(c,0)==1.1917536f&&lane(c,RATIO)==.9f);
+std::memcpy(&f,object+0xac,4);std::memcpy(&a,object+0xb0,4);check(f==1.1917536f&&a==.9f);
+input(c,object,.7f,1.25f);patch(&c);check(lane(c,0)==1.1917536f&&lane(c,RATIO)==.9f);
+hos_wide_ratio=0;input(c,object,.7f,1.25f);patch(&c);check(lane(c,0)==.7f&&lane(c,RATIO)==1.25f);
 input(c,object,.7f,16.f/9);hos_vr_fov=3.2f;patch(&c);check(lane(c,0)==.7f);
 hos_vr_fov=0;hos_vr_aspect=0;hos_wide_ratio=2.3f;patch(&c);check(lane(c,RATIO)==2.3f&&lane(c,0)==.7f);return 0;}
 """

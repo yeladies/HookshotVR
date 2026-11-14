@@ -1,6 +1,6 @@
 # Estado, resultados y hoja de ruta
 
-Última prueba en visor: mejoran contornos y bordes al girar, pero siguen faltando geometría y resolución. La siguiente candidata elimina esperas de publicación/iteración y añade el perfil Sharp opcional de 1920 cuadrados. [Implementación, pruebas y comando](../../vr-xr-owned-reconstruction.md). Falta contrastar la nueva cadencia y calidad en el visor.
+La candidata actual amplía el frustum real de la fuente del 30% al 60% de margen de tangentes y corrige un caso de proporción de cámara que podía omitir la lente del motor. Sharp mantiene 1920 cuadrados y la perspectiva del visor se conserva. [Implementación, regresiones y validación actual](../../vr-xr-owned-reconstruction.md). Falta valorar esta ampliación en Quest.
 
 La primera sesión VDXR por GPU mostró el mundo 3D (2.654 pares / 6.363 proyecciones y cierre correcto). El usuario señaló pixelado, bordes al girar y contornos oscuros. La comparación con fuente HD, margen en los ojos y filtrado no produjo mejora sustancial según el usuario. Ningún perfil está aceptado visualmente. [Siguiente etapa e instrumentación](../../vr-presentation-age-and-next-renderer.md).
 

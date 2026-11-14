@@ -14,7 +14,7 @@ param(
     [switch]$WideFov,
     [switch]$LowLatencyPreview,
     [ValidateSet("720p","1080p")][string]$PreviewResolution="720p",
-    [ValidateRange(0,35)][int]$FovMarginPercent=0,
+    [ValidateRange(0,65)][int]$FovMarginPercent=0,
     [switch]$TemporalStereo,
     [switch]$ImmersiveReadbackTest,
     [switch]$PreviewReadbackTest,

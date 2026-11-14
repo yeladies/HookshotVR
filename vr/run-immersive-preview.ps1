@@ -1,4 +1,4 @@
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$GpuWorldPreview,[switch]$GpuXrReproject,[ValidateSet(1440,1600,1920)][int]$GpuSquareSize=1440,[ValidateRange(0,15)][int]$GpuGuardBandPercent=0,[switch]$Audio,[switch]$WideFov,[switch]$LowLatencyPreview,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,35)][int]$FovMarginPercent=0)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$GpuWorldPreview,[switch]$GpuXrReproject,[ValidateSet(1440,1600,1920)][int]$GpuSquareSize=1440,[ValidateRange(0,15)][int]$GpuGuardBandPercent=0,[switch]$Audio,[switch]$WideFov,[switch]$LowLatencyPreview,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,65)][int]$FovMarginPercent=0)
 $ErrorActionPreference='Stop'
 if($GpuWorldPreview -and ($TemporalStereo -or $LowLatencyPreview)){throw 'GPU world preview cannot use temporal stereo or the CPU readback latency mode.'}
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))

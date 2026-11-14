@@ -1,6 +1,6 @@
 # Status, evidence and roadmap
 
-Latest headset feedback: contours and turn edges improved, but geometry coverage and resolution remain inadequate. The follow-up removes source-publication/idle-iteration delays and adds an opt-in 1920-square Sharp profile. [Implementation, evidence and test command](../../vr-xr-owned-reconstruction.md). New cadence and quality still need a headset retest.
+The current follow-up widens the actual source drawing frustum from 30% to 60% tangent margin and fixes a reproduced camera-ratio path that could skip the engine lens update. Sharp stays 1920-square; headset optics stay unchanged. [Implementation, regression evidence and current validation](../../vr-xr-owned-reconstruction.md). Wider-volume headset acceptance is pending.
 
 The first GPU-only VDXR session delivered the 3D world (2,654 pair copies / 6,363 projection frames, clean close). The user reported pixelation, turn boundaries and dark silhouette defects. The HD source / eye guard-band / depth-aware filtering comparison produced no substantial improvement according to the user. Neither profile is visually accepted. [Next renderer stage and age instrumentation](../../vr-presentation-age-and-next-renderer.md).
 

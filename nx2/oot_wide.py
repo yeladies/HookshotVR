@@ -34,9 +34,11 @@ def _ratio(vreg, base=None):
             "uint32_t _u; memcpy(&_u, &_w, 4); a64_vset64(c->vreg[%d], _u); %s} } }   /* (nx2/oot_wide.py: camera ratio) */"
             % (vreg, vreg, store))
     if base is not None:
-        text += (" { extern volatile float hos_vr_fov, hos_vr_aspect; const float _vf = hos_vr_fov, _va = hos_vr_aspect; "
+        # A main camera may already have the picture ratio from an earlier hook.
+        # Update both matrix registers and engine fields so visibility sees it too.
+        text += (" { extern volatile float hos_vr_fov, hos_vr_aspect, hos_wide_ratio; const float _vf = hos_vr_fov, _va = hos_vr_aspect, _wr = hos_wide_ratio; "
                  "float _old; memcpy(&_old, c->vreg[%d], 4); if (_vf > 0.2f && _vf < 2.8f && _va >= 0.5f && _va <= 2.5f "
-                 "&& ((_old > 1.767f && _old < 1.788f) || (_old > _va - 0.01f && _old < _va + 0.01f))) { "
+                 "&& ((_old > 1.767f && _old < 1.788f) || (_old > _va - 0.01f && _old < _va + 0.01f) || (_wr > 0.0f && _old > _wr - 0.01f && _old < _wr + 0.01f))) { "
                  "uint32_t _vf_bits, _va_bits; memcpy(&_vf_bits, &_vf, 4); memcpy(&_va_bits, &_va, 4); "
                  "a64_vset64(c->vreg[0], _vf_bits); a64_vset64(c->vreg[%d], _va_bits); "
                  "recomp_store32(c, c->x[%d] + 0xac, _vf_bits); recomp_store32(c, c->x[%d] + 0xb0, _va_bits); } }"

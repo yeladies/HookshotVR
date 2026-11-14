@@ -32,7 +32,17 @@ int main(){try{
     float projection[16]={1,0,0,0,0,1,0,0,0,0,-1,-.2f,0,0,-1,0};auto found=camera.match(view,projection,t);check(found.valid&&found.temporal_stereo&&found.eye==1,"source association retains eye identity");
     const float lf[4]={-.7f,.8f,.9f,-.6f},rf[4]={-.8f,.7f,.8f,-.9f};float fov=0,aspect=0;check(immersive_lens_from_fovs(lf,rf,fov,aspect)&&std::abs(fov-1.8f)<.0001,"lens covers both runtime fields of view");
     float wide=0,wide_aspect=0;check(immersive_lens_from_fovs(lf,rf,wide,wide_aspect,1.25f)&&wide>fov&&std::abs(wide_aspect-aspect)<.00001,"optical margin widens actual source lens without stretching aspect");
-    const auto saved_wide=wide;check(!immersive_lens_from_fovs(lf,rf,wide,wide_aspect,1.5f)&&wide==saved_wide,"unsupported margin rejected atomically");
+    // A 100-degree runtime eye plus its 8% output margin and a 10-degree
+    // late yaw needs geometry outside the old 30% source frustum.
+    const float symmetric[4]={-.872664626f,.872664626f,.872664626f,-.872664626f};
+    float old_source=0,old_aspect=0,new_source=0,new_aspect=0;
+    check(immersive_lens_from_fovs(symmetric,symmetric,old_source,old_aspect,1.3f)&&immersive_lens_from_fovs(symmetric,symmetric,new_source,new_aspect,1.6f),"expanded source lens admitted");
+    const double edge=std::atan(std::tan(double(symmetric[1]))*1.08)+.174532925;
+    check(edge>old_source*.5&&edge<new_source*.5&&std::abs(old_aspect-new_aspect)<.00001,"wider source frustum contains the late-turned eye edge without changing eye optics");
+    float host_tangent=0,host_aspect=0;check(host_vr_lens_fields(new_source,new_aspect,&host_tangent,&host_aspect)&&std::abs(host_tangent-std::tan(double(symmetric[2]))*1.6)<.00001,"expanded source is representable in engine culling fields");
+    const auto saved_wide=wide;check(!immersive_lens_from_fovs(lf,rf,wide,wide_aspect,1.7f)&&wide==saved_wide,"unsupported margin rejected atomically");
+    const float excessive[4]={-1.2f,1.2f,1.2f,-1.2f};const float before_limit=wide;
+    check(!immersive_lens_from_fovs(excessive,excessive,wide,wide_aspect,1.6f)&&wide==before_limit,"lens exceeding engine tangent limit rejected atomically");
     float bad[4]={0,.7f,.8f,-.7f};const float saved=fov;check(!immersive_lens_from_fovs(bad,rf,fov,aspect)&&fov==saved,"bad lens leaves outputs untouched");
     float engine_fov=0,engine_aspect=0;check(host_vr_lens_fields(1.745329252f,1.19836f,&engine_fov,&engine_aspect)&&std::abs(engine_fov-1.191753593f)<.00001,"100 degree lens is converted to engine half-angle tangent");
     const float old_engine=engine_fov;check(!host_vr_lens_fields(3.2f,1.f,&engine_fov,&engine_aspect)&&engine_fov==old_engine,"unsupported lens leaves engine fields unchanged");
