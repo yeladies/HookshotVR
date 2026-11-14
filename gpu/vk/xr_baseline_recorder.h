@@ -3,6 +3,7 @@
 #include "xr_eye_image_factory.h"
 #include "xr_descriptor_snapshot.h"
 #include "xr_baseline_attempt.h"
+#include "xr_root_alias_probe.h"
 #include <vector>
 namespace mkwvk {
 struct XrBaselineCameraSlot {uint32_t binding=0,element=0;};
@@ -18,7 +19,7 @@ struct XrBaselineRecorderInput {
     VkDescriptorBufferInfo camera{};uint64_t camera_object_bytes=0; // Declared canonical NVN uniform extent, not shader used-size.
     std::vector<XrBaselineCameraSlot> camera_slots;
     std::vector<VkWriteDescriptorSet> writes;
-    XrBaselineGeometry geometry{};bool matrix_probe=false,shifted_draw_probe=false,depth_reference=false,view_shift_probe=false,view_color_probe=false;float view_shift_units=.01f;
+    XrBaselineGeometry geometry{};bool matrix_probe=false,shifted_draw_probe=false,depth_reference=false,view_shift_probe=false,view_color_probe=false,root_alias_probe=false;uint64_t guest_camera=0;float view_shift_units=.01f;
 };
 struct XrBaselineRecorder;
 // Allocation/snapshot only: failure records no commands and leaves source state intact.

@@ -1,0 +1,62 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+layout(local_size_x=256) in;
+layout(buffer_reference,std430,buffer_reference_align=8) readonly buffer SourceRoot {uint64_t pages[];};
+layout(buffer_reference,std430,buffer_reference_align=8) buffer PrivateRoot {uint64_t pages[];};
+layout(buffer_reference,std430,buffer_reference_align=16) buffer Counters {uint words[];};
+layout(buffer_reference,std430,buffer_reference_align=4) buffer Words {uint data[];};
+layout(push_constant,std430) uniform Parameters {
+    SourceRoot source;PrivateRoot destination;uint64_t source_pages;uint64_t private_pages;Counters counters;
+    uint count;uint page_bytes;uint mode;uint reserved;uint extra0;uint extra1;
+} p;
+void main(){
+    uint i=gl_GlobalInvocationID.x;
+    if(p.mode==3u){
+        if(i!=0u)return;
+        uint minimum_pages=p.extra1>>1;bool indexed=(p.extra1&1u)!=0u;
+        bool valid=p.reserved>=560u&&p.reserved<=65536u&&p.reserved%4u==0u&&p.count>0u&&p.count<=1048576u&&p.page_bytes>0u&&p.page_bytes<=1024u&&
+            uint64_t(p.count)*uint64_t(p.page_bytes)<=1048576ul&&p.extra0==0u&&minimum_pages>0u&&minimum_pages<=16u;
+        if(valid)valid=p.counters.words[0]==0u&&p.counters.words[2]==0u&&p.counters.words[3]==0u&&p.counters.words[1]>=minimum_pages;
+        for(uint word=0u;valid&&word<p.reserved/4u;++word)if(Words(uint64_t(p.source)).data[word]!=Words(p.source_pages).data[word])valid=false;
+        Words output_words=Words(uint64_t(p.destination));
+        output_words.data[0]=valid?p.count:0u;output_words.data[1]=p.page_bytes;output_words.data[2]=uint(p.private_pages);
+        output_words.data[3]=indexed?uint(p.private_pages>>32):p.extra0;output_words.data[4]=indexed?p.extra0:0u;
+        return;
+    }
+    if(p.mode==2u){
+        uint bytes=p.reserved;
+        if(bytes<4u||bytes>65536u||bytes%4u!=0u||i>=bytes/4u||p.count==0u||p.count>3145728u||p.page_bytes==0u||p.page_bytes>67108864u||p.page_bytes%4096u!=0u||p.private_pages==0ul||p.private_pages+uint64_t(p.page_bytes)<p.private_pages)return;
+        uint64_t address=p.source_pages+uint64_t(i)*4ul;uint index=0u;bool valid=address>=p.source_pages;
+        if(address>=0x1000000000ul&&address<0x1200000000ul)index=uint((address-0x1000000000ul)>>12);
+        else if(address>=0x7f00000000ul&&address<0x8000000000ul)index=2097152u+uint((address-0x7f00000000ul)>>12);
+        else valid=false;
+        uint value=0u;
+        if(valid&&index<p.count){uint64_t page=p.source.pages[index];
+            valid=(page&3ul)==0ul&&page>=p.private_pages&&page<=~0ul-4096ul&&page+4096ul<=p.private_pages+uint64_t(p.page_bytes);
+            if(valid)value=Words(page).data[uint((address&4095ul)>>2)];
+        }else valid=false;
+        if(!valid)atomicAdd(p.counters.words[3],1u);
+        Words(uint64_t(p.destination)).data[i]=value;
+        return;
+    }
+
+    if(i>=p.count||p.count>3145728u||p.count==0u||p.page_bytes==0u||p.page_bytes>67108864u||p.page_bytes%4096u!=0u||p.mode>1u||p.reserved!=0u)return;
+    if(p.source_pages==0ul||p.private_pages==0ul||p.source_pages+uint64_t(p.page_bytes)<p.source_pages||p.private_pages+uint64_t(p.page_bytes)<p.private_pages)return;
+    uint64_t original=p.source.pages[i],expected=original;
+    bool overflow=original>~0ul-4096ul;
+    bool misaligned=original!=0ul&&(original&3ul)!=0ul;
+    bool overlap=!overflow&&original!=0ul&&original<p.source_pages+uint64_t(p.page_bytes)&&original+4096ul>p.source_pages;
+    bool covered=overlap&&!misaligned&&original>=p.source_pages&&original+4096ul<=p.source_pages+uint64_t(p.page_bytes);
+    if(covered)expected=p.private_pages+(original-p.source_pages);
+    // Never leave a destination entry uninitialized or invent a partial mapping.
+    // Uncovered overlaps remain original and must reject the producer's alias proof.
+    if(p.mode==0u)p.destination.pages[i]=expected;
+    else{
+        if(p.destination.pages[i]!=expected)atomicAdd(p.counters.words[0],1u);
+        if(covered)atomicAdd(p.counters.words[1],1u);
+        if(overlap&&!covered)atomicAdd(p.counters.words[2],1u);
+        if(overflow||misaligned)atomicAdd(p.counters.words[3],1u);
+    }
+}

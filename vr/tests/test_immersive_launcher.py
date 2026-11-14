@@ -26,6 +26,12 @@ class ImmersiveLaunchGuards(unittest.TestCase):
                 self.assertEqual(json.loads(result.stdout),['--lens-shift-selection'] if enabled else [])
     def test_view_shift_units_require_explicit_translated_probe(self):
         self.reject(['-ViewShiftUnits','.01'],'View shift units require the translated non-XR probe')
+    def test_root_probe_requires_isolated_baseline(self):
+        self.reject(['-GpuRootAliasProbe'],'GPU root alias probe requires the isolated non-XR baseline')
+    def test_root_probe_cannot_open_xr(self):
+        self.reject(['-GpuRootAliasProbe','-IsolatedDrawProbe','-XrPreview'],'requires its own non-XR run')
+    def test_root_probe_rejects_color_mode(self):
+        self.reject(['-GpuRootAliasProbe','-IsolatedDrawProbe','-TranslatedColorDrawProbe'],'GPU root alias probe requires the translated depth diagnostic')
     def test_color_draw_requires_isolated_baseline(self):
         self.reject(['-TranslatedColorDrawProbe'],'Translated color probe requires the isolated non-XR baseline')
     def test_color_draw_cannot_open_xr(self):

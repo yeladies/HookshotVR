@@ -1,12 +1,10 @@
 # Native stereo development checkpoint
 
-The live Quest test has confirmed flat game-image transport on a world-anchored quad.
-The current game still has no native stereo output or head-driven gameplay camera.
-No new headset test is required for the completed diagnostics below.
+The playable Quest experiment has head-tracked game-image transport and audio, but its temporal eye pairing still flickers and exposes image boundaries. It does not yet produce a complete native same-state stereo scene. No headset test is requested while the user is unavailable. The dated sections below preserve earlier development checkpoints.
 
 ## Implemented and checked
 
-- Paired isolated host/renderer builds, ABI 18, reviewed game ID and source/binary receipts.
+- Paired isolated host/renderer builds, currently ABI 20, reviewed game ID and source/binary receipts.
 - Source-submission camera snapshots with guarded live host refresh and expiry/identity rejection.
 - Conservative emitted-command image/storage-range lineage; present-slice analysis and alias closure.
 - Image inventory/reference budgets and a pure per-eye buffer address layout.
@@ -28,7 +26,7 @@ Raw graphs, matrices, modules, generated game code, binaries and save snapshots 
 under ignored work directories. Only original source, tests and documentation belong
 in the branch. The stable installation remains read-only input.
 
-Next bounded experiment: [one isolated unchanged draw](vr-isolated-draw-probe-plan.md).
+The [isolated unchanged-draw plan](vr-isolated-draw-probe-plan.md) is an earlier completed diagnostic; current work is tracked in the dated sections below.
 
 ## Next integration gates
 
@@ -381,3 +379,10 @@ Castellano: validado un dibujo D32 real con vistas trasladadas desde el mismo es
 Validation follow-up: translated depth draw passed; actual color remained invisible across the eight-attempt bound and is not accepted. All 99 VR tests pass; inherited 358 passed / 5 known failures / 59 skipped in 322 seconds. Stable installation: 19 hashes unchanged. No headset session opened. Next native blocker is safe camera alias routing through global-memory reads, followed by complete scene production and separate UI composition.
 
 Castellano: profundidad trasladada validada; color invisible en ocho intentos, sin aceptarlo como éxito. 99 pruebas VR correctas; regresiones 358 correctas / 5 conocidas / 59 omitidas. 19 hashes estables intactos. Sin abrir XR. El siguiente bloqueo es redirigir los alias de cámara usados por memoria global antes de completar escena y UI separada.
+
+
+## 2026-11-14 — GPU camera alias closure
+
+The [private guest-root diagnostic](vr-gpu-root-aliases.md) now finds all full-page GPU aliases and verifies complete per-eye camera readback through copied roots. The first real-game run found four aliases per eye, checked every one of the 13,568 camera bytes and retired 50,391,584 bytes of private allocations, with exact unchanged controls and no XR session. Own GPU checks also verify zero-count indirect arguments for invalid aliases or corrupted payloads. Actual game draws do not yet consume the private root; this is the next integration gate, followed by full scene/HUD/OpenXR work.
+
+Castellano: el diagnóstico ya descubre todos los alias completos de cámara en la tabla GPU. Primera prueba real: cuatro alias por ojo, 13.568 bytes completos coincidentes y 50.391.584 bytes privados liberados; controles exactos y sin XR. El guardia GPU bloquea dibujos indirectos cuando los alias o los datos fallan. Falta conectar la tabla privada a shaders del juego y completar escena, HUD y OpenXR. No se pide aún otra prueba en el visor.

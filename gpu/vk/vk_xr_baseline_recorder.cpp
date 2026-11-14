@@ -22,6 +22,7 @@ struct XrBaselineRecorder {
     uint64_t readback_bytes=0;
     VkBuffer readback=VK_NULL_HANDLE;VmaAllocation readback_memory=nullptr;void* mapped=nullptr;
     uint64_t frame_bytes=0,allocated=0;bool prepared=false,finished=false;
+    XrRootAliasProbe* root_alias=nullptr;
     XrBaselineAttempt attempt;XrUniformSourceStamp source_stamp{};
 };
 namespace {
@@ -43,6 +44,7 @@ void release_buffers(XrBaselineRecorder& p){
     if(p.readback)destroy_buffer(p.readback,p.readback_memory);
 }
 void dispose_unsubmitted(XrBaselineRecorder* p){
+    XrRootAliasProbeResult root_result;xr_root_alias_probe_retire(p->root_alias,0,{},0,root_result);
     p->color.retire(0);p->depth.retire(0);p->shift_color.retire(0);p->shift_depth.retire(0);release_buffers(*p);delete p;
 }
 bool account(XrBaselineRecorder& p,VmaAllocation allocation){const auto n=allocation_size(allocation);if(!n||n>budget-p.allocated)return false;p.allocated+=n;return true;}
@@ -98,6 +100,7 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& reques
     XrDescriptorSnapshot checked;if(!checked.capture(in.writes))return nullptr;
     in.writes=checked.writes();
     if(in.view_shift_probe&&(!in.shifted_draw_probe||in.depth_reference==in.view_color_probe||!std::isfinite(in.view_shift_units)||in.view_shift_units<=0||in.view_shift_units>8))return nullptr;
+    if(in.root_alias_probe&&(!in.matrix_probe||!in.view_shift_probe||in.view_color_probe||!in.guest_camera))return nullptr;
     if(in.view_color_probe&&!in.view_shift_probe)return nullptr;
     if(in.depth_reference&&!in.shifted_draw_probe)return nullptr;
     if(in.shifted_draw_probe&&(!in.matrix_probe||in.color.width<160))return nullptr;
@@ -181,6 +184,10 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& reques
         VkComputePipelineCreateInfo pipeline{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};pipeline.layout=p->matrix_layout;pipeline.stage={VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};pipeline.stage.stage=VK_SHADER_STAGE_COMPUTE_BIT;pipeline.stage.module=p->matrix_shader;pipeline.stage.pName="main";
         if(vkCreateComputePipelines(p->device,VK_NULL_HANDLE,1,&pipeline,nullptr,&p->matrix_pipeline)!=VK_SUCCESS)return nullptr;
     }
+    if(in.root_alias_probe){
+        XrRootAliasProbeInput input;input.command=in.command;input.recording=in.recording;input.guest_camera=in.guest_camera;input.camera=in.camera;input.matrices=p->matrix_buffers;
+        p->root_alias=xr_root_alias_probe_create(input);if(!p->root_alias)return nullptr;
+    }
     p->readback_bytes=(in.shifted_draw_probe?6:4)*p->frame_bytes+(in.matrix_probe?4*in.camera.range:0);
     if(p->readback_bytes>budget-p->allocated)return nullptr;
     if(!create_buffer(p->readback_bytes,VK_BUFFER_USAGE_TRANSFER_DST_BIT,true,p->readback,p->readback_memory,&p->mapped,true)||!p->mapped||!account(*p,p->readback_memory)){return nullptr;}
@@ -214,6 +221,7 @@ bool xr_baseline_recorder_prepare(XrBaselineRecorder* p){
         // No compute descriptors are touched. Ordinary compute dispatches rebind
         // their pipeline and constants; graphics state remains on its own bind point.
     }
+    if(in.root_alias_probe&&!xr_root_alias_probe_record(p->root_alias)){p->attempt.abandon();return false;}
     order(in.command,VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT);return true;
 }
 bool xr_baseline_recorder_finish(XrBaselineRecorder* p,uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer command,const std::vector<VkWriteDescriptorSet>& writes){
@@ -258,6 +266,13 @@ bool xr_baseline_recorder_retire(XrBaselineRecorder*& p,XrBaselineComparison& co
     }
     if(finished&&p->source.shifted_draw_probe){const auto shifted=compare_xr_shifted_draw(p->mapped,size_t(6*p->frame_bytes),p->source.color.width,p->source.color.height,p->source.view_shift_probe);
         comparison.view_color_requested=p->source.view_color_probe;comparison.view_shift_requested=p->source.view_shift_probe;comparison.view_shift_units=p->source.view_shift_units;comparison.shifted_draw_requested=true;comparison.shifted_draw_verified=shifted.verified;comparison.shifted_centroid_x=shifted.x;comparison.shifted_centroid_y=shifted.y;comparison.shifted_changed_pixels=shifted.changed;
+    }
+    if(p->source.root_alias_probe){
+        std::array<const unsigned char*,2> expected{};const auto n=size_t(p->source.camera.range);
+        if(finished){const auto* bytes=static_cast<const unsigned char*>(p->mapped)+(p->source.shifted_draw_probe?6:4)*p->frame_bytes;expected={bytes+2*n,bytes+3*n};}
+        XrRootAliasProbeResult root_result;if(!xr_root_alias_probe_retire(p->root_alias,completed,expected,finished?n:0,root_result))return false;
+        comparison.root_alias_requested=true;comparison.root_alias_verified=root_result.verified;comparison.root_alias_allocated_bytes=root_result.allocated_bytes;
+        comparison.root_alias_counts=root_result.aliases;comparison.root_alias_uncovered=root_result.uncovered;comparison.root_alias_errors=root_result.errors;
     }
     if(!p->color.retire(completed)||!p->depth.retire(completed)||!p->shift_color.retire(completed)||!p->shift_depth.retire(completed))return false;
     release_buffers(*p);delete p;p=nullptr;return true;

@@ -459,6 +459,7 @@ bool import_pool(uint64_t lo, uint64_t hi, Pool& p) {
 uint64_t* guest_pages = nullptr;
 uint64_t guest_pages_address = 0;
 VkBuffer guest_pages_buffer = VK_NULL_HANDLE;
+std::atomic<uint64_t> xr_root_address{0},xr_root_device{0},xr_root_bytes{0};
 // (hookshot, 11-07) A change to the table made while a submission is recorded goes into that submission's upload commands, after
 // the mirror copies it records there, instead of into the table at once: the table is read by the GPU, and work submitted
 // before (still running, or queued) read the new entries early. A pool's range zeroed at its merge read as unmapped (zero
@@ -550,6 +551,9 @@ uint64_t memory_guest_pages() {
     std::lock_guard pk(pools_mu);
     guest_pages = (uint64_t*)mapped;
     for (auto& kv : imported) guest_pages_set(kv.second.lo, kv.second.hi, kv.second.address);
+    xr_root_device.store(uint64_t(reinterpret_cast<uintptr_t>(dev.device)),std::memory_order_relaxed);
+    xr_root_bytes.store(bytes,std::memory_order_relaxed);
+    xr_root_address.store(guest_pages_address,std::memory_order_release);
     logf("vk: page table of guest memory at %#llx (%zu pools)", (unsigned long long)guest_pages_address, imported.size());
     return guest_pages_address;
 }
@@ -3671,6 +3675,16 @@ void memory_stats(int64_t* mirrors, uint64_t* mirror_mb, int64_t* sync_bytes, in
 }
 // Only already-bound current mirrors qualify. In particular this never calls
 // pool_of, gpu_buffer_bind, mirror_make/sync or any Vulkan function.
+bool memory_xr_guest_root_source(uint64_t recording,XrGuestRootSource& out) {
+    if(!recording||par_active.load(std::memory_order_relaxed))return false;
+    const auto address=xr_root_address.load(std::memory_order_acquire);
+    const auto bytes=xr_root_bytes.load(std::memory_order_relaxed);
+    if(!address||!bytes||xr_root_device.load(std::memory_order_relaxed)!=uint64_t(reinterpret_cast<uintptr_t>(dev.device)))return false;
+    std::lock_guard lock(pools_mu);
+    const uint64_t generation=pools_gen.load(std::memory_order_acquire),capture=memory_capture_view();
+    if(mem_rec_value!=recording||!generation||!capture)return false;
+    out={address,bytes,{recording,generation,capture}};return true;
+}
 bool memory_xr_uniform_copy_source(VkBuffer buffer,uint64_t recording,XrUniformCopySource& out) {
     if(!buffer||!recording||par_active.load(std::memory_order_relaxed))return false;
     std::lock_guard lock(pools_mu);

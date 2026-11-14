@@ -5,6 +5,7 @@
 namespace mkwvk {
 enum class XrUniformSourceKind {Unsupported,Mirror};
 struct XrUniformSourceStamp {uint64_t recording=0,pool_generation=0,capture_generation=0;};
+struct XrGuestRootSource {uint64_t address=0,bytes=0;XrUniformSourceStamp stamp{};};
 struct XrUniformCopySource {
     VkBuffer buffer=VK_NULL_HANDLE;uint64_t bytes=0;VkBufferUsageFlags usage=0;
     XrUniformSourceKind kind=XrUniformSourceKind::Unsupported;XrUniformSourceStamp stamp{};

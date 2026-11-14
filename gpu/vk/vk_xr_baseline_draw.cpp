@@ -38,6 +38,11 @@ void report(const State& p,const char* status){
         <<",\"changed_mask_pixels\":["<<p.result.shifted_changed_pixels[0]<<","<<p.result.shifted_changed_pixels[1]<<","<<p.result.shifted_changed_pixels[2]<<"]"
         <<",\"mask_centroid_x\":["<<p.result.shifted_centroid_x[0]<<","<<p.result.shifted_centroid_x[1]<<","<<p.result.shifted_centroid_x[2]<<"]"
         <<",\"mask_centroid_y\":["<<p.result.shifted_centroid_y[0]<<","<<p.result.shifted_centroid_y[1]<<","<<p.result.shifted_centroid_y[2]<<"]"
+        <<",\"root_alias_requested\":"<<(p.result.root_alias_requested?"true":"false")<<",\"root_alias_verified\":"<<(p.result.root_alias_verified?"true":"false")
+        <<",\"root_alias_allocated_bytes\":"<<p.result.root_alias_allocated_bytes
+        <<",\"root_alias_counts\":["<<p.result.root_alias_counts[0]<<","<<p.result.root_alias_counts[1]<<"]"
+        <<",\"root_alias_uncovered\":["<<p.result.root_alias_uncovered[0]<<","<<p.result.root_alias_uncovered[1]<<"]"
+        <<",\"root_alias_errors\":["<<p.result.root_alias_errors[0]<<","<<p.result.root_alias_errors[1]<<"]"
         <<",\"unchanged_camera_baseline\":true,\"full_scene_stereo\":false,\"headset_presentation\":false}\n";
 }
 void selection(State& p){
@@ -102,7 +107,7 @@ bool xr_baseline_draw_selected(const Program& program){
 void xr_baseline_draw_prepare(const XrBaselineRecorderInput& input){
     if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);
     if(p.stopped||p.current||p.started>=8||p.attempted.count(input.program))return;
-    auto requested=input;requested.view_color_probe=env_on("RX_VK_XR_VIEW_COLOR_PROBE");requested.view_shift_probe=env_on("RX_VK_XR_VIEW_SHIFT_PROBE");requested.shifted_draw_probe=env_on("RX_VK_XR_SHIFTED_DRAW_PROBE");requested.matrix_probe=requested.shifted_draw_probe||env_on("RX_VK_XR_MATRIX_PATCH_PROBE");
+    auto requested=input;requested.root_alias_probe=env_on("RX_VK_XR_ROOT_ALIAS_PROBE");requested.view_color_probe=env_on("RX_VK_XR_VIEW_COLOR_PROBE");requested.view_shift_probe=env_on("RX_VK_XR_VIEW_SHIFT_PROBE");requested.shifted_draw_probe=env_on("RX_VK_XR_SHIFTED_DRAW_PROBE");requested.matrix_probe=requested.shifted_draw_probe||env_on("RX_VK_XR_MATRIX_PATCH_PROBE");
     if(requested.view_shift_probe)if(const char* value=std::getenv("RX_VK_XR_VIEW_SHIFT_UNITS")){
         char* end=nullptr;const float units=std::strtof(value,&end);if(end==value||*end||!std::isfinite(units)||units<=0||units>8)return;requested.view_shift_units=units;
     }

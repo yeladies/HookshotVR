@@ -39,6 +39,9 @@ void destroy_image(VkImage image,VmaAllocation memory){for(auto entry:fake.views
 bool create_buffer(uint64_t n,VkBufferUsageFlags,bool,VkBuffer& buffer,VmaAllocation& memory,void** mapped,bool){if(fail())return false;buffer=handle<VkBuffer>(++fake.next);memory=handle<VmaAllocation>(++fake.next);fake.buffers[buffer].resize(n);fake.memory[memory]=n;if(mapped)*mapped=fake.buffers[buffer].data();return true;}
 bool create_device_buffer(uint64_t n,VkBufferUsageFlags flags,VkBuffer& b,VmaAllocation& m,bool strict){check(strict,"private buffer must be strict");return create_buffer(n,flags,false,b,m,nullptr,true);}
 void destroy_buffer(VkBuffer b,VmaAllocation m){check(fake.memory.erase(m)==1,"owned buffer allocation");fake.buffers.erase(b);}
+XrRootAliasProbe* xr_root_alias_probe_create(const XrRootAliasProbeInput&){return nullptr;}
+bool xr_root_alias_probe_record(XrRootAliasProbe*){return false;}
+bool xr_root_alias_probe_retire(XrRootAliasProbe*& p,uint64_t,const std::array<const unsigned char*,2>&,size_t,XrRootAliasProbeResult&){check(!p,"default-off fixture must not borrow a root probe");return true;}
 bool memory_xr_uniform_copy_source(VkBuffer b,uint64_t recording,XrUniformCopySource& out){if(b!=handle<VkBuffer>(10))return false;out={b,560,VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,XrUniformSourceKind::Mirror,{recording,fake.generation,1}};return true;}
 VkDeviceAddress vkGetBufferDeviceAddress(VkDevice,const VkBufferDeviceAddressInfo* info){return uint64_t(reinterpret_cast<uintptr_t>(info->buffer))<<20;}
 VkResult vkCreateShaderModule(VkDevice,const VkShaderModuleCreateInfo*,const VkAllocationCallbacks*,VkShaderModule* out){if(fail())return VK_ERROR_OUT_OF_DEVICE_MEMORY;*out=handle<VkShaderModule>(++fake.next);fake.shaders.insert(*out);return VK_SUCCESS;}
