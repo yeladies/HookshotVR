@@ -55,3 +55,6 @@ work/vr-build/hookshot_vr_depth_pair_capture.exe --run --capture work/<private-f
 ```
 
 Castellano: una captura real congelada produjo 1152×648 píxeles por ojo. Se aceptan 741.378 / 741.165 de 746.496 (99,314% / 99,286%); no es una medición de exactitud física. Hay 2.993 / 3.231 píxeles sin cobertura y 2.125 / 2.100 rechazados por discrepancia. Fuente completa intacta y 587.171 píxeles diferentes entre ojos. La revisión visual muestra la escena completa, con huecos en siluetas/cambios de profundidad. No hay datos para superficies ocultas y la transparencia puede no compartir la profundidad opaca. Escala sin calibrar. Es lectura de archivo congelado y salida local, sin juego en directo ni OpenXR. Todos los datos e imágenes siguen privados.
+
+
+Current integration: the [native live-GPU diagnostic](vr-live-gpu-depth-pair.md) now reconstructs both eyes without downloading/uploading its source. The frozen-file checks above remain independent diagnostics. Castellano: el diagnóstico nativo ya consume la fuente viva sin descargarla/subirla; las pruebas de archivo anteriores siguen siendo diagnósticos separados.

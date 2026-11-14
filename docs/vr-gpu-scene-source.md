@@ -22,7 +22,7 @@ This mode requires its own run, a private save snapshot and at least 120 seconds
 
 The receipt verifier requires at least three completed/published sources, zero reported failures, bounded allocations and an exact bounded packet header/length. Actual-source game-free tests exercise partial allocation/map failures, pre-completion rejection, immutable copied leases, backpressure, expired weak metadata, pose/origin scope and permanent device abandonment. These tests use a Vulkan transport double; actual GPU correctness needs the separate native run.
 
-Still pending: same-device reconstruction consuming a live lease, direct OpenXR delivery, late head poses, separate HUD/text composition, scene-dependent disocclusion limits, scale calibration and headset performance/comfort. The playable temporal preview remains an earlier path with the user's reported flicker and boundaries.
+The [native same-device diagnostic](vr-live-gpu-depth-pair.md) now consumes live leases. Still pending: continuous reconstruction and direct OpenXR delivery, late head poses, separate HUD/text composition, scene-dependent disocclusion limits, scale calibration and headset performance/comfort. The playable temporal preview remains an earlier path with the user's reported flicker and boundaries.
 
 ## Castellano
 
@@ -36,7 +36,7 @@ El comando anterior ejecuta el juego en la copia aislada y requiere partidas pri
 
 El verificador exige al menos tres capturas completadas/publicadas, ninguna incidencia registrada y un archivo con tamaño y cabecera válidos. Las pruebas del código real verifican fallos de reserva, sincronización, referencias/copias, presión de reservas, poses y cambios de dispositivo. La simulación Vulkan de esas pruebas no sustituye la ejecución real.
 
-Falta conectar una referencia viva al reconstructor y a OpenXR, usar poses recientes, componer HUD/textos por separado y validar escala, huecos de profundidad, rendimiento y comodidad en Quest. La prueba temporal anterior conserva los fallos que observó el usuario; este componente por sí solo no los da por resueltos.
+El [diagnóstico nativo](vr-live-gpu-depth-pair.md) ya consume referencias vivas. Faltan reconstrucción continua y entrega a OpenXR, usar poses recientes, componer HUD/textos por separado y validar escala, huecos de profundidad, rendimiento y comodidad en Quest. La prueba temporal anterior conserva los fallos que observó el usuario; este componente por sí solo no los da por resueltos.
 
 
 ### Actual RTX 2060 SUPER check / Prueba real

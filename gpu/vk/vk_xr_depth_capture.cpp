@@ -2,6 +2,7 @@
 #include "vk_texture.h"
 #include "xr_depth_capture.h"
 #include "xr_gpu_scene_source.h"
+#include "xr_gpu_depth_pair_probe.h"
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -54,6 +55,7 @@ bool shape(const Texture* t,VkFormat format){return t&&t->image&&t->allocation&&
 bool xr_depth_capture_enabled(){static const bool on=env_on("RX_VK_XR_DEPTH_CAPTURE")&&output();return on;}
 void xr_depth_capture_tick(uint64_t frame){
     xr_gpu_scene_source_tick(frame);
+    xr_gpu_depth_pair_probe_tick(frame);
     if(!xr_depth_capture_enabled())return;auto& p=capture();std::lock_guard lock(p.mutex);
     if(p.last_poll==frame)return;p.last_poll=frame;
     if(!p.armed){const char* arm=std::getenv("HOOKSHOT_VR_DEPTH_CAPTURE_ARM_FILE");std::error_code error;p.armed=arm&&std::filesystem::is_regular_file(std::filesystem::u8path(arm),error);}
@@ -88,6 +90,7 @@ void xr_depth_capture_view(const Texture* texture,VkFormat format){
 }
 void xr_depth_capture_network(VkCommandBuffer command,uint64_t recording,uint64_t program,const std::vector<const Texture*>& images){
     xr_gpu_scene_source_network(command,recording,program,images);
+    xr_gpu_depth_pair_probe_network(command,recording,program);
     if(!xr_depth_capture_enabled()||(program!=0xfd029a317a9a4b94ull&&program!=0x9dc98871eb7fc101ull))return;
     auto& p=capture();std::lock_guard lock(p.mutex);
     if(!p.armed||p.attempted||(streaming()&&now_ns()<p.next_due)||par_active||!command||!recording||recording<=vk_timeline_completed()||p.frame!=texture_frame_no())return;

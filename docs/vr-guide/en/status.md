@@ -1,5 +1,9 @@
 # Status, evidence and roadmap
 
+## Native live GPU pair — 2026-11-14
+
+The normal isolated game test now reconstructs both eyes directly from the same live GPU source, with no source readback/upload: three pairs, 1152×648 per eye, 588,154 different eye pixels and zero reported failures. Completed output is read back only for inspection. All 110 VR cases pass. Current head-pose math is checked separately; OpenXR presentation, HUD and headset validation are still pending. See the [native path, how-to and limitations](../../vr-live-gpu-depth-pair.md).
+
 ## Current GPU source work — 2026-11-14
 
 The native source pool has completed/published 300 immutable GPU color/depth packets with zero reported failures and 17,915,904 allocated bytes in an isolated game run. All 108 VR tests pass. A single packet was explicitly read back for inspection. The live pool is not yet connected to depth-pair reconstruction or OpenXR. The user has confirmed working audio in the later playable preview; its flicker, boundaries and HUD issues remain unresolved. See the [current source design and isolated how-to](../../vr-gpu-scene-source.md). Earlier dated observations below are historical.

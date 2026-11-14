@@ -1,5 +1,9 @@
 # Estado, resultados y hoja de ruta
 
+## Pareja nativa desde GPU viva — 2026-11-14
+
+La prueba aislada ya reconstruye los dos ojos desde la misma fuente GPU viva, sin descargarla/subirla: tres parejas, 1152×648 por ojo, 588.154 píxeles distintos y ninguna incidencia registrada. Solo se lee la salida para inspección. Pasan 110 pruebas VR. La matemática de poses recientes está contrastada por separado; faltan presentación OpenXR, HUD y prueba en visor. Consulta la [ruta nativa, instrucciones y límites](../../vr-live-gpu-depth-pair.md).
+
 ## Origen GPU actual — 2026-11-14
 
 El pool nativo ha completado/publicado 300 paquetes GPU inmutables de color/profundidad, sin incidencias registradas y con 17.915.904 bytes reservados en el juego aislado. Pasan 108 pruebas VR. Se descargó un solo paquete para inspección. Aún falta conectar el origen vivo al reconstructor de ambos ojos y a OpenXR. El usuario confirmó audio correcto en la prueba jugable posterior; siguen pendientes parpadeo, bordes y HUD. Consulta el [diseño y cómo probar el origen aislado](../../vr-gpu-scene-source.md). Las observaciones fechadas anteriores son históricas.

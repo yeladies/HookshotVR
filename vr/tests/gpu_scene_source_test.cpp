@@ -42,7 +42,7 @@ VKAPI_ATTR VkResult VKAPI_CALL invalidate(VkDevice,uint32_t,const VkMappedMemory
 PFN_vkVoidFunction vkGetDeviceProcAddr(VkDevice,const char* name){if(fake.missing)return nullptr;if(std::strcmp(name,"vkUnmapMemory")==0)return reinterpret_cast<PFN_vkVoidFunction>(unmap);return reinterpret_cast<PFN_vkVoidFunction>(invalidate);}
 void vkCmdPipelineBarrier2(VkCommandBuffer,const VkDependencyInfo*){}
 void vkCmdCopyImageToBuffer(VkCommandBuffer,VkImage image,VkImageLayout layout,VkBuffer buffer,uint32_t count,const VkBufferImageCopy* copy){check(layout==VK_IMAGE_LAYOUT_GENERAL&&count==1,"reviewed copy shape");auto& target=fake.memory.at(fake.bindings.at(buffer));auto& source=fake.images.at(image);check(copy->bufferOffset+source.size()<=target.size(),"bounded copy");std::memcpy(target.data()+copy->bufferOffset,source.data(),source.size());}
-void vkCmdCopyBuffer(VkCommandBuffer,VkBuffer src,VkBuffer dst,uint32_t,const VkBufferCopy* c){auto& s=fake.memory.at(fake.bindings.at(src));auto& d=fake.memory.at(fake.bindings.at(dst));check(c->size<=s.size()&&c->size<=d.size(),"bounded readback");std::memcpy(d.data(),s.data(),c->size);}
+void vkCmdCopyBuffer(VkCommandBuffer,VkBuffer src,VkBuffer dst,uint32_t,const VkBufferCopy* c){auto& s=fake.memory.at(fake.bindings.at(src));auto& d=fake.memory.at(fake.bindings.at(dst));check(c->srcOffset+c->size<=s.size()&&c->dstOffset+c->size<=d.size(),"bounded readback");std::memcpy(d.data()+c->dstOffset,s.data()+c->srcOffset,c->size);}
 }
 #include "gpu_scene_source_function.inc"
 using namespace mkwvk;

@@ -19,7 +19,7 @@ The playable Quest experiment has head-tracked game-image transport and audio, b
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 108 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 110 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
@@ -423,3 +423,10 @@ Castellano: pareja GPU desde captura real congelada, 1152×648 por ojo, aceptaci
 The [native GPU source pool](vr-gpu-scene-source.md) publishes completed, const-leased color/depth packets without CPU pixels in normal publication. The first isolated game run completed and published 300 sources with zero reported failures, three allocations and 17,915,904 allocated bytes. One packet was explicitly read back for private inspection. It is not yet connected to the live depth-pair producer or OpenXR. All 108 VR cases pass, including extracted actual-source lifecycle and receipt rejection tests. The stable game remains read-only; no headset session was opened.
 
 Castellano: el nuevo pool publica paquetes de color/profundidad completados y protegidos por referencias, conservando los píxeles en GPU. Primera ejecución aislada: 300 capturas completadas/publicadas, ninguna incidencia registrada, tres reservas y 17.915.904 bytes. Se descargó un paquete exclusivamente para inspección privada. Falta conectar este origen vivo al reconstructor y a OpenXR. Pasan 108 pruebas VR. Instalación estable de solo lectura y sin abrir el visor.
+
+
+## Live source-to-eye GPU integration and tracked-pose math
+
+The [native depth-pair diagnostic](vr-live-gpu-depth-pair.md) now consumes the live immutable source directly. The final normal game run completed three pairs from states 1/2/3 with no source readback/upload or intermediate CPU pixels. Both eyes are 1152×648; 588,154 eye pixels differ; 11,944,256 consumer bytes are reused. Output readback is explicitly diagnostic. An earlier uniform-background output exposed the insufficiency of transport counters; the final code rejects it and retries at most twelve times. A separate debug run proved exact metadata upload and equivalent external processing of the same source. The late-pose helper matches the existing engine camera transforms but is not connected to OpenXR. All 110 VR cases pass. No headset session was opened.
+
+Castellano: el consumidor nativo ya reconstruye ambos ojos directamente desde la fuente GPU viva. Prueba normal: tres parejas, estados 1/2/3, sin descargar/subir la fuente ni píxeles intermedios CPU; 1152×648 por ojo, 588.154 píxeles distintos y 11.944.256 bytes reutilizados. Solo se descarga la salida de inspección. Un fondo uniforme anterior motivó el rechazo visual y un máximo de doce intentos. Comparación separada: parámetros GPU exactos y procesamiento externo equivalente de la misma fuente. Matemática de poses recientes contrastada con el motor, aún sin conectar a OpenXR. 110 pruebas VR correctas y ningún inicio de visor.
