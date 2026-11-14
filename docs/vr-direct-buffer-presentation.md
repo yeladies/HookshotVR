@@ -31,3 +31,6 @@ Antes de grabar comandos comprueba estado/pose/origen común, grabación actual,
 Pruebas reales RTX 2060 SUPER: 32.768 píxeles en cuatro envíos reutilizados, dos formatos, paralaje contrastado independientemente, rotación/traslación y profundidad inválida. Fuente completa intacta. Una captura privada real de 1152×648 produce un PPM idéntico byte por byte a la ruta anterior con iguales parámetros. Ese test sube un archivo y lee la salida; no es presentación del juego vivo en OpenXR.
 
 Pasan 111 pruebas VR. Esta fase solo cambia componentes de prueba/presentación VR; el renderer nativo conserva el checkpoint ya comprobado. Falta unir propietario reutilizable, poses actuales de OpenXR, swapchain real y composición de menús/HUD. No se ha abierto el visor ni publicado imágenes o archivos del juego.
+
+
+The [projection metadata builder](vr-gpu-projection-metadata.md) separately checks that a future OpenXR layer uses the GPU pair's production poses/FOV and complete eye rectangles. Castellano: comprobado por separado que la capa futura conserve poses/FOV de producción y rectángulos completos.

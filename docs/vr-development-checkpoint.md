@@ -19,7 +19,7 @@ The playable Quest experiment has head-tracked game-image transport and audio, b
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 111 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 112 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
@@ -437,3 +437,10 @@ Castellano: el consumidor nativo ya reconstruye ambos ojos directamente desde la
 The [direct pair-copy helper](vr-direct-buffer-presentation.md) removes two intermediate eye images. The RTX 2060 SUPER analytic oracle checks 32,768 pixels over four reused submissions through this route; a private actual-scene result is bit-identical to the former route. Admission checks target acquisition, device/generation, queue, extents and current pair identity before commands. All 111 VR cases pass. This standalone component has no OpenXR acquisition/submission yet; native sources, shader/header and binaries are unchanged from the previous checkpoint.
 
 Castellano: la copia directa elimina dos imágenes intermedias. Oráculo GPU de 32.768 píxeles/cuatro envíos y salida real congelada idéntica a la ruta anterior. Se comprueban adquisición del destino, dispositivo/generación, cola, tamaños e identidad común. Pasan 111 pruebas VR. Todavía no adquiere/presenta un swapchain OpenXR y no modifica el renderer nativo del checkpoint anterior.
+
+
+## Truthful GPU-pair projection metadata
+
+The [projection metadata builder](vr-gpu-projection-metadata.md) preserves both production poses/FOVs and full eye rectangles. It rejects old origins, expired/temporal pairs, incomplete copies and invalid eyes atomically; copied metadata has no dangling internal view pointer. All 112 VR cases pass. This is checked metadata preparation, not real OpenXR submission. The continuous native pair producer/session wiring and HUD remain next; no headset session was opened.
+
+Castellano: metadatos de proyección con poses/FOV de producción y rectángulos completos. Rechazo atómico de origen viejo, caducidad, fuentes temporales, copias pendientes u ojos inválidos; duración correcta al copiar el array. Pasan 112 pruebas VR. No es presentación OpenXR real: faltan productor continuo, conexión de sesión y HUD. No se abrió el visor.
