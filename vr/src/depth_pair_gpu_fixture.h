@@ -6,6 +6,7 @@
 #include "depth_pair_reproject.h"
 #include "depth_pair_reproject_spv.h"
 #include "same_state_gpu_copy.h"
+#include "same_state_buffer_copy.h"
 #include <algorithm>
 namespace hookshot::vr::smoke {
 struct FixturePairDelete {Context* context;void operator()(EyeResourcePair* p)const{if(!context->uncertain)delete p;}};
@@ -14,12 +15,13 @@ class DepthPairGpuFixture {
 public:
     Context c;SmokeDevice gpu;uint32_t sw,sh,tw,th;uint64_t source_bytes,eye_bytes,pair_bytes,readback_bytes,recording=0;
     std::unique_ptr<EyeResourcePair,FixturePairDelete> eyes,target;
-    VkCommandBuffer command=VK_NULL_HANDLE;PFN_vkCmdPipelineBarrier barrier=nullptr;bool coherent=false;
-    DepthPairGpuFixture(uint32_t source_width,uint32_t source_height,uint32_t target_width,uint32_t target_height):gpu(initialize_smoke(c)),sw(source_width),sh(source_height),tw(target_width),th(target_height),
+    VkCommandBuffer command=VK_NULL_HANDLE;PFN_vkCmdPipelineBarrier barrier=nullptr;bool coherent=false,direct_buffer=false;
+    DepthPairGpuFixture(uint32_t source_width,uint32_t source_height,uint32_t target_width,uint32_t target_height,bool direct=false):gpu(initialize_smoke(c)),sw(source_width),sh(source_height),tw(target_width),th(target_height),
         source_bytes(uint64_t(sw)*sh*8),eye_bytes(uint64_t(tw)*th*4),pair_bytes(2*eye_bytes),readback_bytes(pair_bytes+source_bytes+32),eyes(new EyeResourcePair,FixturePairDelete{&c}),target(new EyeResourcePair,FixturePairDelete{&c}){
+    direct_buffer=direct;
     require(sw>=2&&sh>=2&&sw<=1920&&sh<=1080&&tw>=2&&th>=2&&tw<=1920&&th<=1080,"bounded source/target fixture dimensions");
     const auto api=gpu.api;
-    require(eyes->create(c.device,api,gpu.memory,tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,64*1024*1024),"allocate independent eye images");
+    if(!direct_buffer)require(eyes->create(c.device,api,gpu.memory,tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,64*1024*1024),"allocate independent eye images");
     require(target->create(c.device,api,gpu.memory,2*tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,64*1024*1024),"allocate same-state pair target");
     address_buffer(c,api,gpu.memory,source_bytes,c.auxiliary[0]);address_buffer(c,api,gpu.memory,256,c.auxiliary[1]);address_buffer(c,api,gpu.memory,pair_bytes,c.auxiliary[2]);address_buffer(c,api,gpu.memory,32,c.auxiliary[3]);
     VkBufferCreateInfo staging{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};staging.size=readback_bytes;staging.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT;
@@ -38,7 +40,7 @@ public:
     void order(VkPipelineStageFlags source,VkPipelineStageFlags destination,VkAccessFlags read,VkAccessFlags write){VkMemoryBarrier b{VK_STRUCTURE_TYPE_MEMORY_BARRIER};b.srcAccessMask=read;b.dstAccessMask=write;barrier(command,source,destination,0,1,&b,0,nullptr,0,nullptr);}
     DepthPairReadback run(const std::vector<uint32_t>& source,const std::array<DepthPairParameters,2>& cameras,uint64_t state){
         require(state&&source.size()*4==source_bytes&&!c.uncertain,"complete source packet and known fixture ownership");
-        if(recording){require(eyes->rearm(),"rearm only completed work");checked(c.fn<PFN_vkResetCommandPool>("vkResetCommandPool")(c.device,c.pool,0),"reuse completed command pool");}
+        if(recording){require((direct_buffer?target:eyes)->rearm(),"rearm only completed work");checked(c.fn<PFN_vkResetCommandPool>("vkResetCommandPool")(c.device,c.pool,0),"reuse completed command pool");}
         ++recording;
         DepthPairSource identity{c.auxiliary[0].address,source_bytes,state,1,1,recording,1,sw,sh,cameras[0].settings[0],gpu.family,true,true};
         identity.projection=cameras[0].projection;identity.optical_center={cameras[0].optical[0],cameras[0].optical[1]};
@@ -55,6 +57,11 @@ public:
             c.fn<PFN_vkCmdPushConstants>("vkCmdPushConstants")(command,c.layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof dispatch,&dispatch);c.fn<PFN_vkCmdDispatch>("vkCmdDispatch")(command,(tw+7)/8,(th+7)/8,1);
         }
         order(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_ACCESS_SHADER_WRITE_BIT,VK_ACCESS_TRANSFER_READ_BIT);
+        if(direct_buffer){
+            const SameStateBufferPair pair{c.device,c.auxiliary[2].buffer,pair_bytes,state,1,recording,recording,1,tw,th,gpu.family,VK_FORMAT_R8G8B8A8_SRGB};
+            const SameStateBufferTarget destination{c.device,target->eye(0)->image,1,2*tw,th,gpu.family,VK_FORMAT_R8G8B8A8_SRGB,true,true};
+            require(record_same_state_buffer_copy(command,recording,pair,destination,barrier,c.fn<PFN_vkCmdCopyBufferToImage>("vkCmdCopyBufferToImage")),"direct compute-buffer to complete target pair");
+        }else{
         std::array<VkImageMemoryBarrier,2> image_barriers{};
         for(unsigned eye=0;eye<2;++eye){auto& b=image_barriers[eye];b.sType=VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;b.srcQueueFamilyIndex=b.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;b.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};b.image=eyes->eye(eye)->image;b.oldLayout=VK_IMAGE_LAYOUT_UNDEFINED;b.newLayout=VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;b.dstAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT;}
         barrier(command,VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,2,image_barriers.data());
@@ -63,12 +70,13 @@ public:
         barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,2,image_barriers.data());
         std::array<SameStateEyeImage,2> pair;for(unsigned eye=0;eye<2;++eye)pair[eye]={eyes->eye(eye)->image,state,1,recording,recording,eye,tw,th,gpu.family,VK_FORMAT_R8G8B8A8_SRGB};
         require(record_same_state_eye_copy(command,recording,pair,{target->eye(0)->image,2*tw,th,gpu.family,VK_FORMAT_R8G8B8A8_SRGB,true,true},barrier,c.fn<PFN_vkCmdCopyImage>("vkCmdCopyImage")),"copy complete same-source eye pair without intermediate CPU pixels");
+        }
         VkImageMemoryBarrier read{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};read.srcQueueFamilyIndex=read.dstQueueFamilyIndex=VK_QUEUE_FAMILY_IGNORED;read.image=target->eye(0)->image;read.subresourceRange={VK_IMAGE_ASPECT_COLOR_BIT,0,1,0,1};read.oldLayout=VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;read.newLayout=VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;read.srcAccessMask=VK_ACCESS_MEMORY_WRITE_BIT;read.dstAccessMask=VK_ACCESS_TRANSFER_READ_BIT;
         barrier(command,VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,VK_PIPELINE_STAGE_TRANSFER_BIT,0,0,nullptr,0,nullptr,1,&read);
         VkBufferImageCopy image_copy{};image_copy.imageSubresource={VK_IMAGE_ASPECT_COLOR_BIT,0,0,1};image_copy.imageExtent={2*tw,th,1};c.fn<PFN_vkCmdCopyImageToBuffer>("vkCmdCopyImageToBuffer")(command,target->eye(0)->image,VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,c.staging,1,&image_copy);
         VkBufferCopy source_copy{0,pair_bytes,source_bytes},counter_copy{0,pair_bytes+source_bytes,32};c.fn<PFN_vkCmdCopyBuffer>("vkCmdCopyBuffer")(command,c.auxiliary[0].buffer,c.staging,1,&source_copy);c.fn<PFN_vkCmdCopyBuffer>("vkCmdCopyBuffer")(command,c.auxiliary[3].buffer,c.staging,1,&counter_copy);
         order(VK_PIPELINE_STAGE_TRANSFER_BIT,VK_PIPELINE_STAGE_HOST_BIT,VK_ACCESS_TRANSFER_WRITE_BIT,VK_ACCESS_HOST_READ_BIT);checked(c.fn<PFN_vkEndCommandBuffer>("vkEndCommandBuffer")(command),"end GPU pair");
-        const auto submitted=eyes->submit(c.queue,command);c.uncertain=eyes->pending();checked(submitted,"submit same-source pair");require(eyes->poll(5000000000ull),"GPU pair timeout; allocations retained");c.uncertain=false;
+        auto& owner=direct_buffer?target:eyes;const auto submitted=owner->submit(c.queue,command);c.uncertain=owner->pending();checked(submitted,"submit same-source pair");require(owner->poll(5000000000ull),"GPU pair timeout; allocations retained");c.uncertain=false;
         void* mapped=nullptr;checked(c.fn<PFN_vkMapMemory>("vkMapMemory")(c.device,c.memory,0,VK_WHOLE_SIZE,0,&mapped),"map completed output");if(!coherent){VkMappedMemoryRange invalidate{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE};invalidate.memory=c.memory;invalidate.offset=0;invalidate.size=VK_WHOLE_SIZE;checked(c.fn<PFN_vkInvalidateMappedMemoryRanges>("vkInvalidateMappedMemoryRanges")(c.device,1,&invalidate),"invalidate completed output");}
 
         DepthPairReadback out;out.pixels.resize(pair_bytes/4);out.source.resize(source_bytes/4);

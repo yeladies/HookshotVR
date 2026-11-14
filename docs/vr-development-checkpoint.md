@@ -19,7 +19,7 @@ The playable Quest experiment has head-tracked game-image transport and audio, b
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 110 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 111 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
@@ -430,3 +430,10 @@ Castellano: el nuevo pool publica paquetes de color/profundidad completados y pr
 The [native depth-pair diagnostic](vr-live-gpu-depth-pair.md) now consumes the live immutable source directly. The final normal game run completed three pairs from states 1/2/3 with no source readback/upload or intermediate CPU pixels. Both eyes are 1152×648; 588,154 eye pixels differ; 11,944,256 consumer bytes are reused. Output readback is explicitly diagnostic. An earlier uniform-background output exposed the insufficiency of transport counters; the final code rejects it and retries at most twelve times. A separate debug run proved exact metadata upload and equivalent external processing of the same source. The late-pose helper matches the existing engine camera transforms but is not connected to OpenXR. All 110 VR cases pass. No headset session was opened.
 
 Castellano: el consumidor nativo ya reconstruye ambos ojos directamente desde la fuente GPU viva. Prueba normal: tres parejas, estados 1/2/3, sin descargar/subir la fuente ni píxeles intermedios CPU; 1152×648 por ojo, 588.154 píxeles distintos y 11.944.256 bytes reutilizados. Solo se descarga la salida de inspección. Un fondo uniforme anterior motivó el rechazo visual y un máximo de doce intentos. Comparación separada: parámetros GPU exactos y procesamiento externo equivalente de la misma fuente. Matemática de poses recientes contrastada con el motor, aún sin conectar a OpenXR. 110 pruebas VR correctas y ningún inicio de visor.
+
+
+## Direct GPU buffer-to-presentation image
+
+The [direct pair-copy helper](vr-direct-buffer-presentation.md) removes two intermediate eye images. The RTX 2060 SUPER analytic oracle checks 32,768 pixels over four reused submissions through this route; a private actual-scene result is bit-identical to the former route. Admission checks target acquisition, device/generation, queue, extents and current pair identity before commands. All 111 VR cases pass. This standalone component has no OpenXR acquisition/submission yet; native sources, shader/header and binaries are unchanged from the previous checkpoint.
+
+Castellano: la copia directa elimina dos imágenes intermedias. Oráculo GPU de 32.768 píxeles/cuatro envíos y salida real congelada idéntica a la ruta anterior. Se comprueban adquisición del destino, dispositivo/generación, cola, tamaños e identidad común. Pasan 111 pruebas VR. Todavía no adquiere/presenta un swapchain OpenXR y no modifica el renderer nativo del checkpoint anterior.

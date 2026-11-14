@@ -21,8 +21,8 @@ std::array<unsigned,2> analytic_source_pixel(const DepthPairParameters& p,unsign
     require(px>=0&&px<80&&py>=0&&py<80,"analytic plane remains within overscan");return {unsigned(px),unsigned(py)};
 }
 }
-int main(int argc,char** argv){if(argc!=2||std::strcmp(argv[1],"--run")){std::cerr<<"Explicit native GPU opt-in: --run\n";return 2;}
-try{DepthPairGpuFixture fixture(80,80,64,64);
+int main(int argc,char** argv){if(argc!=2||(std::strcmp(argv[1],"--run")&&std::strcmp(argv[1],"--run-direct"))){std::cerr<<"Explicit native GPU opt-in: --run or --run-direct\n";return 2;}
+try{const bool direct=std::strcmp(argv[1],"--run-direct")==0;DepthPairGpuFixture fixture(80,80,64,64,direct);
     for(unsigned round=0;round<4;++round){
         std::vector<uint32_t> source(12800);const bool flip=round==1;
         const float depth=float((1.-double(parameters(0,round).projection[2])+double(parameters(0,round).projection[3])/2)/2);
@@ -40,5 +40,5 @@ try{DepthPairGpuFixture fixture(80,80,64,64);
             }
         }
     }
-    std::cout<<"same_source_depth_pair=true; GPU="<<fixture.gpu.props.deviceName<<"; target_pixels_checked=32768; source_formats_checked=2; rotated_plane_verified=true; invalid_depth_rejected=true; original_color_depth_unchanged=true; intermediate_CPU_pixels=false; submissions=4; allocations_reused=true; XR=false; game=false\n";return 0;
+    std::cout<<"same_source_depth_pair=true; direct_buffer_copy="<<(direct?"true":"false")<<"; GPU="<<fixture.gpu.props.deviceName<<"; target_pixels_checked=32768; source_formats_checked=2; rotated_plane_verified=true; invalid_depth_rejected=true; original_color_depth_unchanged=true; intermediate_CPU_pixels=false; submissions=4; allocations_reused=true; XR=false; game=false\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
