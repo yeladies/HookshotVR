@@ -3,6 +3,7 @@
 #define main baseline_fixture_main
 #define xr_root_alias_probe_create baseline_stub_root_create
 #define xr_root_alias_probe_record baseline_stub_root_record
+#define xr_root_alias_probe_indirect_command baseline_stub_root_indirect_command
 #define xr_root_alias_probe_retire baseline_stub_root_retire
 #define memory_xr_uniform_copy_source baseline_stub_memory_query
 #define vkGetBufferDeviceAddress baseline_stub_buffer_address
@@ -12,6 +13,7 @@
 #undef main
 #undef xr_root_alias_probe_create
 #undef xr_root_alias_probe_record
+#undef xr_root_alias_probe_indirect_command
 #undef xr_root_alias_probe_retire
 #undef memory_xr_uniform_copy_source
 #undef vkGetBufferDeviceAddress
@@ -41,6 +43,12 @@ void vkCmdPushConstants(VkCommandBuffer,VkPipelineLayout layout,VkShaderStageFla
 void vkCmdDispatch(VkCommandBuffer,uint32_t x,uint32_t y,uint32_t z){
     ++root_dispatches;const auto& p=root_parameters;check(y==1&&z==1,"bounded root dispatch");
     auto* counters=reinterpret_cast<uint32_t*>(root_span(p.counters,16));
+    if(p.mode==3){check(x==1,"bounded indirect guard dispatch");
+        bool valid=!counters[0]&&!counters[2]&&!counters[3]&&counters[1]>=(p.extra1>>1);
+        valid=valid&&!std::memcmp(root_span(p.source,p.reserved),root_span(p.source_pages,p.reserved),p.reserved);
+        const bool indexed=p.extra1&1;const uint32_t arguments[5]{valid?p.count:0,p.page_bytes,uint32_t(p.private_pages),indexed?uint32_t(p.private_pages>>32):p.extra0,indexed?p.extra0:0};
+        std::memcpy(root_span(p.destination,sizeof arguments),arguments,sizeof arguments);return;
+    }
     const auto* root=reinterpret_cast<const uint64_t*>(root_span(p.source,uint64_t(p.count)*8));
     if(p.mode<=1){check(x==(p.count+255)/256,"complete root dispatch");auto* target=reinterpret_cast<uint64_t*>(root_span(p.destination,uint64_t(p.count)*8));
         for(uint32_t i=0;i<p.count;++i){const auto original=root[i];const bool overflow=original>UINT64_MAX-4096;
@@ -68,7 +76,7 @@ XrRootAliasProbeInput root_input(){
     fake.buffers[handle<VkBuffer>(20)].resize(560,37);fake.buffers[handle<VkBuffer>(21)].resize(560,51);
     for(unsigned i=0;i<560;++i){fake.buffers[handle<VkBuffer>(20)][i]=static_cast<unsigned char>((i+37)%251);fake.buffers[handle<VkBuffer>(21)][i]=static_cast<unsigned char>((i+51)%251);}
     XrRootAliasProbeInput in;in.command=handle<VkCommandBuffer>(2);in.recording=9;in.guest_camera=0x1000000f00ull;
-    in.camera={handle<VkBuffer>(10),3840,560};in.matrices={handle<VkBuffer>(20),handle<VkBuffer>(21)};return in;
+    in.camera={handle<VkBuffer>(10),3840,560};in.matrices={handle<VkBuffer>(20),handle<VkBuffer>(21)};in.count=36;in.instances=1;in.first=7;in.vertex_offset=-2;return in;
 }
 void root_cleaned(){check(fake.memory.empty()&&fake.shaders.empty()&&fake.layouts.empty()&&fake.pipelines.empty()&&fake.buffers.size()==4,"only original buffers remain after root retirement");}
 int main(){try{
@@ -77,11 +85,17 @@ int main(){try{
     auto in=root_input();fake.throw_at=5;check(!xr_root_alias_probe_create(in),"allocation exception contained");root_cleaned();
     in=root_input();auto* p=xr_root_alias_probe_create(in);check(p,"allocate root fixture");++fake.generation;
     check(!xr_root_alias_probe_record(p)&&!root_dispatches&&!fake.ends,"changed pool rejected before GPU work");check(xr_root_alias_probe_retire(p,0,no_expected,0,result)&&!p&&!result.recorded,"unrecorded resources retire immediately");root_cleaned();
-    for(bool corrupt:{false,true}){in=root_input();const auto source=fake.buffers.at(handle<VkBuffer>(10));if(corrupt){auto* roots=reinterpret_cast<uint64_t*>(fake.buffers.at(handle<VkBuffer>(9)).data());roots[0]+=16;}
-        p=xr_root_alias_probe_create(in);check(p&&xr_root_alias_probe_record(p)&&root_dispatches==6,"private root copy, verification and lookup per eye");
+    for(bool indexed:{false,true})for(bool corrupt:{false,true}){in=root_input();in.indexed=indexed;const auto source=fake.buffers.at(handle<VkBuffer>(10));if(corrupt){auto* roots=reinterpret_cast<uint64_t*>(fake.buffers.at(handle<VkBuffer>(9)).data());roots[0]+=16;}
+        p=xr_root_alias_probe_create(in);check(p&&xr_root_alias_probe_record(p)&&root_dispatches==8,"private root copy, verification and lookup per eye");
+        XrRootIndirectCommand command{handle<VkBuffer>(99),99};
+        check(!xr_root_alias_probe_indirect_command(p,in.command,8,0,command)&&command.buffer==handle<VkBuffer>(99)&&command.offset==99,"wrong recording leaves borrowed command untouched");
+        check(!xr_root_alias_probe_indirect_command(p,handle<VkCommandBuffer>(3),9,0,command)&&!xr_root_alias_probe_indirect_command(p,in.command,9,2,command),"command and eye identity required");
+        check(xr_root_alias_probe_indirect_command(p,in.command,9,0,command)&&command.buffer&&command.offset%16==0,"same-recording eye may borrow the GPU argument range without waiting");
+        ++fake.generation;check(!xr_root_alias_probe_indirect_command(p,in.command,9,1,command),"stale source generation cannot borrow arguments");--fake.generation;
         const std::array<const unsigned char*,2> expected{fake.buffers.at(handle<VkBuffer>(20)).data(),fake.buffers.at(handle<VkBuffer>(21)).data()};
         check(!xr_root_alias_probe_retire(p,8,expected,560,result)&&p&&!fake.memory.empty(),"in-flight work retains all backing allocations");
         check(xr_root_alias_probe_retire(p,9,expected,560,result)&&!p&&result.recorded&&result.verified==!corrupt,"completed cross-page camera readback detects wrong alias offsets");
+        check(result.indirect_guard_verified==!corrupt&&result.indirect_counts[0]==(corrupt?0:36)&&result.indirect_counts[1]==(corrupt?0:36),"actual recorder transports zero-count guards on bad lookup and preserves indexed/nonindexed geometry");
         check(result.aliases[0]==4&&result.aliases[1]==4&&!result.uncovered[0]&&!result.uncovered[1],"all low and high window aliases visited");
         check((result.errors[0]>0)==corrupt&&(result.errors[1]>0)==corrupt,"payload mismatch contributes an explicit error");
         check(fake.buffers.at(handle<VkBuffer>(10))==source,"original camera bytes unchanged");root_cleaned();

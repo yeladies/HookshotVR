@@ -335,7 +335,7 @@ int main(int argc,char** argv){
                 if(reject_root_payload)c.fn<PFN_vkCmdFillBuffer>("vkCmdFillBuffer")(command,c.staging,36896+eye*4096+0x300,4,0xaabbccdd);
                 VkMemoryBarrier proof{VK_STRUCTURE_TYPE_MEMORY_BARRIER};proof.srcAccessMask=VK_ACCESS_TRANSFER_WRITE_BIT|VK_ACCESS_SHADER_WRITE_BIT;proof.dstAccessMask=VK_ACCESS_SHADER_READ_BIT|VK_ACCESS_SHADER_WRITE_BIT;
                 barrier(command,VK_PIPELINE_STAGE_TRANSFER_BIT|VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,0,1,&proof,0,nullptr,0,nullptr);
-                EyeRootAliasParameters guard{pair.eye(eye)->address,staging_address+45088+eye*32,staging_address+36896+eye*4096,0,staging_address+36864+eye*16,36,1,3,4096,0,2};
+                EyeRootAliasParameters guard{pair.eye(eye)->address,staging_address+45088+eye*32,staging_address+36896+eye*4096,round?((uint64_t(uint32_t(-2))<<32)|7):0,staging_address+36864+eye*16,36,1,3,4096,0,round?3u:2u};
                 require(eye_root_guard_parameters_valid(guard,4096,4096,20,16),"GPU draw guard live bounds");
                 c.fn<PFN_vkCmdPushConstants>("vkCmdPushConstants")(command,c.root_layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof guard,&guard);
                 c.fn<PFN_vkCmdDispatch>("vkCmdDispatch")(command,1,1,1);
@@ -396,7 +396,7 @@ int main(int argc,char** argv){
                 require(reject_root_alignment||bytes[28672+eye*4096+offset]==std::to_integer<unsigned char>(expected),"unlisted alias routes to correct private bytes or preserved partial source");
                 if(!(reject_root_payload&&offset>=0x300&&offset<0x304))require(bytes[36896+eye*4096+offset]==(reject_root_partial?0:std::to_integer<unsigned char>(payloads[eye][offset])),"private-only lookup never dereferences an unproven source page");}
             uint32_t arguments[5]{};std::memcpy(arguments,bytes+45088+eye*32,sizeof arguments);
-            require(arguments[0]==((reject_root_partial||reject_root_payload)?0u:36u)&&arguments[1]==1&&arguments[2]==0&&arguments[3]==0&&arguments[4]==0,"GPU indirect draw guard accepts only proved private cameras");
+            require(arguments[0]==((reject_root_partial||reject_root_payload)?0u:36u)&&arguments[1]==1&&arguments[2]==(round?7u:0u)&&arguments[3]==(round?uint32_t(-2):0u)&&arguments[4]==0,"GPU indirect draw guard accepts only proved private cameras");
         }
         if(gpu_eye_copy)for(unsigned y=0;y<32;++y)for(unsigned x=0;x<64;++x)for(unsigned channel=0;channel<4;++channel)
             require(bytes[28672+(y*64+x)*4+channel]==((channel==((x/32+round)%2)||channel==3)?255:0),"GPU pair target pixel mismatch");
@@ -410,7 +410,7 @@ int main(int argc,char** argv){
         }
         }
         if(gpu_eye_copy)std::cout<<"same_state_gpu_copy=true; target_pixels_checked=4096; CPU_pixel_upload=false; XR_swapchain=false; ";
-        if(gpu_root_alias)std::cout<<"gpu_root_alias_scan=true; gpu_indirect_guard_verified=true; payload_rejection="<<(reject_root_payload?"true":"false")<<"; private_only_lookup_verified=true; misaligned_entry_rejection_verified="<<(reject_root_alignment?"true":"false")<<"; root_entries_per_eye=3145728; GPU_verification_passes=4; omitted_alias_verified=true; partial_alias_rejection="<<(reject_root_partial?"true":"false")<<"; ";
+        if(gpu_root_alias)std::cout<<"gpu_root_alias_scan=true; gpu_indirect_guard_verified=true; indexed_guard_verified=true; payload_rejection="<<(reject_root_payload?"true":"false")<<"; private_only_lookup_verified=true; misaligned_entry_rejection_verified="<<(reject_root_alignment?"true":"false")<<"; root_entries_per_eye=3145728; GPU_verification_passes=4; omitted_alias_verified=true; partial_alias_rejection="<<(reject_root_partial?"true":"false")<<"; ";
         if(matrix_color)std::cout<<"projection_scalar_guard=true; invalid_viewport_rejection="<<(reject_color?"true":"false")<<"; ";
         if(matrix_raw)std::cout<<"raw_view_diagnostic=true; raw_view_displacement=2; calibrated_IPD=false; ";
         if(matrix_patch)std::cout<<"gpu_lens_shift="<<(matrix_lens?"true":"false")<<"; gpu_matrix_patch=true; same_source_for_both_eyes=true; matrix_rejection_verified="<<((reject_matrix_shift||reject_matrix_view||reject_color)?"true":"false")<<"; projected_point_displacement_verified="<<((!reject_matrix_shift&&!reject_matrix_view&&!reject_color)?"true":"false")<<"; game_draw_transformed=false; ";

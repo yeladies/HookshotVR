@@ -459,3 +459,7 @@ add_test(NAME vr_root_alias_patch COMMAND hookshot_vr_root_alias_patch_tests)
 if(Python3_Interpreter_FOUND AND vr_vulkan_include)
     add_test(NAME vr_native_root_query COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_native_root_query.py" --cxx "${CMAKE_CXX_COMPILER}" --vulkan-include "${vr_vulkan_include}")
 endif()
+
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_private_root_read_inventory COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_private_root_reads.py")
+endif()

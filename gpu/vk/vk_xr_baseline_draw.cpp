@@ -39,6 +39,9 @@ void report(const State& p,const char* status){
         <<",\"mask_centroid_x\":["<<p.result.shifted_centroid_x[0]<<","<<p.result.shifted_centroid_x[1]<<","<<p.result.shifted_centroid_x[2]<<"]"
         <<",\"mask_centroid_y\":["<<p.result.shifted_centroid_y[0]<<","<<p.result.shifted_centroid_y[1]<<","<<p.result.shifted_centroid_y[2]<<"]"
         <<",\"root_alias_requested\":"<<(p.result.root_alias_requested?"true":"false")<<",\"root_alias_verified\":"<<(p.result.root_alias_verified?"true":"false")
+        <<",\"root_indirect_verified\":"<<(p.result.root_indirect_verified?"true":"false")
+        <<",\"root_indirect_draws_recorded\":"<<(p.result.root_indirect_draws_recorded?"true":"false")
+        <<",\"root_indirect_counts\":["<<p.result.root_indirect_counts[0]<<","<<p.result.root_indirect_counts[1]<<"]"
         <<",\"root_alias_allocated_bytes\":"<<p.result.root_alias_allocated_bytes
         <<",\"root_alias_counts\":["<<p.result.root_alias_counts[0]<<","<<p.result.root_alias_counts[1]<<"]"
         <<",\"root_alias_uncovered\":["<<p.result.root_alias_uncovered[0]<<","<<p.result.root_alias_uncovered[1]<<"]"

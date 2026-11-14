@@ -14,6 +14,7 @@ struct ShaderUniformAuditBinding {
 struct ShaderUniformAuditStage {
     uint64_t module=0;uint32_t nvn_stage=0,vk_stage=0;
     bool uses_global_memory=false,writes_storage_buffers=false,writes_storage_images=false,writes_texel_buffers=false;
+    bool stores_global_memory=false;
 };
 bool xr_shader_uniform_audit_enabled();
 bool xr_shader_uniform_audit_compute_only();

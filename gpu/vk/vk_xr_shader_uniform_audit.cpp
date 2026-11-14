@@ -76,6 +76,7 @@ bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUn
         file<<"{\"module\":";if(available)file<<'\"'<<name(found->second.digest)<<'\"';else file<<"null";
         file<<",\"nvn_stage\":"<<stage.nvn_stage<<",\"vk_stage\":"<<stage.vk_stage
             <<",\"uses_global_memory\":"<<(stage.uses_global_memory?"true":"false")
+            <<",\"stores_global_memory\":"<<(stage.stores_global_memory?"true":"false")
             <<",\"writes_storage_buffers\":"<<(stage.writes_storage_buffers?"true":"false")
             <<",\"writes_storage_images\":"<<(stage.writes_storage_images?"true":"false")
             <<",\"writes_texel_buffers\":"<<(stage.writes_texel_buffers?"true":"false")<<'}';

@@ -23,7 +23,9 @@ CONTROL={"OpPhi","OpLoopMerge","OpSelectionMerge","OpLabel","OpBranch","OpBranch
 FUNCTIONS={"OpFunction","OpFunctionParameter","OpFunctionEnd","OpFunctionCall"}
 
 
-def analyze(words,grammar):
+def analyze(words,grammar,*,private_root_read_inventory=False):
+    if type(private_root_read_inventory) is not bool:raise ValueError("Invalid effect inventory policy")
+    readable=READ_CLASSES|({5349} if private_root_read_inventory else set())
     if len(words)>2*1024*1024:raise ValueError("Module exceeds 8 MiB")
     definitions={item["opcode"]:item for item in grammar["instructions"]}
     ops=list(instructions(words));reasons=collections.Counter();pointer_types={};result_types={};ids=set()
@@ -65,15 +67,32 @@ def analyze(words,grammar):
         elif name=="OpFunctionEnd":current=None
         elif name=="OpFunctionCall":
             if len(args)<3:raise ValueError("Invalid call")
-            calls.append(args[2])
+            calls.append((current,args[2]))
     if len(entry_models)!=1 or entry_models[0] not in (0,4):reject("not_single_vertex_or_fragment_entry")
     if len(models)!=1 or models[0] not in ((0,1),(5348,1),(0,3),(5348,3)):reject("unsupported_memory_model")
-    if any(f not in bodies for f in entry_functions+calls):reject("unresolved_function_body")
+    reachable=set(entry_functions)
+    if private_root_read_inventory:
+        edges=collections.defaultdict(set)
+        for caller,callee in calls:
+            if caller is None:reject("call_outside_function")
+            else:edges[caller].add(callee)
+        pending=list(reachable)
+        while pending:
+            for callee in edges[pending.pop()]:
+                if callee not in reachable:reachable.add(callee);pending.append(callee)
+        checked_functions=reachable
+    else:checked_functions=set(entry_functions+[callee for _,callee in calls])
+    if any(f not in bodies for f in checked_functions):reject("unresolved_function_body")
     def pointer_class(result):return pointer_types.get(result_types.get(result))
+    current=None
     for opcode,args in ops:
         info=definitions.get(opcode)
         if info is None:continue
         name,kind=info["opname"],info.get("class","")
+        if name=="OpFunction":current=args[1]
+        ignored=private_root_read_inventory and current is not None and current not in reachable
+        if name=="OpFunctionEnd":current=None
+        if ignored:continue
         if name in ("OpStore","OpCopyMemory","OpCopyMemorySized"):
             if not args:raise ValueError("Missing write pointer")
             storage=pointer_class(args[0]);writes[str(storage)]+=1
@@ -81,14 +100,15 @@ def analyze(words,grammar):
         if name in ("OpCopyMemory","OpCopyMemorySized"):
             if len(args)<2:raise ValueError("Missing copy source")
             storage=pointer_class(args[1]);reads[str(storage)]+=1
-            if storage not in READ_CLASSES:reject("hidden_or_unresolved_read")
+            if storage not in readable:reject("hidden_or_unresolved_read")
         if name in ("OpLoad","OpArrayLength"):
             if len(args)<3:raise ValueError("Missing load pointer")
             storage=pointer_class(args[2]);reads[str(storage)]+=1
-            if storage not in READ_CLASSES:reject("hidden_or_unresolved_read")
+            if storage not in readable:reject("hidden_or_unresolved_read")
         if name=="OpVariable" and len(args)>=3 and pointer_class(args[1])!=args[2]:reject("incoherent_variable_storage")
         if name in ("OpConvertUToPtr","OpGenericCastToPtr","OpGenericCastToPtrExplicit","OpPtrCastToGeneric"):
-            reject("unsupported_pointer_conversion")
+            if not (private_root_read_inventory and name=="OpConvertUToPtr" and pointer_types.get(args[0])==5349):
+                reject("unsupported_pointer_conversion")
         if name=="OpBitcast" and len(args)>=2 and args[0] in pointer_types:reject("unsupported_pointer_bitcast")
         if name in ("OpDecorate","OpDecorateId","OpMemberDecorate"):
             at=2 if name=="OpMemberDecorate" else 1
@@ -113,11 +133,19 @@ def analyze(words,grammar):
         if not allowed:reject("unsupported_operation:"+name)
     return {"schema":1,"instruction_count":len(ops),"entry_models":entry_models,
             "read_storage_classes":dict(reads),"write_storage_classes":dict(writes),
-            "rejections":dict(sorted(reasons.items())),"supported_read_only_subset":not reasons,
+            "rejections":dict(sorted(reasons.items())),"supported_read_only_subset":not reasons and not private_root_read_inventory,
+            "private_root_read_inventory":private_root_read_inventory,
+            "private_root_read_inventory_subset":private_root_read_inventory and not reasons,
+            "physical_read_ranges_proved":False,"private_root_routing_verified":False,
+            "function_effect_scope":"entry_call_graph" if private_root_read_inventory else "whole_module",
+            "reachable_function_count":len(reachable) if private_root_read_inventory else None,
+            "ignored_function_count":len(functions-reachable) if private_root_read_inventory else 0,
             "spirv_validation_performed":False,"symbolic_range_coverage_complete":False,
             "safe_to_patch":False,"safe_to_replay":False,
             "limitations":["Assumes valid SPIR-V; this is not a validator.",
                 "Checks shader stores, not query/transform-feedback/pipeline effects or descriptor identity.",
+                "Physical-read inventory does not prove pointer provenance, owned ranges or private-root routing.",
+                "Entry-call-graph inventory checks every block in every transitively called function; it is not a SPIR-V validator.",
                 "Does not prove camera semantics, culling, temporal correctness or complete scene coverage."]}
 
 
@@ -125,11 +153,12 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("module",type=Path);parser.add_argument("--grammar",type=Path,required=True)
     parser.add_argument("--output",type=Path)
+    parser.add_argument("--private-root-read-inventory",action="store_true",help="Inventory read-only physical accesses; never enables baseline selection or replay")
     args=parser.parse_args()
     if args.module.stat().st_size>8*1024*1024 or args.grammar.stat().st_size>8*1024*1024:parser.error("Input exceeds bounds")
     data=args.module.read_bytes()
     if len(data)%4:parser.error("Module is not word aligned")
-    try:report=analyze(struct.unpack("<"+"I"*(len(data)//4),data),json.loads(args.grammar.read_text(encoding="utf-8")))
+    try:report=analyze(struct.unpack("<"+"I"*(len(data)//4),data),json.loads(args.grammar.read_text(encoding="utf-8")),private_root_read_inventory=args.private_root_read_inventory)
     except (ValueError,KeyError,TypeError) as error:parser.error(str(error))
     report["module_sha256"]=hashlib.sha256(data).hexdigest()
     text=json.dumps(report,indent=2)+"\n"

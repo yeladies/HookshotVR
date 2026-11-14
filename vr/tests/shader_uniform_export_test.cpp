@@ -25,7 +25,7 @@ int main(int argc,char** argv){try{
     const auto original_identity=identity;check(!xr_shader_uniform_audit_identity(999,identity,count)&&identity==original_identity&&count==6,"missing identity preserves output");
     check(!xr_shader_uniform_audit_module(3,nullptr,6)&&!xr_shader_uniform_audit_module(3,words,0),"invalid payload rejected");
     std::vector<ShaderUniformAuditBinding> bindings{{1,0,1,6,0,3,560,true},{2,1,16,9,0,4,64,false}};
-    const std::vector<ShaderUniformAuditStage> stages{{1,0,1,false,false,false,false},{2,1,16,false,false,false,false}};
+    const std::vector<ShaderUniformAuditStage> stages{{1,0,1,false,false,false,false},{2,1,16,true,false,false,false,true}};
     bindings[0].camera_candidates.eligible=true;bindings[0].camera_candidates.view_offsets={256};
     auto invalid=bindings;invalid[0].camera_candidates.view_offsets.assign(65,256);
     check(!xr_shader_uniform_audit_program(80,invalid),"candidate output bound enforced before serialization");
@@ -35,6 +35,7 @@ int main(int argc,char** argv){try{
     std::ifstream file(path/"program-bindings.jsonl");std::string line,last;while(std::getline(file,line))if(!line.empty())last=line;
     check(last.find("\"primary_camera_binding\":true")!=std::string::npos&&last.find("\"binding\":6")!=std::string::npos,"binding provenance and index retained");
     check(last.find("\"candidate_view_offsets\":[256]")!=std::string::npos,"candidate offsets retained without matrix contents");
+    check(last.find("\"stores_global_memory\":false")!=std::string::npos&&last.find("\"stores_global_memory\":true")!=std::string::npos,"global loads and stores have separate typed flags");
     check(last.find("\"stage_inventory_complete\":true")!=std::string::npos&&last.find("\"stages\":[")!=std::string::npos,"explicit stage inventory retained");
     check(xr_shader_uniform_audit_program(8,{bindings[0]},stages),"fragment stage without uniform bindings exported");
     check(xr_shader_uniform_audit_program(9,{},stages),"stage-only program remains representable");

@@ -13,7 +13,7 @@ struct XrRootAliasProbe {
     struct Buffer {VkBuffer buffer=VK_NULL_HANDLE;VmaAllocation memory=nullptr;uint64_t address=0;};
     VkDevice device=VK_NULL_HANDLE;XrRootAliasProbeInput input;XrUniformCopySource source;XrGuestRootSource root;
     uint64_t page_begin=0,page_bytes=0,inner=0,stride=0,readback_bytes=0,allocated=0,source_page_address=0;
-    std::array<Buffer,2> pages{},roots{};Buffer readback;void* mapped=nullptr;
+    std::array<Buffer,2> pages{},roots{};std::array<uint64_t,2> matrix_addresses{};Buffer readback;void* mapped=nullptr;
     VkShaderModule shader=VK_NULL_HANDLE;VkPipelineLayout layout=VK_NULL_HANDLE;VkPipeline pipeline=VK_NULL_HANDLE;
     bool recorded=false,retained=false;
 };
@@ -37,9 +37,14 @@ void root_probe_order(VkCommandBuffer command,VkPipelineStageFlags2 destination,
     VkMemoryBarrier2 b{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};b.srcStageMask=VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;b.srcAccessMask=VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT;b.dstStageMask=destination;b.dstAccessMask=access;
     VkDependencyInfo d{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};d.memoryBarrierCount=1;d.pMemoryBarriers=&b;vkCmdPipelineBarrier2(command,&d);
 }
+hookshot::vr::EyeRootAliasParameters root_probe_guard(const XrRootAliasProbe& p,unsigned eye){
+    const auto& in=p.input;const uint64_t geometry=uint64_t(in.first)|(uint64_t(uint32_t(in.vertex_offset))<<32);
+    return {p.matrix_addresses[eye],p.readback.address+2*p.stride+32+eye*32,p.readback.address+eye*p.stride,geometry,
+        p.readback.address+2*p.stride+eye*16,in.count,in.instances,3,uint32_t(in.camera.range),in.first_instance,uint32_t((p.page_bytes/4096)<<1)|uint32_t(in.indexed)};
+}
 XrRootAliasProbe* root_probe_create(const XrRootAliasProbeInput& in){
     if(!in.command||!in.recording||vk_timeline_completed()>=in.recording||!in.guest_camera||in.guest_camera%4||!in.camera.buffer||in.camera.offset%16||in.camera.range<0x230||in.camera.range>65536||in.camera.range%4||
-       !in.matrices[0]||!in.matrices[1]||in.matrices[0]==in.matrices[1]||in.matrices[0]==in.camera.buffer||in.matrices[1]==in.camera.buffer||
+       !in.count||!in.instances||in.first_instance||!in.matrices[0]||!in.matrices[1]||in.matrices[0]==in.matrices[1]||in.matrices[0]==in.camera.buffer||in.matrices[1]==in.camera.buffer||
        (in.guest_camera&4095)!=(in.camera.offset&4095)||in.camera.offset>UINT64_MAX-in.camera.range-4095)return nullptr;
     std::unique_ptr<XrRootAliasProbe,decltype(&root_probe_dispose)> owned(new(std::nothrow) XrRootAliasProbe,root_probe_dispose);
     auto* p=owned.get();if(!p)return nullptr;p->device=dev.device;p->input=in;
@@ -56,8 +61,11 @@ XrRootAliasProbe* root_probe_create(const XrRootAliasProbeInput& in){
         if(!create_device_buffer(p->page_bytes,usage,page.buffer,page.memory,true)||!root_probe_account(*p,page.memory)||!root_probe_address(*p,page,p->page_bytes)||
            !create_device_buffer(p->root.bytes,usage,root.buffer,root.memory,true)||!root_probe_account(*p,root.memory)||!root_probe_address(*p,root,p->root.bytes))return nullptr;
     }
-    p->stride=(in.camera.range+15)&~15ull;p->readback_bytes=2*p->stride+32;
-    if(!create_buffer(p->readback_bytes,usage,true,p->readback.buffer,p->readback.memory,&p->mapped,true)||!p->mapped||!root_probe_account(*p,p->readback.memory)||!root_probe_address(*p,p->readback,p->readback_bytes))return nullptr;
+    p->stride=(in.camera.range+15)&~15ull;p->readback_bytes=2*p->stride+96;
+    if(!create_buffer(p->readback_bytes,usage|VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,true,p->readback.buffer,p->readback.memory,&p->mapped,true)||!p->mapped||!root_probe_account(*p,p->readback.memory)||!root_probe_address(*p,p->readback,p->readback_bytes))return nullptr;
+    for(unsigned eye=0;eye<2;++eye){VkBufferDeviceAddressInfo matrix{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};matrix.buffer=in.matrices[eye];p->matrix_addresses[eye]=vkGetBufferDeviceAddress(p->device,&matrix);
+        if(!hookshot::vr::eye_root_guard_parameters_valid(root_probe_guard(*p,eye),in.camera.range,in.camera.range,32,16))return nullptr;
+    }
     for(unsigned eye=0;eye<2;++eye){hookshot::vr::EyeRootAliasParameters q{p->root.address,p->roots[eye].address,p->source_page_address,p->pages[eye].address,p->readback.address+2*p->stride+eye*16,uint32_t(root_probe_entries),uint32_t(p->page_bytes),0,0};
         if(!hookshot::vr::eye_root_alias_parameters_valid(q,p->root.bytes,p->root.bytes,p->page_bytes,p->page_bytes,16))return nullptr;
         q={p->roots[eye].address,p->readback.address+eye*p->stride,in.guest_camera,p->pages[eye].address,p->readback.address+2*p->stride+eye*16,uint32_t(root_probe_entries),uint32_t(p->page_bytes),2,uint32_t(in.camera.range)};
@@ -104,8 +112,20 @@ bool xr_root_alias_probe_record(XrRootAliasProbe* p){
         root_probe_order(in.command,VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,VK_ACCESS_2_SHADER_READ_BIT|VK_ACCESS_2_SHADER_WRITE_BIT);
         q={p->roots[eye].address,p->readback.address+eye*p->stride,in.guest_camera,p->pages[eye].address,p->readback.address+2*p->stride+eye*16,uint32_t(root_probe_entries),uint32_t(p->page_bytes),2,uint32_t(in.camera.range)};
         vkCmdPushConstants(in.command,p->layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof q,&q);vkCmdDispatch(in.command,uint32_t((in.camera.range/4+255)/256),1,1);
+        root_probe_order(in.command,VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,VK_ACCESS_2_SHADER_READ_BIT|VK_ACCESS_2_SHADER_WRITE_BIT);
+        q=root_probe_guard(*p,eye);vkCmdPushConstants(in.command,p->layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof q,&q);vkCmdDispatch(in.command,1,1,1);
     }
     root_probe_order(in.command,VK_PIPELINE_STAGE_2_HOST_BIT,VK_ACCESS_2_HOST_READ_BIT);return true;
+}
+bool xr_root_alias_probe_indirect_command(XrRootAliasProbe* p,VkCommandBuffer command,uint64_t recording,unsigned eye,XrRootIndirectCommand& out){
+    if(!p||!p->recorded||p->retained)return false;
+    if(p->device!=dev.device){p->retained=true;return false;}
+    if(eye>=2||command!=p->input.command||recording!=p->input.recording||vk_timeline_completed()>=recording)return false;
+    XrUniformCopySource source;XrGuestRootSource root;
+    if(!memory_xr_uniform_copy_source(p->input.camera.buffer,recording,source)||!memory_xr_guest_root_source(recording,root)||
+       !root_probe_stamp(source.stamp,p->source.stamp)||!root_probe_stamp(root.stamp,p->root.stamp)||root.address!=p->root.address||root.bytes!=p->root.bytes||
+       !xr_uniform_copy_source_valid(source,p->input.camera.buffer,p->page_begin,p->page_bytes,p->source.stamp))return false;
+    out={p->readback.buffer,2*p->stride+32+eye*32};return true;
 }
 bool xr_root_alias_probe_retire(XrRootAliasProbe*& p,uint64_t completed,const std::array<const unsigned char*,2>& expected,size_t bytes,XrRootAliasProbeResult& out){
     if(!p)return true;if(p->retained)return false;
@@ -113,12 +133,15 @@ bool xr_root_alias_probe_retire(XrRootAliasProbe*& p,uint64_t completed,const st
     if(p->recorded&&completed<p->input.recording)return false;
     out={};out.recorded=p->recorded;out.allocated_bytes=p->allocated;
     if(p->recorded){invalidate_mapped(p->readback.memory,p->readback_bytes);const auto* data=static_cast<const unsigned char*>(p->mapped);
-        bool verified=bytes==p->input.camera.range&&expected[0]&&expected[1];
+        bool verified=bytes==p->input.camera.range&&expected[0]&&expected[1];bool guard_verified=true;
         for(unsigned eye=0;eye<2;++eye){uint32_t counters[4]{};std::memcpy(counters,data+2*p->stride+eye*16,sizeof counters);
+            uint32_t arguments[5]{};std::memcpy(arguments,data+2*p->stride+32+eye*32,sizeof arguments);
+            const auto& in=p->input;const uint32_t expected_arguments[5]{in.count,in.instances,in.first,in.indexed?uint32_t(in.vertex_offset):in.first_instance,in.indexed?in.first_instance:0};
+            out.indirect_counts[eye]=arguments[0];if(std::memcmp(arguments,expected_arguments,sizeof arguments)){guard_verified=false;verified=false;}
             out.aliases[eye]=counters[1];out.uncovered[eye]=counters[2];out.errors[eye]=uint64_t(counters[0])+counters[3];
             if(counters[0]||counters[2]||counters[3]||counters[1]<p->page_bytes/4096||!expected[eye]||bytes!=p->input.camera.range)verified=false;
             else if(std::memcmp(data+eye*p->stride,expected[eye],bytes)){verified=false;++out.errors[eye];}
-        }out.verified=verified;
+        }out.verified=verified;out.indirect_guard_verified=guard_verified;
     }
     root_probe_dispose(p);p=nullptr;return true;
 }

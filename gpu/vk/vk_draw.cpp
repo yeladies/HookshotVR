@@ -6382,7 +6382,7 @@ void shader_uniform_audit_note(const Program& p,const NvnState& s,uint64_t camer
         stages.push_back({(uint64_t)stage.module,uint32_t(ns),uint32_t(stage.vk_stage),stage.info.uses_global_memory,
             std::any_of(stage.info.storage_buffers_descriptors.begin(),stage.info.storage_buffers_descriptors.end(),[](const auto& d){return d.is_written;}),
             std::any_of(stage.info.image_descriptors.begin(),stage.info.image_descriptors.end(),[](const auto& d){return d.is_written;}),
-            std::any_of(stage.info.image_buffer_descriptors.begin(),stage.info.image_buffer_descriptors.end(),[](const auto& d){return d.is_written;})});
+            std::any_of(stage.info.image_buffer_descriptors.begin(),stage.info.image_buffer_descriptors.end(),[](const auto& d){return d.is_written;}),stage.info.stores_global_memory});
         for(const auto& descriptor:stage.info.constant_buffer_descriptors){
             for(uint32_t element=0;element<descriptor.count;++element){
                 const uint32_t bank=descriptor.index+element;if(bank<3||bank>=19)continue;

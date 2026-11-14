@@ -42,7 +42,8 @@ struct XrBaselineComparison {
     bool depth_reference=false;
     bool shifted_draw_requested=false,shifted_draw_verified=false,view_shift_requested=false,view_color_requested=false;float view_shift_units=0;
     std::array<double,3> shifted_centroid_x{},shifted_centroid_y{};std::array<uint64_t,3> shifted_changed_pixels{};
-    bool root_alias_requested=false,root_alias_verified=false;uint64_t root_alias_allocated_bytes=0;
+    bool root_alias_requested=false,root_alias_verified=false,root_indirect_verified=false,root_indirect_draws_recorded=false;
+    std::array<uint32_t,2> root_indirect_counts{};uint64_t root_alias_allocated_bytes=0;
     std::array<uint64_t,2> root_alias_counts{},root_alias_uncovered{},root_alias_errors{};
     uint64_t matrix_payload_bytes=0;
     uint64_t changed_pixels=0;

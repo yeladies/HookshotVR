@@ -52,6 +52,40 @@ class EffectsTests(unittest.TestCase):
     def test_physical_read_rejected(self):
         result=self.result([op(59,6,12,5349),op(61,2,30,12)],memory=(5348,1))
         self.assertIn("hidden_or_unresolved_read",result["rejections"])
+    def test_private_root_inventory_keeps_default_replay_gate_closed(self):
+        words=module([op(120,6,30,8),op(61,2,31,30)],memory=(5348,1))
+        before=words.copy();report=audit.analyze(words,GRAMMAR,private_root_read_inventory=True)
+        self.assertTrue(report["private_root_read_inventory_subset"])
+        self.assertFalse(report["supported_read_only_subset"])
+        self.assertEqual(report["read_storage_classes"]["5349"],1)
+        for field in ("safe_to_replay","safe_to_patch","physical_read_ranges_proved","private_root_routing_verified"):self.assertFalse(report[field])
+        self.assertFalse(audit.analyze(words,GRAMMAR)["supported_read_only_subset"]);self.assertEqual(words,before)
+    def test_private_root_inventory_still_rejects_physical_writes_and_atomics(self):
+        for extra in ([op(120,6,30,8),op(62,30,8)],[op(120,6,30,8),op(63,30,20)],[op(234,2,30,11,8,8,8)]):
+            self.assertFalse(audit.analyze(module(extra,memory=(5348,1)),GRAMMAR,private_root_read_inventory=True)["private_root_read_inventory_subset"])
+    def test_private_root_inventory_rejects_unknown_or_nonphysical_pointer_conversion(self):
+        for extra in ([op(120,3,30,8)],[op(120,999,30,8)],[op(124,6,30,8)],[op(62,999,8)]):
+            self.assertFalse(audit.analyze(module(extra),GRAMMAR,private_root_read_inventory=True)["private_root_read_inventory_subset"])
+    def test_private_root_inventory_can_read_copy_into_local_storage(self):
+        report=audit.analyze(module([op(120,6,30,8),op(63,20,30)],memory=(5348,1)),GRAMMAR,private_root_read_inventory=True)
+        self.assertTrue(report["private_root_read_inventory_subset"]);self.assertFalse(report["supported_read_only_subset"])
+    def test_private_root_inventory_ignores_only_uncalled_function_effects(self):
+        helper=op(54,1,200,0,7)+op(248,201)+op(62,11,8)+op(253)+op(56)
+        for called in (False,True):
+            words=module([op(57,1,40,200)] if called else [],memory=(5348,1))+helper
+            report=audit.analyze(words,GRAMMAR,private_root_read_inventory=True)
+            self.assertEqual(report["private_root_read_inventory_subset"],not called)
+            self.assertEqual(report["ignored_function_count"],0 if called else 1)
+            self.assertFalse(audit.analyze(words,GRAMMAR)["supported_read_only_subset"])
+    def test_private_root_inventory_checks_transitive_calls_and_cycles(self):
+        helper=op(54,1,200,0,7)+op(248,201)+op(57,1,202,300)+op(253)+op(56)
+        helper+=op(54,1,300,0,7)+op(248,301)+op(57,1,302,200)+op(62,11,8)+op(253)+op(56)
+        report=audit.analyze(module([op(57,1,40,200)])+helper,GRAMMAR,private_root_read_inventory=True)
+        self.assertFalse(report["private_root_read_inventory_subset"]);self.assertEqual(report["reachable_function_count"],3)
+    def test_private_root_inventory_rejects_reachable_unresolved_callee(self):
+        helper=op(54,1,200,0,7)+op(248,201)+op(57,1,202,999)+op(253)+op(56)
+        report=audit.analyze(module([op(57,1,40,200)])+helper,GRAMMAR,private_root_read_inventory=True)
+        self.assertIn("unresolved_function_body",report["rejections"])
     def test_copy_checks_both_pointer_scopes(self):
         self.assertIn("hidden_or_unresolved_read",self.result([op(59,6,12,5349),op(63,20,12)])["rejections"])
         self.assertIn("nonlocal_or_unresolved_write",self.result([op(63,11,20)])["rejections"])

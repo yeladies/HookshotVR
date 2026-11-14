@@ -185,7 +185,7 @@ static XrBaselineRecorder* create_recorder(const XrBaselineRecorderInput& reques
         if(vkCreateComputePipelines(p->device,VK_NULL_HANDLE,1,&pipeline,nullptr,&p->matrix_pipeline)!=VK_SUCCESS)return nullptr;
     }
     if(in.root_alias_probe){
-        XrRootAliasProbeInput input;input.command=in.command;input.recording=in.recording;input.guest_camera=in.guest_camera;input.camera=in.camera;input.matrices=p->matrix_buffers;
+        XrRootAliasProbeInput input;input.command=in.command;input.recording=in.recording;input.guest_camera=in.guest_camera;input.camera=in.camera;input.matrices=p->matrix_buffers;input.count=in.geometry.count;input.instances=in.geometry.instances;input.first=in.geometry.first;input.first_instance=in.geometry.first_instance;input.vertex_offset=in.geometry.vertex_offset;input.indexed=in.geometry.indexed;
         p->root_alias=xr_root_alias_probe_create(input);if(!p->root_alias)return nullptr;
     }
     p->readback_bytes=(in.shifted_draw_probe?6:4)*p->frame_bytes+(in.matrix_probe?4*in.camera.range:0);
@@ -226,10 +226,12 @@ bool xr_baseline_recorder_prepare(XrBaselineRecorder* p){
 }
 bool xr_baseline_recorder_finish(XrBaselineRecorder* p,uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer command,const std::vector<VkWriteDescriptorSet>& writes){
     if(!p||!p->prepared||p->finished)return false;
+    std::array<XrRootIndirectCommand,2> indirect{};
+    if(p->source.root_alias_probe)for(unsigned eye=0;eye<2;++eye)if(!xr_root_alias_probe_indirect_command(p->root_alias,command,recording,eye,indirect[eye])){p->attempt.abandon();return false;}
     if(p->device!=dev.device||!p->original.matches(writes)||!p->attempt.finish(serial,recording,program,identity(dev.device),identity(command))){p->attempt.abandon();return false;}
     end_pass(command);color_readback(*p,p->source.depth_reference?p->source.depth.image:p->source.color.image,1);
     for(unsigned pass=0;pass<(p->source.shifted_draw_probe?2u:1u);++pass)for(unsigned eye=0;eye<2;++eye){
-        order(command,VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT);
+        order(command,VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT|VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT|VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT);
         VkRenderingAttachmentInfo color{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO},depth{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
         color.imageView=pass?p->shift_color_views.eyes[eye]:p->color_views.eyes[eye];depth.imageView=pass?p->shift_depth_views.eyes[eye]:p->depth_views.eyes[eye];
         color.imageLayout=depth.imageLayout=VK_IMAGE_LAYOUT_GENERAL;color.loadOp=depth.loadOp=VK_ATTACHMENT_LOAD_OP_LOAD;color.storeOp=depth.storeOp=VK_ATTACHMENT_STORE_OP_STORE;
@@ -238,7 +240,10 @@ bool xr_baseline_recorder_finish(XrBaselineRecorder* p,uint64_t serial,uint64_t 
         vkCmdBeginRendering(command,&rendering);
         const auto& descriptors=(pass?p->shift_descriptors[eye]:p->descriptors[eye]).writes();vkCmdPushDescriptorSetKHR(command,VK_PIPELINE_BIND_POINT_GRAPHICS,p->source.layout,0,uint32_t(descriptors.size()),descriptors.data());
         const auto& g=p->source.geometry;
-        if(g.indexed)vkCmdDrawIndexed(command,g.count,g.instances,g.first,g.vertex_offset,g.first_instance);
+        if(pass&&p->source.root_alias_probe){
+            if(g.indexed)vkCmdDrawIndexedIndirect(command,indirect[eye].buffer,indirect[eye].offset,1,sizeof(VkDrawIndexedIndirectCommand));
+            else vkCmdDrawIndirect(command,indirect[eye].buffer,indirect[eye].offset,1,sizeof(VkDrawIndirectCommand));
+        }else if(g.indexed)vkCmdDrawIndexed(command,g.count,g.instances,g.first,g.vertex_offset,g.first_instance);
         else vkCmdDraw(command,g.count,g.instances,g.first,g.first_instance);
         vkCmdEndRendering(command);color_readback(*p,p->source.depth_reference?(pass?p->shift_depth.eye(eye):p->depth.eye(eye)):(pass?p->shift_color.eye(eye):p->color.eye(eye)),eye+2+2*pass);
     }
@@ -271,7 +276,7 @@ bool xr_baseline_recorder_retire(XrBaselineRecorder*& p,XrBaselineComparison& co
         std::array<const unsigned char*,2> expected{};const auto n=size_t(p->source.camera.range);
         if(finished){const auto* bytes=static_cast<const unsigned char*>(p->mapped)+(p->source.shifted_draw_probe?6:4)*p->frame_bytes;expected={bytes+2*n,bytes+3*n};}
         XrRootAliasProbeResult root_result;if(!xr_root_alias_probe_retire(p->root_alias,completed,expected,finished?n:0,root_result))return false;
-        comparison.root_alias_requested=true;comparison.root_alias_verified=root_result.verified;comparison.root_alias_allocated_bytes=root_result.allocated_bytes;
+        comparison.root_indirect_draws_recorded=finished&&p->source.shifted_draw_probe;comparison.root_indirect_verified=root_result.indirect_guard_verified;comparison.root_indirect_counts=root_result.indirect_counts;comparison.root_alias_requested=true;comparison.root_alias_verified=root_result.verified;comparison.root_alias_allocated_bytes=root_result.allocated_bytes;
         comparison.root_alias_counts=root_result.aliases;comparison.root_alias_uncovered=root_result.uncovered;comparison.root_alias_errors=root_result.errors;
     }
     if(!p->color.retire(completed)||!p->depth.retire(completed)||!p->shift_color.retire(completed)||!p->shift_depth.retire(completed))return false;
