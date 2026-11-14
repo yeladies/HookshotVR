@@ -1,5 +1,9 @@
 # Status, evidence and roadmap
 
+## Current GPU source work — 2026-11-14
+
+The native source pool has completed/published 300 immutable GPU color/depth packets with zero reported failures and 17,915,904 allocated bytes in an isolated game run. All 108 VR tests pass. A single packet was explicitly read back for inspection. The live pool is not yet connected to depth-pair reconstruction or OpenXR. The user has confirmed working audio in the later playable preview; its flicker, boundaries and HUD issues remain unresolved. See the [current source design and isolated how-to](../../vr-gpu-scene-source.md). Earlier dated observations below are historical.
+
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/status.md)
 
 Status recorded **2026-11-13**, implementation reference `69f7b622f518d0618226f5ffc99464706f9bbecc`. Hardware: Windows, RTX 2060 SUPER, 16 GB RAM. Quest 3 transport: Virtual Desktop / VDXR.

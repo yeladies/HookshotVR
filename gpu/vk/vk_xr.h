@@ -30,6 +30,7 @@ bool xr_vulkan_latest_frame(XrFrameSnapshot* out);
 bool xr_preview_wants_frame();
 int xr_immersive_head_camera(uint64_t camera,float rows[12],int64_t present=0);
 int xr_immersive_head_lens(float* vertical,float* aspect);
+ImmersiveTag xr_immersive_camera_tag(const float* block,size_t count,bool* synthetic_pose=nullptr);
 void xr_immersive_note_camera(uint64_t frame,const float* block,size_t count);
 void xr_immersive_note_scene_candidate(uint64_t frame,uint32_t width=0,uint32_t height=0);
 void xr_immersive_tag_present(int64_t present,uint64_t frame);

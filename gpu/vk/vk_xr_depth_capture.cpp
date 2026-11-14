@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "vk_texture.h"
 #include "xr_depth_capture.h"
+#include "xr_gpu_scene_source.h"
 #include <array>
 #include <cstdlib>
 #include <filesystem>
@@ -52,6 +53,7 @@ bool shape(const Texture* t,VkFormat format){return t&&t->image&&t->allocation&&
 }
 bool xr_depth_capture_enabled(){static const bool on=env_on("RX_VK_XR_DEPTH_CAPTURE")&&output();return on;}
 void xr_depth_capture_tick(uint64_t frame){
+    xr_gpu_scene_source_tick(frame);
     if(!xr_depth_capture_enabled())return;auto& p=capture();std::lock_guard lock(p.mutex);
     if(p.last_poll==frame)return;p.last_poll=frame;
     if(!p.armed){const char* arm=std::getenv("HOOKSHOT_VR_DEPTH_CAPTURE_ARM_FILE");std::error_code error;p.armed=arm&&std::filesystem::is_regular_file(std::filesystem::u8path(arm),error);}
@@ -71,6 +73,7 @@ void xr_depth_capture_tick(uint64_t frame){
     status(p,written?(streaming()?"stream_complete":"completed"):"file_write_failed");
 }
 void xr_depth_capture_note(const Texture* color,const Texture* depth,const float* camera,size_t count){
+    xr_gpu_scene_source_note(color,depth,camera,count);
     if(!xr_depth_capture_enabled())return;auto& p=capture();std::lock_guard lock(p.mutex);if(p.attempted||!camera||count<0x230/4||par_active)return;
     if(!shape(color,VK_FORMAT_B10G11R11_UFLOAT_PACK32)||!shape(depth,VK_FORMAT_D32_SFLOAT)||color->width!=depth->width||color->height!=depth->height||color->image==depth->image)return;
     const auto frame=texture_frame_no();if(p.frame!=frame){p.frame=frame;p.candidates.clear();}
@@ -79,10 +82,12 @@ void xr_depth_capture_note(const Texture* color,const Texture* depth,const float
     if(p.candidates.size()<16)p.candidates.push_back(next);
 }
 void xr_depth_capture_view(const Texture* texture,VkFormat format){
+    xr_gpu_scene_source_view(texture,format);
     if(!xr_depth_capture_enabled()||!texture)return;auto& p=capture();std::lock_guard lock(p.mutex);if(p.attempted||p.frame!=texture_frame_no())return;
     for(auto& item:p.candidates)if(item.color==texture)item.view_format=uint32_t(format);
 }
 void xr_depth_capture_network(VkCommandBuffer command,uint64_t recording,uint64_t program,const std::vector<const Texture*>& images){
+    xr_gpu_scene_source_network(command,recording,program,images);
     if(!xr_depth_capture_enabled()||(program!=0xfd029a317a9a4b94ull&&program!=0x9dc98871eb7fc101ull))return;
     auto& p=capture();std::lock_guard lock(p.mutex);
     if(!p.armed||p.attempted||(streaming()&&now_ns()<p.next_due)||par_active||!command||!recording||recording<=vk_timeline_completed()||p.frame!=texture_frame_no())return;

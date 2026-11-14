@@ -72,6 +72,10 @@ void xr_immersive_note_scene_candidate(uint64_t frame,uint32_t width,uint32_t he
     if(synthetic()&&s.scene.valid&&now_ns()-s.scene.observed_ns>250000000){static uint64_t last=UINT64_MAX;if(last==UINT64_MAX||frame-last>=60){last=frame;logf("vr-immersive: blocked stale-world candidate %ux%u, main %ux%u",width,height,s.scene_width,s.scene_height);}}
     s.candidate_frame=frame;
 }
+ImmersiveTag xr_immersive_camera_tag(const float* block,size_t count,bool* synthetic_pose){
+    if(!enabled()||!block||count<0x230/4)return {};auto& s=state();std::lock_guard lock(s.mutex);
+    auto tag=s.camera.match(block,block+28,now_ns());if(tag.valid&&synthetic_pose)*synthetic_pose=synthetic();return tag;
+}
 void xr_immersive_note_camera(uint64_t frame,const float* block,size_t count){
     if(!enabled()||!block||count<0x230/4)return;auto& s=state();std::lock_guard lock(s.mutex);
     auto tag=s.camera.match(block,block+0x70/4,now_ns());if(!tag.valid)return;

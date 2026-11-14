@@ -1,5 +1,9 @@
 # Estado, resultados y hoja de ruta
 
+## Origen GPU actual — 2026-11-14
+
+El pool nativo ha completado/publicado 300 paquetes GPU inmutables de color/profundidad, sin incidencias registradas y con 17.915.904 bytes reservados en el juego aislado. Pasan 108 pruebas VR. Se descargó un solo paquete para inspección. Aún falta conectar el origen vivo al reconstructor de ambos ojos y a OpenXR. El usuario confirmó audio correcto en la prueba jugable posterior; siguen pendientes parpadeo, bordes y HUD. Consulta el [diseño y cómo probar el origen aislado](../../vr-gpu-scene-source.md). Las observaciones fechadas anteriores son históricas.
+
 [Inicio](index.md) · [Cómo empezar](howto.md) · [Estado](status.md) · [Desarrollo](development.md) · [Ayuda](help.md) · [English / Castellano](../en/status.md)
 
 Estado registrado el **13-11-2026**, implementación de referencia `69f7b622f518d0618226f5ffc99464706f9bbecc`. Equipo: Windows, RTX 2060 SUPER, 16 GB RAM. Conexión Quest 3: Virtual Desktop / VDXR.

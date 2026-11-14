@@ -22,6 +22,7 @@
 #include "vk_menu.h"
 #include "vk_dlss.h"
 #include "vk_xr.h"
+#include "xr_gpu_scene_source.h"
 #include "xr_camera_capture.h"
 #include "vk_fsr4.h"
 #include "vk_reflex.h"
@@ -1320,6 +1321,7 @@ void mkwvk_close_asked(void) {
         if (WaitForSingleObject(prep_ended, 10000) != WAIT_OBJECT_0) logf("vk: the preparation did not stop within 10 s: closing anyway");
     }
     xr_vulkan_reset();   // stop the XR owner before runtime/device resources can go away
+    xr_gpu_scene_source_stop(); // retain packets whose GPU use or ownership is still uncertain
     dlss_fg_close();   // (NVIDIA DLSS Frame Generation through NGX: its feature let go before the process exits, vk_dlss.cpp)
 }
 

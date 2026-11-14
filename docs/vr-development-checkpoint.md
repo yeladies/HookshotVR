@@ -19,7 +19,7 @@ The playable Quest experiment has head-tracked game-image transport and audio, b
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 106 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 108 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
@@ -416,3 +416,10 @@ Castellano: nuevo productor de ambos ojos desde un solo paquete color/profundida
 The GPU producer now processes a private real 1152×648 color/depth packet and produces a complete offscreen pair. Accepted pixels: 99.314% / 99.286%; original GPU packet unchanged; 587,171 pixels differ between eyes. Local visual review confirms the scene and shows silhouette/depth-discontinuity holes. The file input is uploaded by the test fixture; live-game GPU delivery and OpenXR remain pending. Raw packets and images stay private. All 106 VR tests pass.
 
 Castellano: pareja GPU desde captura real congelada, 1152×648 por ojo, aceptación 99,314% / 99,286%, fuente intacta y 587.171 píxeles distintos. La imagen local muestra huecos en discontinuidades; no equivale a calidad validada en visor. El siguiente enlace es juego→origen GPU inmutable→OpenXR. Archivo e imágenes privados; 106 pruebas VR correctas.
+
+
+## Immutable live-game GPU source
+
+The [native GPU source pool](vr-gpu-scene-source.md) publishes completed, const-leased color/depth packets without CPU pixels in normal publication. The first isolated game run completed and published 300 sources with zero reported failures, three allocations and 17,915,904 allocated bytes. One packet was explicitly read back for private inspection. It is not yet connected to the live depth-pair producer or OpenXR. All 108 VR cases pass, including extracted actual-source lifecycle and receipt rejection tests. The stable game remains read-only; no headset session was opened.
+
+Castellano: el nuevo pool publica paquetes de color/profundidad completados y protegidos por referencias, conservando los píxeles en GPU. Primera ejecución aislada: 300 capturas completadas/publicadas, ninguna incidencia registrada, tres reservas y 17.915.904 bytes. Se descargó un paquete exclusivamente para inspección privada. Falta conectar este origen vivo al reconstructor y a OpenXR. Pasan 108 pruebas VR. Instalación estable de solo lectura y sin abrir el visor.
