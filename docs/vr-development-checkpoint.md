@@ -473,3 +473,14 @@ The next Clarity variant requests docked 1080p source output, 1080-square eye ou
 Castellano: primera sesión GPU real con mundo visible y cierre correcto, pero calidad visual no aceptada: baja resolución, bordes al girar y contornos rotos. La variante siguiente aumenta resolución y añade margen real de ojo con metadatos coherentes; el filtro no mezcla superficies a distinta profundidad ni rellena geometría oculta. Las pruebas GPU analíticas pasan 73.728 píxeles/nueve envíos en ambas rutas. Pendiente comparación visual y de rendimiento; vídeo y capturas privados.
 
 Clarity validation: native SDK build source 4937548e; all 134 VR cases pass, updated receipt checks pass; inherited suite remains 358 passed / 5 known environment failures / 59 skipped (306 seconds). Default-off isolated startup passes and all 19 stable-install hashes remain unchanged. New real headset run still pending.
+
+
+## 2026-11-14 — HD comparison not visually accepted; age instrumentation
+
+The real Clarity run confirmed 1920x1080 world rendering and 1080-square eye output, 1.1 eye tangent scale, active depth-aware filter and the requested source lens. It closed cleanly after 1,399 pair copies / 3,568 projection frames, no XR API errors, peak 6,703 MiB. The user reported no substantial improvement and recorded another video; that second video is not yet attached/inspected. This is not a visual fix. The first reduced video remains private.
+
+Added CPU observation-age instrumentation at successful xrEndFrame return, preserving original production timestamps on reused pairs. A causal decomposition, reused-pair/origin/device identity and bucket tests pass; all 19 fake GPU runtime modes additionally verify their actual JSON sample/submission counts. All 135 VR tests pass. The native SDK timing build is source 7091cf39. These counters do not measure compositor display or motion-to-photon latency, and no real age distribution has yet been collected. See [next renderer stage](vr-presentation-age-and-next-renderer.md) for XR-owned reconstruction and the separate silhouette/full-geometry work.
+
+Castellano: prueba HD técnicamente correcta, pero sin mejora sustancial percibida; no se acepta como arreglo visual. Se añade medición de antigüedad de observaciones al enviar cada capa, con comprobaciones de causalidad y reutilización. 135 pruebas VR pasan; todavía no hay distribución real de antigüedades ni medición de latencia de pantalla. El segundo vídeo sigue pendiente; la siguiente ruta propuesta reconstruirá desde el propietario XR, sin confundirla con estéreo de geometría completa.
+
+Timing-checkpoint validation: 135 VR cases passed; native SDK build 7091cf39 and default-off isolated startup passed; inherited suite 358 passed / 5 known environment failures / 59 skipped (319 seconds); stable-install hashes 19/19 unchanged. Instrumented real headset timing data and second-video analysis remain pending.

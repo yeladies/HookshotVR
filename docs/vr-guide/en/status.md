@@ -1,6 +1,6 @@
 # Status, evidence and roadmap
 
-The first GPU-only VDXR session delivered the 3D world (2,654 pair copies / 6,363 projection frames, clean close). The user reported pixelation, turn boundaries and dark silhouette defects. A new HD source / rendered-eye guard-band / depth-aware filtering variant is compiled and under validation; it is not yet visually accepted.
+The first GPU-only VDXR session delivered the 3D world (2,654 pair copies / 6,363 projection frames, clean close). The user reported pixelation, turn boundaries and dark silhouette defects. The HD source / eye guard-band / depth-aware filtering comparison produced no substantial improvement according to the user. Neither profile is visually accepted. [Next renderer stage and age instrumentation](../../vr-presentation-age-and-next-renderer.md).
 
 GPU same-state OpenXR alpha / Alfa OpenXR GPU del mismo estado: [test and limitations / prueba y limitaciones](../../vr-gpu-world-preview.md).
 

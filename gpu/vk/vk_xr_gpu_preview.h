@@ -4,6 +4,7 @@
 #include "xr_gpu_eye_stream.h"
 #include "xr_same_state_buffer_copy.h"
 #include "xr_gpu_projection_layer.h"
+#include "xr_gpu_presentation_timing.h"
 #include <filesystem>
 #include <fstream>
 namespace mkwvk { namespace {
@@ -17,6 +18,7 @@ struct GpuPairPreview {
     VkCommandPool pool=VK_NULL_HANDLE;VkCommandBuffer command=VK_NULL_HANDLE;VkFence fence=VK_NULL_HANDLE;
     bool acquired=false,waited=false,pending=false,uncertain=false,released_valid=false,layer_ready=false;
     uint64_t generation=0,copy_sequence=0,last_state=0,layer_frames=0,image_updates=0,submitted_frames=0;
+    hookshot::vr::GpuPresentationTiming timing;
     std::shared_ptr<const XrGpuEyeFrame> held;
     hookshot::vr::GpuProjectionPair last_metadata;hookshot::vr::GpuProjectionData projection_data;XrCompositionLayerProjection projection{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
     PFN_xrDestroySwapchain destroy_chain=nullptr;PFN_xrAcquireSwapchainImage acquire=nullptr;PFN_xrWaitSwapchainImage wait_image=nullptr;PFN_xrReleaseSwapchainImage release=nullptr;
@@ -27,9 +29,9 @@ struct GpuPairPreview {
     static int64_t now_ns(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
     void report(const char* status)const{
         const char* path=std::getenv("HOOKSHOT_VR_GPU_WORLD_REPORT_FILE");if(!path||!*path)return;
-        try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"width_per_eye\":"<<width<<",\"height\":"<<height<<",\"device_generation\":"<<generation<<",\"source_state\":"<<last_metadata.source_state<<",\"origin\":"<<last_metadata.target.origin<<",\"gpu_pair_copies\":"<<image_updates<<",\"projection_frames_submitted\":"<<submitted_frames<<",\"CPU_pixel_staging\":false,\"production_pose_metadata\":true,\"same_source_state\":true,\"native_geometry_stereo\":false,\"pending\":"<<(pending?"true":"false")<<",\"acquired\":"<<(acquired?"true":"false")<<",\"uncertain\":"<<(uncertain?"true":"false")<<"}\n";}catch(...){}
+        try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"width_per_eye\":"<<width<<",\"height\":"<<height<<",\"device_generation\":"<<generation<<",\"source_state\":"<<last_metadata.source_state<<",\"origin\":"<<last_metadata.target.origin<<",\"gpu_pair_copies\":"<<image_updates<<",\"projection_frames_submitted\":"<<submitted_frames<<",\"CPU_pixel_staging\":false,\"production_pose_metadata\":true,\"same_source_state\":true,\"native_geometry_stereo\":false,\"pending\":"<<(pending?"true":"false")<<",\"acquired\":"<<(acquired?"true":"false")<<",\"uncertain\":"<<(uncertain?"true":"false")<<",\"presentation_timing\":";if(f){timing.json(f);f<<"}\n";}}catch(...){}
     }
-    void submitted(){++submitted_frames;if(submitted_frames==1||submitted_frames%60==0)report("presenting");}
+    void submitted(){timing.record(last_state,last_metadata.source_state,generation,last_metadata.target.origin,last_metadata.source_observed_ns,last_metadata.target.observed_ns,last_metadata.ready_ns,now_ns());++submitted_frames;if(submitted_frames==1||submitted_frames%60==0)report("presenting");}
     bool vk_ok(VkResult r,const char* label){if(r==VK_SUCCESS)return true;logf("xr-gpu: %s failed (%d)",label,int(r));return false;}
     static uint32_t extent(const char* name,uint32_t maximum){const char* value=std::getenv(name);if(!value||!*value)return 1024;char* end=nullptr;const auto n=std::strtoul(value,&end,10);return end==value||*end||n<8||n>maximum||n%8?0:uint32_t(n);}
     bool initialize(XrSession s,VkInstance instance,VkPhysicalDevice,VkDevice d,uint32_t queue_family){

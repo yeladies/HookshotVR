@@ -1,0 +1,39 @@
+# Presentation age and the next renderer stage / Antigüedad y siguiente etapa
+
+## English
+
+The first GPU world test delivered a visible 3D world, but the user reported pixelation, black turn boundaries and silhouette defects. The HD test really used 1920x1080 world rendering, 1080-square eyes, 25% source overscan, 10% rendered-eye overscan and depth-aware filtering. It closed cleanly after 1,399 pair copies and 3,568 projection submissions. The user reported **no substantial improvement**. Neither profile is visually accepted. A second recorded video is pending attachment; it has not been inspected.
+
+### What the new counters mean
+
+`presentation_timing` in the private GPU-world JSON report measures CPU steady-clock observation ages at successful `xrEndFrame` return. It records source-pose, produced-eye-pose and pair-ready ages; age sums/maxima; repeated pair submissions; and eye-pose age buckets up to 8/16/33/66/100 milliseconds and above. Source-to-eye, eye-to-ready and ready-to-submit stages partition the source observation age. Origin/device changes start a new pair run. Invalid causal timestamps are counted separately.
+
+These are not GPU timestamps, compositor display measurements or motion-to-photon latency. They must not be described as actual headset display delay. They measure the ages of the **original production metadata**, including when a pair is reused. The fake runtime checks report counts against actual successful projection calls. No real age distribution has yet been collected with this instrumentation.
+
+### Why the producer schedule needs examination
+
+The current `vk_xr_gpu_eye_stream.cpp` obtains a tracking mailbox sample and records the reconstruction at most once per game texture frame. It publishes only after the engine GPU timeline completes. `GpuPairPreview` copies an already-completed pair and otherwise reuses the last released pair with its original production pose/FOV. OpenXR's runtime compensation remains active, but the reconstruction is still tied to game cadence. This is a potential contributor to turn boundaries; counters are needed before claiming a measured cause.
+
+The next implementation should move the reconstruction command into the XR owner, using `xr_gpu_scene_source_acquire` to borrow one completed immutable scene packet. For each accepted current XR view sample, build both eye transforms from that same packet, dispatch the authored compute shader, copy the pair to the acquired swapchain image, and retain the source lease through completion. Current locate-view poses must be populated before command recording; output metadata must describe those actual reconstruction poses. Never attach fresh poses to an old eye image.
+
+The XR owner must independently validate source/device generation, queue family, byte ranges, origin, source freshness and shader capability. Use a dedicated command pool, reusable device-local allocation, explicit barriers, bounded fence polling and the shared queue mutex only for queue operations. A pending job may reuse the last valid pair; it cannot overwrite leased storage or publish before completion. Recenter invalidates old-origin output while permitting its job to retire. Timeouts/device-loss keep uncertain ownership pinned through process exit.
+
+Admission tests should simulate a 30 Hz scene with 90 Hz XR view samples: multiple output pose samples may share one source state, but both eyes in each output must share source/origin/target identity. Check deferred XR image waits, pending compute/copy, no-CPU-pixel transport, origin/device changes, partial initialization and conservative failure retention. Native GPU tests must independently compare reconstructed pixels and unchanged source packets. Only after that should another bounded headset comparison be requested.
+
+### Silhouettes and full geometry remain separate
+
+Fresh reconstruction can reduce eye-pose age; it cannot reveal surfaces absent from the source image. Review color/depth alignment, pre/post-upscaler color provenance, transparent effects and depth discontinuities using private captures. Do not equate black-free dilation or blur with correct geometry. Full geometry stereo still requires complete per-eye resources/histories, camera-field/alias review and the gates in [native stereo](vr-native-stereo-gates.md) and [private-root inventory](vr-private-root-read-inventory.md). HUD/menu provenance and composition remain separate work.
+
+## Castellano
+
+La primera prueba GPU mostró el mundo 3D, pero con pixelado, límites negros al girar y contornos defectuosos. La prueba HD sí usó mundo a 1920x1080, ojos de 1080x1080, margen de captura del 25%, margen de ojo del 10% y filtrado por profundidad. Cerró correctamente con 1.399 copias y 3.568 proyecciones. El usuario indicó **ninguna mejora sustancial**. Ningún perfil está aceptado visualmente. El segundo vídeo está pendiente de adjuntar y todavía no se ha analizado.
+
+El nuevo bloque privado `presentation_timing` mide antigüedades de observaciones con reloj monotónico de CPU al volver correctamente de `xrEndFrame`: pose de origen, pose usada para reconstruir los ojos, par GPU listo y reutilización de pares. Incluye sumas, máximos e intervalos de antigüedad. No mide tiempos GPU, instante real de pantalla ni latencia de movimiento a fotones. Conserva la edad de las poses originales al reutilizar imágenes. Las pruebas del runtime simulado contrastan las muestras del informe con las proyecciones enviadas. Aún no hay distribución real con esta instrumentación.
+
+La reconstrucción actual se registra como máximo una vez por fotograma de textura del juego y se publica al terminar su trabajo GPU. El consumidor OpenXR copia un par completo o reutiliza el anterior; el runtime sigue compensando movimiento. Esto puede contribuir a los límites al girar, pero todavía no demuestra la causa medida.
+
+El siguiente cambio debe ejecutar la reconstrucción desde el propietario XR: tomar prestado un paquete de escena GPU completo e inmutable, usar las vistas XR actuales para ambos ojos, ejecutar el shader, copiar a la imagen adquirida y conservar el préstamo hasta completar la GPU. Los metadatos describirán las poses reales de esa reconstrucción; nunca se asignarán poses nuevas a ojos antiguos. Se requieren comprobaciones de generación/dispositivo/cola/origen/rangos, recursos reutilizables, barreras, esperas acotadas y retención conservadora ante resultados inciertos.
+
+Las pruebas deben simular escena a 30 Hz y vistas XR a 90 Hz: varios pares pueden compartir una escena, pero los dos ojos de cada par comparten estado, origen y muestra objetivo. Deben cubrir esperas, fallos, recentrado y ausencia de transporte de píxeles por CPU, además de comparación GPU independiente. La prueba del visor vendrá después de validar esta ruta.
+
+Esto no resuelve por sí solo las siluetas: una imagen de origen no contiene las superficies que estaban ocultas. Hay que revisar alineación color/profundidad, origen del color antes/después del reescalado y transparencias con capturas privadas. El estéreo de geometría completa conserva sus condiciones de auditoría de cámaras, alias, recursos e historiales; HUD y menús siguen siendo otra integración. Difuminar o extender bordes negros no demuestra geometría correcta.

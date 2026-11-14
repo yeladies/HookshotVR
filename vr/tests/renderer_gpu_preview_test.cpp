@@ -4,6 +4,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <cstring>
 #include <chrono>
 #include <thread>
@@ -27,6 +30,7 @@ void env(const char* key,const char* value){
 #endif
 }
 int main(int argc,char** argv){using namespace mkwvk;try{
+    const auto report=std::filesystem::temp_directory_path()/("hookshot-vr-gpu-timing-"+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())+".json");env("HOOKSHOT_VR_GPU_WORLD_REPORT_FILE",report.string().c_str());
     check(argc==2,"fake loader path");env("HOOKSHOT_OPENXR_LOADER",argv[1]);env("RX_VK_XR_GPU_WORLD_PREVIEW","1");env("HOOKSHOT_VR_GPU_EYE_WIDTH","8");env("HOOKSHOT_VR_GPU_EYE_HEIGHT","8");
 #ifdef _WIN32
     auto lib=LoadLibraryA(argv[1]);
@@ -51,6 +55,7 @@ int main(int argc,char** argv){using namespace mkwvk;try{
     if(!init_error&&!retained&&!rejected&&!is("invalid_index")&&!is("origin_pending")){check(count(19)>0&&count(20)==0&&count(14)==1&&count(12)==1&&count(13)==1,"reuse one released stereo image, preserving its old production pose/FOV");}
     if(is("origin_pending"))check(count(19)==0&&count(13)==1,"old-origin in-flight copy may retire but never becomes a new-origin layer");
     if(is("gpu_deferred")||is("origin_pending"))check(count(23)>=4,"GPU timeout is polled without premature release");if(is("image_deferred"))check(count(24)>=2,"XR image wait is retried before copying");
+    {std::ifstream file(report);std::string json((std::istreambuf_iterator<char>(file)),{});check(json.find("\"projection_frames_submitted\":"+std::to_string(count(19)))!=std::string::npos,"report counts only successful projection submissions");check(json.find("\"samples\":"+std::to_string(count(19)))!=std::string::npos&&json.find("\"invalid_samples\":0")!=std::string::npos,"timing samples describe the layers actually submitted");file.close();std::filesystem::remove(report);}
     check(count(15)==0&&count(16)==0&&count(18)==0,"no CPU pixel staging buffer, mapping or flush");check(count(4)==0&&count(5)==0&&count(2)==count(3),"balanced XR frames, queue locking, exact buffer regions and production metadata");xr_vulkan_reset();
 #ifdef _WIN32
     FreeLibrary(lib);
