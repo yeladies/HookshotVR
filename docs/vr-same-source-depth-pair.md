@@ -40,3 +40,18 @@ El shader rechaza profundidad inválida, rayos sin cobertura y discrepancias exc
 La RTX 2060 SUPER ha comprobado 32.768 píxeles en cuatro envíos con reservas reutilizadas: paralaje de un plano calculado independientemente, cambio de patrón/formato, rotación/traslación y rechazo de profundidad no finita. El paquete original queda intacto. Los dos ojos pasan después por la copia GPU conjunta, sin píxeles intermedios en CPU. El test sube inicialmente datos creados por nosotros y lee el resultado al finalizar para comprobarlo; no es una medición del juego en directo.
 
 Pasan las 106 pruebas VR y las pruebas GPU anteriores tras compartir el contexto de Vulkan. No se ha iniciado el visor ni cambiado el monitor. El siguiente paso es comprobar una captura privada real y conectar un propietario GPU inmutable al juego y a OpenXR. Siguen pendientes calidad, rendimiento, huecos, escala, FOV y UI real. La prueba temporal jugable permanece como estaba.
+
+
+### Private actual-scene verification
+
+A frozen private game packet was processed at 1152×648 per eye. The GPU accepted 741,378 / 741,165 of 746,496 pixels (99.314% / 99.286%). Coverage rejected 2,993 / 3,231 pixels, and reprojection residual rejected 2,125 / 2,100; no invalid-depth pixel was reported for this packet. The entire source packet stayed bit-exact. The two images differ at 587,171 pixels. These are acceptance/transport observations, not proof of physically correct reconstruction at every pixel or headset quality.
+
+The local output was visually inspected: the complete scene is present, with missing pixels concentrated around silhouettes/depth discontinuities. A single source cannot reveal disoccluded surfaces; transparent effects can also differ from the opaque depth that accompanies them. Scale/IPD are uncalibrated. The test initially uploads a frozen file and reads completed output for review. It is still neither a live-game GPU source nor an OpenXR submission.
+
+The offscreen fixture now supports real source dimensions while retaining the four-submission analytic oracle. The capture tool refuses paths outside project/work and existing output files, and writes only a fresh private PPM. No game pixels, input packet, PPM or PNG is published.
+
+```powershell
+work/vr-build/hookshot_vr_depth_pair_capture.exe --run --capture work/<private-frame>.hsvrd --output work/validation/<fresh-name>.ppm
+```
+
+Castellano: una captura real congelada produjo 1152×648 píxeles por ojo. Se aceptan 741.378 / 741.165 de 746.496 (99,314% / 99,286%); no es una medición de exactitud física. Hay 2.993 / 3.231 píxeles sin cobertura y 2.125 / 2.100 rechazados por discrepancia. Fuente completa intacta y 587.171 píxeles diferentes entre ojos. La revisión visual muestra la escena completa, con huecos en siluetas/cambios de profundidad. No hay datos para superficies ocultas y la transparencia puede no compartir la profundidad opaca. Escala sin calibrar. Es lectura de archivo congelado y salida local, sin juego en directo ni OpenXR. Todos los datos e imágenes siguen privados.

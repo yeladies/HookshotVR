@@ -409,3 +409,10 @@ Castellano: captura completa después de finalizar GPU y comprobar la fuente int
 The [same-source depth pair](vr-same-source-depth-pair.md) reconstructs both eyes from one color/depth packet and composes the complete pair on GPU. The actual RTX 2060 SUPER test checks 32,768 pixels across four reused submissions, both packed formats, a rotated plane and invalid depth. All 106 VR tests pass. This is an offscreen authored-data component; native geometry stereo, a live immutable game source and OpenXR integration remain pending. No headset session is opened.
 
 Castellano: nuevo productor de ambos ojos desde un solo paquete color/profundidad, con copia conjunta GPU. Comprobados 32.768 píxeles, cuatro envíos reutilizados, dos formatos, rotación y profundidad inválida. Pasan 106 pruebas VR. Sigue sin conectar al juego en directo ni a OpenXR y no equivale a renderizar toda la geometría por ojo.
+
+
+## Frozen actual-scene depth pair
+
+The GPU producer now processes a private real 1152×648 color/depth packet and produces a complete offscreen pair. Accepted pixels: 99.314% / 99.286%; original GPU packet unchanged; 587,171 pixels differ between eyes. Local visual review confirms the scene and shows silhouette/depth-discontinuity holes. The file input is uploaded by the test fixture; live-game GPU delivery and OpenXR remain pending. Raw packets and images stay private. All 106 VR tests pass.
+
+Castellano: pareja GPU desde captura real congelada, 1152×648 por ojo, aceptación 99,314% / 99,286%, fuente intacta y 587.171 píxeles distintos. La imagen local muestra huecos en discontinuidades; no equivale a calidad validada en visor. El siguiente enlace es juego→origen GPU inmutable→OpenXR. Archivo e imágenes privados; 106 pruebas VR correctas.
