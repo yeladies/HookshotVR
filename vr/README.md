@@ -113,3 +113,5 @@ scene draw using `-EyeImageProbe`. It does not display the copies or enable ster
 The new [monoscopic immersive game prototype](../docs/vr-immersive-game-preview.md) uses a guarded real-game camera override and a tagged projection layer. It is not native stereo and still needs its first headset check. The source interface is ABI20; old receipts/binaries must not be mixed. The linked guide is available in English and Spanish.
 
 The [wide-lens and temporal-stereo prototype](../docs/vr-temporal-stereo-preview.md) now has separate eye images and a source perspective/frustum update. It remains temporal, with new headset checks pending; menu coverage and Quest audio are unfinished.
+
+The next [Tuned candidate / candidata Tuned](../docs/vr-coherent-view-and-gaps.md) reduces source/eyes to 3584/2304, validates derived view coherence and instruments missing-layer gaps. Visual acceptance remains pending.

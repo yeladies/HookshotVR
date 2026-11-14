@@ -145,7 +145,12 @@ struct SessionProbe {
         if(quad){layers[0]=gpu_preview?gpu_preview->submitted_layer():preview->submitted_layer();end.layerCount=1;end.layers=layers;}
         XrResult ended;
         { std::lock_guard lock(queue_mutex);ended=end_frame(session,&end); }
-        if(!ok(ended,"end renderer frame")||!located||!draw_ok)return false;
+        if(!ok(ended,"end renderer frame"))return false;
+        if(gpu_preview){using Reason=hookshot::vr::GpuFrameReason;
+            const Reason reason=!draw_ok?Reason::Failure:!frame.shouldRender?Reason::RuntimeHidden:frame.predictedDisplayTime<suppress_until?Reason::Suppressed:(!located||(location.locationFlags&needed)!=needed)?Reason::Tracking:Reason::None;
+            gpu_preview->observed_frame(quad,reason);
+        }
+        if(!located||!draw_ok)return false;
         if(quad&&gpu_preview)gpu_preview->submitted();
         if(frame.predictedDisplayTime>=suppress_until) {
             pose(candidate.head,location.pose,location.locationFlags);

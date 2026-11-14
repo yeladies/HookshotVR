@@ -1,5 +1,7 @@
 # Status, evidence and roadmap
 
+The next [Tuned coherence candidate and gap diagnostics](../../vr-coherent-view-and-gaps.md) uses source 3584 / eyes 2304 with the user's approval, synchronizes derived view parameters, restores coherent shared projection fields and adds ±45° unattended sweeps. Headset correction remains unconfirmed.
+
 The user confirms much better detail and perceived smooth motion at 4096 source / 2560 eyes. Disabling engine occlusion only helped slightly: Link/enemies still disappear off-center and blackouts continue. [Results and proposed camera/visibility and no-layer diagnostics](../../vr-combined-visibility-quality.md). The quality profile is retained; overall visual acceptance still fails.
 
 The first GPU-only VDXR session delivered the 3D world (2,654 pair copies / 6,363 projection frames, clean close). The user reported pixelation, turn boundaries and dark silhouette defects. The HD source / eye guard-band / depth-aware filtering comparison produced no substantial improvement according to the user. Neither profile is visually accepted. [Next renderer stage and age instrumentation](../../vr-presentation-age-and-next-renderer.md).

@@ -618,3 +618,17 @@ target_link_libraries(hookshot_vr_xr_owned_gpu_smoke PRIVATE OpenXR::headers ${C
 if(MINGW)
  target_link_options(hookshot_vr_xr_owned_gpu_smoke PRIVATE -static)
 endif()
+
+add_executable(hookshot_vr_view_parameters_tests tests/view_parameters_test.cpp)
+add_executable(hookshot_vr_gpu_frame_diagnostics_tests tests/gpu_frame_diagnostics_test.cpp)
+target_include_directories(hookshot_vr_gpu_frame_diagnostics_tests PRIVATE ../gpu/vk)
+if(MINGW)
+ target_link_options(hookshot_vr_view_parameters_tests PRIVATE -static)
+ target_link_options(hookshot_vr_gpu_frame_diagnostics_tests PRIVATE -static)
+endif()
+add_test(NAME vr_view_parameters COMMAND hookshot_vr_view_parameters_tests)
+add_test(NAME vr_gpu_frame_diagnostics COMMAND hookshot_vr_gpu_frame_diagnostics_tests)
+
+if(Python3_Interpreter_FOUND)
+ add_test(NAME vr_actual_view_hook COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_view_hook.py" --compiler "${CMAKE_CXX_COMPILER}")
+endif()

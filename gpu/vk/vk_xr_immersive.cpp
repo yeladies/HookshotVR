@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "vk_xr.h"
+#include "xr_synthetic_head.h"
 #include <chrono>
 #include <mutex>
 #include <cstdlib>
@@ -15,12 +16,12 @@ int64_t now_ns(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std
 struct State {
     std::mutex mutex;ImmersiveCamera camera;ImmersiveTag scene;uint64_t scene_frame=UINT64_MAX,candidate_frame=UINT64_MAX;uint32_t scene_width=0,scene_height=0,world_width=0,world_height=0,world_camera_width=0,world_camera_height=0;
     struct Present {int64_t id=-1;ImmersiveTag tag;};std::array<Present,32> presents{};
-    uint64_t applied=0,matched=0,tagged=0,published=0,menu_images=0,eye_images[2]{},lens_updates=0;float horizontal_fov=0,vertical_fov=0,requested_vertical=0,requested_aspect=0;int64_t epoch=0;
+    uint64_t applied=0,matched=0,tagged=0,published=0,menu_images=0,eye_images[2]{},lens_updates=0;float horizontal_fov=0,vertical_fov=0,requested_vertical=0,requested_aspect=0;int64_t epoch=0;double synthetic_peak_degrees=0;
 };
 State& state(){static auto* p=new State;return *p;}
 void report(State& s){
     if(const char* path=std::getenv("HOOKSHOT_VR_IMMERSIVE_REPORT_FILE")){
-        std::ofstream out(path);if(out)out<<"{\"schema\":1,\"camera_overrides\":"<<s.applied<<",\"matched_draws\":"<<s.matched<<",\"tagged_presents\":"<<s.tagged<<",\"published_images\":"<<s.published<<",\"menu_images\":"<<s.menu_images<<",\"left_images\":"<<s.eye_images[0]<<",\"right_images\":"<<s.eye_images[1]<<",\"lens_updates\":"<<s.lens_updates<<",\"world_target_width\":"<<s.world_width<<",\"world_target_height\":"<<s.world_height<<",\"world_camera_width\":"<<s.world_camera_width<<",\"world_camera_height\":"<<s.world_camera_height<<",\"horizontal_fov_rad\":"<<s.horizontal_fov<<",\"vertical_fov_rad\":"<<s.vertical_fov<<",\"requested_vertical_fov_rad\":"<<s.requested_vertical<<",\"requested_aspect\":"<<s.requested_aspect<<",\"synthetic_pose\":"<<(synthetic()?"true":"false")<<",\"monoscopic\":"<<(temporal()?"false":"true")<<",\"temporal_stereo\":"<<(temporal()?"true":"false")<<",\"native_stereo\":false}\n";
+        std::ofstream out(path);if(out)out<<"{\"schema\":1,\"camera_overrides\":"<<s.applied<<",\"matched_draws\":"<<s.matched<<",\"tagged_presents\":"<<s.tagged<<",\"published_images\":"<<s.published<<",\"menu_images\":"<<s.menu_images<<",\"left_images\":"<<s.eye_images[0]<<",\"right_images\":"<<s.eye_images[1]<<",\"lens_updates\":"<<s.lens_updates<<",\"world_target_width\":"<<s.world_width<<",\"world_target_height\":"<<s.world_height<<",\"world_camera_width\":"<<s.world_camera_width<<",\"world_camera_height\":"<<s.world_camera_height<<",\"horizontal_fov_rad\":"<<s.horizontal_fov<<",\"vertical_fov_rad\":"<<s.vertical_fov<<",\"requested_vertical_fov_rad\":"<<s.requested_vertical<<",\"requested_aspect\":"<<s.requested_aspect<<",\"synthetic_peak_degrees\":"<<s.synthetic_peak_degrees<<",\"synthetic_pose\":"<<(synthetic()?"true":"false")<<",\"monoscopic\":"<<(temporal()?"false":"true")<<",\"temporal_stereo\":"<<(temporal()?"true":"false")<<",\"native_stereo\":false}\n";
     }
 }
 }
@@ -30,8 +31,8 @@ int xr_immersive_head_camera(uint64_t id,float rows[12],int64_t present){
     const unsigned eye=unsigned((uint64_t(present)/2)%2);
     if(synthetic()){
         if(xr_vulkan_active())return 0;
-        if(!s.epoch)s.epoch=now;const double t=(now-s.epoch)*1e-9;const double angle=.12*std::sin(t*.7);
-        pose.q[1]=float(std::sin(angle/2));pose.q[3]=float(std::cos(angle/2));pose.p[0]=float(.04*std::sin(t));pose.generation=1;pose.observed_ns=now;anchor=pose;
+        if(!s.epoch)s.epoch=now;const double t=(now-s.epoch)*1e-9;const double angle=synthetic_head_angle(std::getenv("HOOKSHOT_VR_TEST_HEAD_SWEEP"),t);s.synthetic_peak_degrees=std::max(s.synthetic_peak_degrees,std::abs(angle)*57.29577951308232);
+        synthetic_head_pose(std::getenv("HOOKSHOT_VR_TEST_HEAD_SWEEP"),t,pose);pose.generation=1;pose.observed_ns=now;anchor=pose;
         if(stereo){const double side=eye?.032:-.032;pose.p[0]+=float(side*std::cos(angle));pose.p[2]-=float(side*std::sin(angle));}
     }else{
         XrFrameSnapshot frame;if(!xr_vulkan_latest_frame(&frame)||!frame.focused||!frame.should_render||(frame.head.flags&3)!=3)return 0;

@@ -80,10 +80,18 @@ class UpdateTests(unittest.TestCase):
         for name in ("gpu/vk/vk_memory.cpp","gpu/vk/vk_xfer.cpp","docs/tested-configurations.md"):
             self.assertEqual((Path(report["candidate_directory"])/name).read_text(),(self.root/name).read_text())
         self.assertFalse(report["release_ready"])
+    def test_authored_view_header_reapplies(self):
+        path=self.root/'host/vr_view_parameters.h';path.write_text('// authored view math\n')
+        self.commit('add view math')
+        report=update.prepare(self.root,self.manifest,self.base)
+        self.assertTrue(report['patch_applied'])
+        self.assertEqual((Path(report['candidate_directory'])/'host/vr_view_parameters.h').read_text(),path.read_text())
+        self.assertFalse(report['installation_changed'])
     def test_patch_allowlist(self):
         for path in ("work/image.bin", "vr/game.exe", "../host/hos_main.c", "user/save.sav", "vr/shaders/game.spv", "vr/shaders/unknown.comp", "work/capture.comp", "gpu/vk/unknown.cpp", "docs/unknown.md"):
             self.assertFalse(update.allowed_patch(path))
         self.assertTrue(update.allowed_patch("nx2/oot_wide.py"))
+        self.assertTrue(update.allowed_patch("host/vr_view_parameters.h"))
         self.assertTrue(update.allowed_patch("gpu/vk/vk_memory.cpp"))
         self.assertTrue(update.allowed_patch("docs/tested-configurations.md"))
         self.assertTrue(update.allowed_patch("vr/src/mod.cpp"))

@@ -4,6 +4,7 @@
 #include "xr_gpu_scene_source.h"
 #include "xr_depth_pair_reproject_spv.h"
 #include "xr_gpu_projection_layer.h"
+#include "xr_gpu_frame_diagnostics.h"
 namespace mkwvk { namespace {
 #define LATE_PAIR_FUNCTIONS(X) \
  X(CreateBuffer) X(DestroyBuffer) X(GetBufferMemoryRequirements) X(AllocateMemory) X(FreeMemory) X(BindBufferMemory) X(GetBufferDeviceAddress) \
@@ -37,19 +38,25 @@ struct GpuLatePair {
         VkComputePipelineCreateInfo pi{VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};pi.layout=layout;pi.stage.sType=VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;pi.stage.stage=VK_SHADER_STAGE_COMPUTE_BIT;pi.stage.module=shader;pi.stage.pName="main";
         return CreateComputePipelines(device,VK_NULL_HANDLE,1,&pi,nullptr,&pipeline)==VK_SUCCESS;
     }
+    hookshot::vr::GpuFrameReason rejection=hookshot::vr::GpuFrameReason::SourceUnavailable;
     bool prepare(const hookshot::vr::DepthPairTrackingTarget& target,int64_t now){
+        using Reason=hookshot::vr::GpuFrameReason;rejection=Reason::SourceUnavailable;
         auto source=xr_gpu_scene_source_acquire(device,target.origin,now);held.reset();
         // Acquisition may observe a newly completed packet. Validate against the
         // clock after that observation, not a timestamp taken before the query.
         now=std::max(now,std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count());
-        if(!source||source->device!=device||!source->buffer||!source->address||source->address%16||source->queue_family!=family||!source->state||!source->recording||!source->generation||source->synthetic_pose||source->bytes!=uint64_t(source->width)*source->height*8||source->ready_ns<=0||source->ready_ns>now)return false;
+        if(!source)return false;rejection=Reason::InvalidSource;
+        if(source->device!=device||!source->buffer||!source->address||source->address%16||source->queue_family!=family||!source->state||!source->recording||!source->generation||source->synthetic_pose||source->bytes!=uint64_t(source->width)*source->height*8||source->ready_ns<=0||source->ready_ns>now)return false;
+        if(source->pose.observed_ns>0&&now>=source->pose.observed_ns&&now-source->pose.observed_ns>250000000){rejection=Reason::SourceStale;return false;}
+        if(source->pose.generation!=target.origin){rejection=Reason::OriginChanged;return false;}
+        rejection=Reason::Tracking;
         if(generation&&generation!=source->generation){fault=true;return false;}
         auto expanded=target;if(!hookshot::vr::expand_depth_pair_fovs(expanded,guard))return false;
         identity={source->address,source->bytes,source->state,target.origin,uint64_t(source->pose.observed_ns),source->recording,source->generation,source->width,source->height,source->format,family,true,true};
         identity.projection={source->projection[0],source->projection[5],source->projection[10],source->projection[11]};identity.optical_center={source->projection[2],source->projection[6]};
         if(!hookshot::vr::prepare_tracked_depth_pair_parameters(identity,source->pose,expanded,now,width,height,cameras))return false;
         for(auto& p:cameras){p.settings[2]=1;p.settings[3]=8;}
-        generation=source->generation;planned={};planned.source_state=source->state;planned.device_generation=generation;planned.width=width;planned.height=height;planned.source_observed_ns=source->pose.observed_ns;planned.target=expanded;held=std::move(source);return true;
+        generation=source->generation;planned={};planned.source_state=source->state;planned.device_generation=generation;planned.width=width;planned.height=height;planned.source_observed_ns=source->pose.observed_ns;planned.target=expanded;held=std::move(source);rejection=Reason::None;return true;
     }
     bool record(VkCommandBuffer command){
         if(!held||!pipeline)return false;std::array<hookshot::vr::DepthPairOutput,2> outputs{};std::array<hookshot::vr::DepthPairDispatch,2> dispatches{};const uint64_t recording=identity.recording;

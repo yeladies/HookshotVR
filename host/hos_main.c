@@ -13,6 +13,7 @@
 #include "../gpu/vk/compat/hookshot_env.h"
 #endif
 #include "hos_paths.h"
+#include "vr_view_parameters.h"
 #include "hos_wide_size.h"   /* (the widescreen picture's size, shared with the Insert menu) */
 #include "../gpu/vk/vk_api.h"
 #include "../gpu/vk/oot_cheat_items.h"
@@ -1424,6 +1425,23 @@ static void oot_build_free_view(Ctx *c, uint64_t view, uint64_t out) {
 }
 #endif
 
+/* Called only at the reviewed perspective matrix-update sites, after the
+   original LDP. Update the entire scalar cache, not just the raster tangent. */
+void hos_vr_lens_parameters(Ctx *c, uint64_t projection, float tangent, float aspect) {
+    float fields[5];if(!projection||!host_vr_lens_parameters(tangent,aspect,fields))return;
+    for(int i=0;i<5;++i){uint32_t bits;memcpy(&bits,&fields[i],4);recomp_store32(c,projection+0xa0+4*i,bits);}
+#if defined(_WIN32) || defined(__linux__)
+    const char* path=getenv("HOOKSHOT_VR_LENS_REPORT_FILE");if(path&&*path){
+        static SRWLOCK lock=SRWLOCK_INIT;static uint64_t observations=0;AcquireSRWLockExclusive(&lock);++observations;
+        if(observations==1||observations%120==0){float seen[5];memcpy(seen,A64_PTR(projection+0xa0),sizeof seen);
+            const double error=fabs(seen[1]/seen[2]-seen[3])+fabs(2*atan(seen[3])-seen[0])+fabs((double)seen[1]*seen[1]+(double)seen[2]*seen[2]-1);
+            FILE* f=fopen(path,"w");if(f){fprintf(f,"{\"schema\":1,\"observations\":%llu,\"angle_radians\":%.9g,\"sin_half\":%.9g,\"cos_half\":%.9g,\"tangent\":%.9g,\"aspect\":%.9g,\"identity_error\":%.9g,\"complete_actor_visibility_proven\":false}\n",(unsigned long long)observations,seen[0],seen[1],seen[2],seen[3],seen[4],error);fclose(f);}
+        }
+        ReleaseSRWLockExclusive(&lock);
+    }
+#endif
+}
+
 void hos_oot_free_view(Ctx *c, uint64_t view) {
 #if defined(_WIN32) || defined(__linux__)   /* (the debug tools: host/posix has what they call) */
     int rx_option(int id, int otherwise);
@@ -1436,9 +1454,24 @@ void hos_oot_free_view(Ctx *c, uint64_t view) {
     AcquireSRWLockExclusive(&lock);
     const int enabled = rx_option(HOS_OPT_CHEAT_CAMERA, 0);
     if (!enabled && env_on("RX_VK_XR_IMMERSIVE")) {
-        float tracked[12];memcpy(tracked,A64_PTR(view+8),sizeof tracked);
+        float original[12],tracked[12];memcpy(original,A64_PTR(view+8),sizeof original);memcpy(tracked,original,sizeof tracked);
         int rx_xr_head_camera(uint64_t camera,float rows[12]);
-        if(rx_xr_head_camera(view,tracked))for(int i=0;i<12;++i){uint32_t bits;memcpy(&bits,&tracked[i],sizeof bits);recomp_store32(c,view+8+4*i,bits);}
+        if(rx_xr_head_camera(view,tracked)){
+            if(env_on("HOOKSHOT_VR_COHERENT_VIEW")){
+                HostVrViewParameters input,output;memcpy(input.eye,A64_PTR(view+96),sizeof input.eye);memcpy(input.target,A64_PTR(view+120),sizeof input.target);memcpy(input.cached,A64_PTR(view+56),sizeof input.cached);
+                const int coherent=host_vr_view_parameters(original,tracked,&input,&output);
+                static uint64_t updated=0,rejected=0;if(coherent)++updated;else ++rejected;
+                if(coherent){
+                    for(int i=0;i<3;++i){uint64_t bits;memcpy(&bits,&output.eye[i],8);recomp_store64(c,view+96+8*i,bits);memcpy(&bits,&output.target[i],8);recomp_store64(c,view+120+8*i,bits);}
+                    for(int i=0;i<9;++i){uint32_t bits;memcpy(&bits,&output.cached[i],4);recomp_store32(c,view+56+4*i,bits);}
+                }
+                if(updated+rejected==1||(updated+rejected)%120==0){
+                    hos_log("vr-view: coherent derived parameters %llu, rejected %llu",(unsigned long long)updated,(unsigned long long)rejected);
+                    const char* path=getenv("HOOKSHOT_VR_VIEW_REPORT_FILE");if(path&&*path){FILE* f=fopen(path,"w");if(f){fprintf(f,"{\"schema\":1,\"updated\":%llu,\"rejected\":%llu,\"complete_actor_visibility_proven\":false}\n",(unsigned long long)updated,(unsigned long long)rejected);fclose(f);}}
+                }
+            }
+            for(int i=0;i<12;++i){uint32_t bits;memcpy(&bits,&tracked[i],sizeof bits);recomp_store32(c,view+8+4*i,bits);}
+        }
     }
     if (env_on("HOOKSHOT_VR_CAMERA_CAPTURE")) {
         float matrix[12]; double eye[3];

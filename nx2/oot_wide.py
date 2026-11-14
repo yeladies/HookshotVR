@@ -25,7 +25,7 @@ UI_M00, UI_M11 = "(2.0f / 3840.0f)", "(2.0f / 2160.0f)"   # (the UI's full-scree
 KEEP_VTABLES = (MAIN + 0x4bed098, MAIN + 0x4be4fb0, MAIN + 0x4be61c8, MAIN + 0x4be7b30)
 
 
-def _ratio(vreg, base=None):
+def _ratio(vreg, base=None, *, matrix=True):
     """A ratio just loaded into s<vreg>: when it is 16:9 (within 0.01), the picture's; with base, also stored back at +0xb0
     (sead's perspective projection keeps it there, and culling reads it)."""
     store = ("recomp_store32(c, c->x[%d] + 0xb0, _u); " % base) if base is not None else ""
@@ -36,13 +36,17 @@ def _ratio(vreg, base=None):
     if base is not None:
         # A main camera may already have the picture ratio from an earlier hook.
         # Update both matrix registers and engine fields so visibility sees it too.
+        # The camera-setup site only holds the aspect in s0. It must commit the
+        # complete lens before releasing the camera task, without treating s0 as
+        # a raster tangent. Matrix-update sites additionally replace that input.
+        raster = ("uint32_t _vf_bits; memcpy(&_vf_bits, &_vf, 4); a64_vset64(c->vreg[0], _vf_bits); " if matrix else "")
         text += (" { extern volatile float hos_vr_fov, hos_vr_aspect, hos_wide_ratio, hos_vr_cull_tangent; const float _vf = hos_vr_fov, _va = hos_vr_aspect, _wr = hos_wide_ratio; "
                  "float _old; memcpy(&_old, c->vreg[%d], 4); if (_vf > 0.2f && _vf < 2.8f && _va >= 0.5f && _va <= 2.5f "
                  "&& ((_old > 1.767f && _old < 1.788f) || (_old > _va - 0.01f && _old < _va + 0.01f) || (_wr > 0.0f && _old > _wr - 0.01f && _old < _wr + 0.01f))) { "
-                 "const float _requested_cull = hos_vr_cull_tangent; const float _vc = (_requested_cull >= _vf && _requested_cull < 16.0f) ? _requested_cull : _vf; uint32_t _vf_bits, _va_bits, _vc_bits; memcpy(&_vf_bits, &_vf, 4); memcpy(&_va_bits, &_va, 4); memcpy(&_vc_bits, &_vc, 4); "
-                 "a64_vset64(c->vreg[0], _vf_bits); a64_vset64(c->vreg[%d], _va_bits); "
-                 "recomp_store32(c, c->x[%d] + 0xac, _vc_bits); recomp_store32(c, c->x[%d] + 0xb0, _va_bits); if (_vc > _vf) { extern void hos_vr_visibility_observed(uint64_t, float, float, float); uint32_t _seen_bits = (uint32_t)recomp_load32(c, c->x[%d] + 0xac); float _seen; memcpy(&_seen, &_seen_bits, 4); hos_vr_visibility_observed(c->x[%d], _vf, _seen, _va); } } }"
-                 " /* (HookshotVR: opt-in perspective FOV and CPU frustum) */" % (vreg, vreg, base, base, base, base))
+                 "const float _requested_cull = hos_vr_cull_tangent; const float _vc = (_requested_cull >= _vf && _requested_cull < 16.0f) ? _requested_cull : _vf; "
+                 "%suint32_t _va_bits; memcpy(&_va_bits, &_va, 4); a64_vset64(c->vreg[%d], _va_bits); "
+                 "extern void hos_vr_lens_parameters(Ctx*, uint64_t, float, float); hos_vr_lens_parameters(c, c->x[%d], _vc, _va); if (_vc > _vf) { extern void hos_vr_visibility_observed(uint64_t, float, float, float); uint32_t _seen_bits = (uint32_t)recomp_load32(c, c->x[%d] + 0xac); float _seen; memcpy(&_seen, &_seen_bits, 4); hos_vr_visibility_observed(c->x[%d], _vf, _seen, _va); } } }"
+                 " /* (HookshotVR: opt-in perspective FOV and CPU frustum) */" % (vreg, raster, vreg, base, base, base))
     return text
 
 
@@ -86,8 +90,9 @@ SITES = (
     (0x31f39f8, 0xf2c0b408, _size("hos_wide_out")),
     # the scene the game's upscaler takes in, {1920, 1080}
     (0x31f3a04, 0xf2c08708, _size("hos_wide_scene")),
-    # the camera update copies the camera's ratio (ldr s0, [x19, #0x140]) into the projection the renderer reads
-    (0x4c5334, 0xbd414260, _ratio(0)),
+    # The camera task has just written angle/sine/cosine/tangent; x20 is its
+    # projection. Commit VR fields before its aspect store and task unlock.
+    (0x4c5334, 0xbd414260, _ratio(0, 20, matrix=False)),
     # sead's perspective projection's matrix update (ldp s0, s1, [x0, #0xac]) and its three inlined copies
     (0x3485cc0, 0x2d558400, _ratio(1, 0)),
     (0x4f1e8, 0x2d558ea0, _ratio(3, 21)),
