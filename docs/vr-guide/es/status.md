@@ -1,5 +1,7 @@
 # Estado, resultados y hoja de ruta
 
+Alfa OpenXR GPU del mismo estado: [prueba y limitaciones](../../vr-gpu-world-preview.md).
+
 ## Ojos GPU continuos — 2026-11-14
 
 La ejecución aislada corregida completa/publica 2.190 parejas GPU de fuente común a 1024×1024 por ojo, con cámara sintética, cero incidencias y sin transporte del preview antiguo. Tres muestras de salida cambian con el tiempo. La coherencia independiente de resolución elimina la rejilla negra en ojos cuadrados; oráculo GPU de 49.152 píxeles. Pasan 114 pruebas VR; regresiones 358 correctas / 5 conocidas / 59 omitidas. Faltan consumo por la sesión/swapchain real y HUD; aún no es una build validada en visor. Consulta [flujo continuo, instrucciones y límites](../../vr-continuous-gpu-eyes.md).

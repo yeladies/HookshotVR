@@ -1,5 +1,7 @@
 # Status, evidence and roadmap
 
+GPU same-state OpenXR alpha / Alfa OpenXR GPU del mismo estado: [test and limitations / prueba y limitaciones](../../vr-gpu-world-preview.md).
+
 ## Continuous native GPU eyes — 2026-11-14
 
 The corrected isolated run completed/published 2,190 same-source GPU pairs at 1024×1024 per eye with synthetic camera motion, zero failures and no old preview image transport. Three output-only inspection samples change over time. A source-resolution-independent depth check removes the square-eye quantization stripes and passes a 49,152-pixel GPU oracle. All 114 VR cases pass; inherited baseline is 358 passed / 5 known failures / 59 skipped. Real swapchain/session consumption and HUD remain pending; this is not a validated headset build. See [continuous flow, how-to and limits](../../vr-continuous-gpu-eyes.md).

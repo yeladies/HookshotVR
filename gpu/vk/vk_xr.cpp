@@ -76,6 +76,7 @@ bool ok(XrResult result, const char* operation) {
 }
 } // namespace mkwvk
 #include "vk_xr_preview.h"
+#include "vk_xr_gpu_preview.h"
 #include "vk_xr_session.h"
 namespace mkwvk {
 bool xr_vulkan_session_stop() {

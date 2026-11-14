@@ -1,5 +1,6 @@
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$Audio,[switch]$WideFov,[switch]$LowLatencyPreview,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$GpuWorldPreview,[switch]$Audio,[switch]$WideFov,[switch]$LowLatencyPreview,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,25)][int]$FovMarginPercent=0)
 $ErrorActionPreference='Stop'
+if($GpuWorldPreview -and ($TemporalStereo -or $LowLatencyPreview)){throw 'GPU world preview cannot use temporal stereo or the CPU readback latency mode.'}
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $mutex=[Threading.Mutex]::new($false,'Local\HookshotVR-Immersive-Preview')
 if(!$mutex.WaitOne(0)){$mutex.Dispose();throw 'Ya hay una prueba inmersiva abierta.'}
@@ -10,14 +11,17 @@ try{
     $scope=Join-Path $project ('work/immersive-preview-'+[Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $scope | Out-Null
     $stop=Join-Path $scope 'stop'
-    if($TemporalStereo){Write-Host 'FOV Y ESTEREO TEMPORAL EXPERIMENTAL - DOS VISTAS EN FOTOGRAMAS PROXIMOS'}else{Write-Host 'JUEGO REAL CON CAMARA DE CABEZA - PROTOTIPO MONOSCOPICO'}
+    if($GpuWorldPreview){Write-Host 'GPU SAME-STATE STEREO / ESTEREO GPU DEL MISMO ESTADO';Write-Host 'Solo mundo 3D: menus y HUD pendientes. World only: menus and HUD pending.'}
+    elseif($TemporalStereo){Write-Host 'FOV Y ESTEREO TEMPORAL EXPERIMENTAL - DOS VISTAS EN FOTOGRAMAS PROXIMOS'}else{Write-Host 'JUEGO REAL CON CAMARA DE CABEZA - PROTOTIPO MONOSCOPICO'}
     Write-Host 'Conecta Virtual Desktop y ponte las Quest. Puede tardar 90 segundos en cargar la partida.'
-    if($TemporalStereo){Write-Host 'Puede haber diferencias temporales en objetos en movimiento. Empieza mirando una escena quieta.'}else{Write-Host 'Ambos ojos reciben la misma vista.'}
+    if($GpuWorldPreview){Write-Host 'Cada par de ojos comparte el mismo estado. Prueba giros suaves al aparecer el mundo 3D.'}
+    elseif($TemporalStereo){Write-Host 'Puede haber diferencias temporales en objetos en movimiento. Empieza mirando una escena quieta.'}else{Write-Host 'Ambos ojos reciben la misma vista.'}
     Write-Host 'Tercera persona; sin controles fisicos VR. La prueba se cerrara automaticamente.'
     Write-Host 'Prueba giros pequenos y desplazamientos leves. Se cerrara automaticamente.'
     Write-Host ('Registros privados: '+$scope)
-    $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'run-game.ps1')+'"'),'-ImmersivePreview','-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
-    $arguments+=@('-PreviewResolution',$PreviewResolution,'-FovMarginPercent',$FovMarginPercent.ToString())
+    $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'run-game.ps1')+'"'),$(if($GpuWorldPreview){'-GpuWorldPreview'}else{'-ImmersivePreview'}),'-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
+    $arguments+=@('-PreviewResolution',$PreviewResolution)
+    if(!$GpuWorldPreview -or $PSBoundParameters.ContainsKey('FovMarginPercent')){$arguments+=@('-FovMarginPercent',$FovMarginPercent.ToString())}
     if($LowLatencyPreview){$arguments+='-LowLatencyPreview'}
     if($Window){$arguments+='-Window'}
     if($Audio){$arguments+='-Audio'}

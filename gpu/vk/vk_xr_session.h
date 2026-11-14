@@ -28,7 +28,7 @@ struct SessionProbe {
     PFN_xrLocateSpace locate_space=nullptr;
     PFN_xrLocateViews locate_views=nullptr;
     XrFrameSnapshot snapshot{};
-    bool visual=false;std::unique_ptr<QuadPreview> preview;
+    bool visual=false;std::unique_ptr<QuadPreview> preview;std::unique_ptr<GpuPairPreview> gpu_preview;
     explicit SessionProbe(Bridge& owner,std::mutex& queue,bool show):bridge(owner),queue_mutex(queue),visual(show) { generation=++bridge.origin_epoch; }
     bool initialize(VkInstance instance,VkPhysicalDevice physical,VkDevice device,uint32_t family) {
         PFN_xrCreateSession create=nullptr;
@@ -58,12 +58,17 @@ struct SessionProbe {
         if(!ok(create_space(session,&space,&local),"create LOCAL space"))return false;
         space.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_VIEW;
         if(!ok(create_space(session,&space,&head),"create VIEW space"))return false;
-        if(visual) {
+        const char* gpu_mode=std::getenv("RX_VK_XR_GPU_WORLD_PREVIEW");
+        if(visual&&gpu_mode&&!std::strcmp(gpu_mode,"1")){
+            gpu_preview=std::make_unique<GpuPairPreview>(bridge,queue_mutex);
+            if(!gpu_preview->initialize(session,instance,physical,device,family))return false;
+            bridge.preview_accepting.store(false);
+        }else if(visual) {
             preview=std::make_unique<QuadPreview>(bridge,queue_mutex);
             if(!preview->initialize(session,instance,physical,device,family))return false;
             bridge.preview_accepting.store(true);
         }
-        logf("xr: renderer session created; %s, no native game stereo",visual?"flat quad preview":"zero-layer probe");
+        logf("xr: renderer session created; %s, no native game stereo",gpu_preview?"GPU reconstructed stereo projection":visual?"flat quad preview":"zero-layer probe");
         return true;
     }
     bool events() {
@@ -130,14 +135,16 @@ struct SessionProbe {
             auto image=bridge.preview_feed.latest(now);
             if(image.pixels&&(!preview->immersive||((image.immersive.valid||image.immersive.menu)&&image.immersive.generation==generation))){draw_ok=preview->frame(local,location.pose,generation,std::move(image));quad=draw_ok;}
         }
+        if(gpu_preview&&located&&frame.shouldRender&&frame.predictedDisplayTime>=suppress_until&&(location.locationFlags&needed)==needed){draw_ok=gpu_preview->frame(local,generation);quad=draw_ok&&gpu_preview->submitted_layer();}
         // Balance every begun frame, including failures and no-image/not-visible frames.
         XrFrameEndInfo end{XR_TYPE_FRAME_END_INFO};end.displayTime=frame.predictedDisplayTime;
         end.environmentBlendMode=XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
         const XrCompositionLayerBaseHeader* layers[1]{};
-        if(quad){layers[0]=preview->submitted_layer();end.layerCount=1;end.layers=layers;}
+        if(quad){layers[0]=gpu_preview?gpu_preview->submitted_layer():preview->submitted_layer();end.layerCount=1;end.layers=layers;}
         XrResult ended;
         { std::lock_guard lock(queue_mutex);ended=end_frame(session,&end); }
         if(!ok(ended,"end renderer frame")||!located||!draw_ok)return false;
+        if(quad&&gpu_preview)gpu_preview->submitted();
         if(frame.predictedDisplayTime>=suppress_until) {
             pose(candidate.head,location.pose,location.locationFlags);
             uint64_t flags=0;
@@ -172,6 +179,10 @@ struct SessionProbe {
                 }
             }
         }
+        if(gpu_preview&&!gpu_preview->close()){
+            bridge.retained_gpu_work=true;bridge.ready=false;gpu_preview->report("retained");gpu_preview.release();logf("xr-gpu: uncertain GPU/image ownership; retaining session/runtime and source lease until process exit");return;
+        }
+        gpu_preview.reset();
         if(preview&&!preview->close()) {
             bridge.retained_gpu_work=true;bridge.ready=false;preview.release();
             logf("xr: preview GPU completion failed; retaining session/runtime resources until process exit");return;

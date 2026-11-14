@@ -28,14 +28,14 @@ struct EyeStream {
     VkShaderModule shader=VK_NULL_HANDLE;VkPipelineLayout layout=VK_NULL_HANDLE;VkPipeline pipeline=VK_NULL_HANDLE;
     PFN_vkUnmapMemory unmap=nullptr;PFN_vkInvalidateMappedMemoryRanges invalidate=nullptr;
     uint32_t width=0,height=0;std::array<EyeStreamSlot,3> slots;std::shared_ptr<const XrGpuEyeFrame> latest;
-    uint64_t recorded=0,completed=0,published=0,leased_skips=0,pose_rejections=0,failures=0;bool stopped=false,retained=false;
+    uint64_t recorded=0,completed=0,published=0,leased_skips=0,pose_rejections=0,failures=0,real_consumer_acquires=0;bool stopped=false,retained=false;
     EyeStreamBuffer probe;std::shared_ptr<const XrGpuEyeFrame> probe_source;uint64_t probe_recording=0,probe_next=1;uint32_t probe_samples=0,probe_attempts=0;bool probe_pending=false;uint64_t last_eye_difference=0;uint32_t last_rgb_span=0;
 };
 EyeStream& eye_stream(){static auto* p=new EyeStream;return *p;}
 bool eye_stream_probe(){return env_on("RX_VK_XR_GPU_EYE_STREAM_PROBE");}
 void eye_stream_report(const EyeStream& p,const char* status){
     const char* path=std::getenv("HOOKSHOT_VR_GPU_EYE_STREAM_REPORT_FILE");if(!path||!*path)return;
-    try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"recorded_pairs\":"<<p.recorded<<",\"completed_pairs\":"<<p.completed<<",\"published_pairs\":"<<p.published<<",\"leased_skips\":"<<p.leased_skips<<",\"pose_rejections\":"<<p.pose_rejections<<",\"failures\":"<<p.failures<<",\"allocated_bytes\":"<<p.allocated<<",\"width_per_eye\":"<<p.width<<",\"height\":"<<p.height<<",\"probe_samples\":"<<p.probe_samples<<",\"probe_attempts\":"<<p.probe_attempts<<",\"last_eye_difference\":"<<p.last_eye_difference<<",\"last_rgb_span\":"<<p.last_rgb_span<<",\"source_CPU_upload\":false,\"intermediate_CPU_pixels\":false,\"output_validation_readback\":"<<(p.probe_attempts?"true":"false")<<",\"synthetic_tracking\":"<<(eye_stream_probe()?"true":"false")<<",\"XR_consumer_connected\":false,\"native_geometry_stereo\":false}\n";}catch(...){}
+    try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"recorded_pairs\":"<<p.recorded<<",\"completed_pairs\":"<<p.completed<<",\"published_pairs\":"<<p.published<<",\"leased_skips\":"<<p.leased_skips<<",\"pose_rejections\":"<<p.pose_rejections<<",\"failures\":"<<p.failures<<",\"allocated_bytes\":"<<p.allocated<<",\"width_per_eye\":"<<p.width<<",\"height\":"<<p.height<<",\"probe_samples\":"<<p.probe_samples<<",\"probe_attempts\":"<<p.probe_attempts<<",\"last_eye_difference\":"<<p.last_eye_difference<<",\"last_rgb_span\":"<<p.last_rgb_span<<",\"source_CPU_upload\":false,\"intermediate_CPU_pixels\":false,\"output_validation_readback\":"<<(p.probe_attempts?"true":"false")<<",\"synthetic_tracking\":"<<(eye_stream_probe()?"true":"false")<<",\"XR_consumer_connected\":"<<(p.real_consumer_acquires?"true":"false")<<",\"native_geometry_stereo\":false}\n";}catch(...){}
 }
 void eye_stream_free(EyeStream& p,EyeStreamBuffer& b){if(b.mapped)p.unmap(p.device,b.memory);if(b.buffer)vkDestroyBuffer(p.device,b.buffer,nullptr);if(b.memory)vkFreeMemory(p.device,b.memory,nullptr);p.allocated-=b.allocated;b={};}
 bool eye_stream_allocate(EyeStream& p,uint64_t bytes,bool host,EyeStreamBuffer& out){
@@ -130,7 +130,7 @@ void xr_gpu_eye_stream_network(VkCommandBuffer command,uint64_t recording,uint64
 std::shared_ptr<const XrGpuEyeFrame> xr_gpu_eye_stream_acquire(VkDevice device,uint64_t origin,int64_t now,bool allow_synthetic){
     if(!xr_gpu_eye_stream_enabled()||!device||!origin||now<=0)return {};auto& p=eye_stream();std::lock_guard lock(p.mutex);
     if(p.device&&p.device!=dev.device){p.retained=true;p.latest.reset();return {};}const auto f=p.latest;
-    if(p.stopped||p.retained||!f||f->device!=device||f->generation!=p.generation||f->target.origin!=origin||f->ready_ns<=0||now<f->ready_ns||now<f->source_observed_ns||now-f->source_observed_ns>250000000||(!allow_synthetic&&f->synthetic))return {};return f;
+    if(p.stopped||p.retained||!f||f->device!=device||f->generation!=p.generation||f->target.origin!=origin||f->ready_ns<=0||now<f->ready_ns||now<f->source_observed_ns||now-f->source_observed_ns>250000000||(!allow_synthetic&&f->synthetic))return {};if(!allow_synthetic&&!f->synthetic)++p.real_consumer_acquires;return f;
 }
 bool xr_gpu_eye_stream_stop(){
     if(!xr_gpu_eye_stream_enabled())return true;auto& p=eye_stream();std::lock_guard lock(p.mutex);p.stopped=true;p.latest.reset();if(!p.device)return true;

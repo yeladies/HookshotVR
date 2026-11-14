@@ -14,9 +14,10 @@
 #include <chrono>
 namespace {
 bool mode(const char* value) { const char* s=std::getenv("XR_FAKE_MODE");return s&&!std::strcmp(s,value); }
+bool pair_preview(){const char* s=std::getenv("XR_FAKE_MODE");return s&&std::strncmp(s,"preview_pair_",13)==0;}
 bool preview_hd(){const char* h=std::getenv("RX_VK_XR_PREVIEW_HD");const char* m=std::getenv("XR_FAKE_MODE");return h&&!std::strcmp(h,"1")&&m&&std::strstr(m,"preview_immersive");}
-uint32_t preview_w(){return preview_hd()?1920u:1280u;}uint32_t preview_h(){return preview_hd()?1080u:720u;}
-std::atomic<int> counts[22]{};
+uint32_t preview_w(){return pair_preview()?8u:preview_hd()?1920u:1280u;}uint32_t preview_h(){return pair_preview()?8u:preview_hd()?1080u:720u;}
+std::atomic<int> counts[32]{};
 bool (*queue_check)()=nullptr;
 int event_stage=0, frames=0;
 bool stopping=false, frame_open=false;
@@ -55,9 +56,9 @@ XrResult XRAPI_CALL poll(XrInstance,XrEventDataBuffer* out) {
     }
     else if(frames>=3&&event_stage==2&&(mode("session_stop")||mode("session_loss"))) {
         state=mode("session_stop")?XR_SESSION_STATE_STOPPING:XR_SESSION_STATE_LOSS_PENDING;++event_stage;
-    } else if(frames>=1&&event_stage==2&&mode("session_origin_change")) {
+    } else if(frames>=1&&event_stage==2&&(mode("session_origin_change")||mode("preview_pair_origin_change")||mode("preview_pair_origin_pending"))) {
         XrEventDataReferenceSpaceChangePending e{XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING};
-        e.session=reinterpret_cast<XrSession>(uintptr_t(5));e.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_LOCAL;e.changeTime=1000000000000;
+        e.session=reinterpret_cast<XrSession>(uintptr_t(5));e.referenceSpaceType=XR_REFERENCE_SPACE_TYPE_LOCAL;e.changeTime=pair_preview()?20000000:1000000000000;
         std::memcpy(out,&e,sizeof e);++event_stage;return XR_SUCCESS;
     } else return XR_EVENT_UNAVAILABLE;
     XrEventDataSessionStateChanged e{XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED};
@@ -82,7 +83,11 @@ XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
         const bool preview_mode=std::getenv("XR_FAKE_MODE")&&std::strncmp(std::getenv("XR_FAKE_MODE"),"preview_",8)==0;
     if(!frame_open||info->displayTime!=frames*10000000||(!preview_mode&&(info->layerCount||info->layers)))++counts[4];
     if(preview_mode&&info->layerCount) {
-        if(mode("preview_immersive")||mode("preview_immersive_stereo")||(mode("preview_immersive_transition")&&info->layers[0]->type==XR_TYPE_COMPOSITION_LAYER_PROJECTION)){
+        if(pair_preview()){
+            ++counts[19];const auto* p=reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[0]);
+            if(info->layerCount!=1||p->type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION||p->viewCount!=2||!p->views||p->layerFlags)++counts[5];
+            else for(unsigned eye=0;eye<2;++eye){const auto& v=p->views[eye];if(v.type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW||v.subImage.imageRect.extent.width!=8||v.subImage.imageRect.extent.height!=8||v.subImage.imageRect.offset.x!=int(eye*8)||v.subImage.imageArrayIndex||v.pose.orientation.w!=1||std::abs(v.pose.position.x-(eye?10.032f:9.968f))>.0001f||v.pose.position.y!=20||v.pose.position.z!=30||v.fov.angleLeft!=-.72f||v.fov.angleRight!=.78f||v.fov.angleUp!=.88f||v.fov.angleDown!=-.62f)++counts[5];}
+        }else if(mode("preview_immersive")||mode("preview_immersive_stereo")||(mode("preview_immersive_transition")&&info->layers[0]->type==XR_TYPE_COMPOSITION_LAYER_PROJECTION)){
             ++counts[19];
             const auto* p=reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[0]);
             if(info->layerCount!=1||p->type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION||p->viewCount!=2||!p->views)++counts[5];
@@ -175,7 +180,7 @@ extern "C" EXPORT XrResult XRAPI_CALL xrGetInstanceProcAddr(XrInstance,const cha
 #undef MAP
     return XR_ERROR_FUNCTION_UNSUPPORTED;
 }
-extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<22?counts[key].load():-1; }
+extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<32?counts[key].load():-1; }
 
 extern "C" EXPORT void XRAPI_CALL xrTestSetQueueCheck(bool (*check)()) { queue_check=check; }
 
