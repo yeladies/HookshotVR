@@ -26,6 +26,16 @@ class ImmersiveLaunchGuards(unittest.TestCase):
                 self.assertEqual(json.loads(result.stdout),['--lens-shift-selection'] if enabled else [])
     def test_view_shift_units_require_explicit_translated_probe(self):
         self.reject(['-ViewShiftUnits','.01'],'View shift units require the translated non-XR probe')
+    def test_camera_turn_requires_private_root_diagnostic(self):
+        self.reject(['-ProbeCameraTurn','Left'],'Camera turn requires the isolated root probe, private test save')
+    def test_camera_turn_duration_requires_direction(self):
+        self.reject(['-ProbeCameraTurnMilliseconds','150'],'Camera turn duration requires an explicit direction')
+    def test_camera_turn_script_is_game_local_stick_input(self):
+        path=str(ROOT/'vr/camera_probe_input.ps1').replace("'","''")
+        for direction,button in (('Left','RLEFT'),('Right','RRIGHT')):
+            command=". '"+path+"'; Get-VrProbeCameraTurnScript -Direction "+direction+" -Milliseconds 150"
+            result=subprocess.run(['powershell','-NoProfile','-Command',command],capture_output=True,text=True,timeout=20)
+            self.assertEqual(result.returncode,0,result.stderr);self.assertEqual(result.stdout.strip(),'0:'+button+'/150')
     def test_root_probe_requires_isolated_baseline(self):
         self.reject(['-GpuRootAliasProbe'],'GPU root alias probe requires the isolated non-XR baseline')
     def test_root_probe_cannot_open_xr(self):

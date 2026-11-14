@@ -4,6 +4,7 @@
 #include "xr_uniform_copy_source.h"
 #include "xr_matrix_patch_check.h"
 #include "xr_shifted_draw_check.h"
+#include "xr_camera_payload_capture.h"
 #include "xr_eye_matrix_patch_spv.h"
 #include <set>
 #include <map>

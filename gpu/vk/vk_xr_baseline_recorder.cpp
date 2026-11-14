@@ -6,6 +6,7 @@
 #include "xr_eye_matrix_patch_spv.h"
 #include "xr_matrix_patch_check.h"
 #include "xr_shifted_draw_check.h"
+#include "xr_camera_payload_capture.h"
 #include <array>
 #include <new>
 #include <memory>
@@ -278,6 +279,11 @@ bool xr_baseline_recorder_retire(XrBaselineRecorder*& p,XrBaselineComparison& co
         XrRootAliasProbeResult root_result;if(!xr_root_alias_probe_retire(p->root_alias,completed,expected,finished?n:0,root_result))return false;
         comparison.root_indirect_draws_recorded=finished&&p->source.shifted_draw_probe;comparison.root_indirect_verified=root_result.indirect_guard_verified;comparison.root_indirect_counts=root_result.indirect_counts;comparison.root_alias_requested=true;comparison.root_alias_verified=root_result.verified;comparison.root_alias_allocated_bytes=root_result.allocated_bytes;
         comparison.root_alias_counts=root_result.aliases;comparison.root_alias_uncovered=root_result.uncovered;comparison.root_alias_errors=root_result.errors;
+        if(finished&&comparison.result==XrBaselineComparison::Result::Match&&root_result.verified&&comparison.matrix_probe_validated&&comparison.matrix_source_unchanged&&comparison.shifted_draw_verified){
+            const auto* bytes=static_cast<const unsigned char*>(p->mapped)+6*p->frame_bytes;
+            const auto& in=p->source;XrCameraPayloadEvidence evidence{in.serial,in.program,in.recording,in.guest_camera,p->source_stamp,in.color.width,in.color.height,true,true,true,true};
+            comparison.camera_payload_exported=write_xr_camera_payload(std::getenv("HOOKSHOT_VR_CAMERA_PAYLOAD_FILE"),bytes,bytes+n,n,evidence);
+        }
     }
     if(!p->color.retire(completed)||!p->depth.retire(completed)||!p->shift_color.retire(completed)||!p->shift_depth.retire(completed))return false;
     release_buffers(*p);delete p;p=nullptr;return true;
