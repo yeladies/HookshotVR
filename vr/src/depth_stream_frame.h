@@ -15,10 +15,10 @@ struct DepthStreamFrame {
 };
 inline bool read_depth_stream_frame(const std::filesystem::path& path,DepthStreamFrame& out){
     std::ifstream file(path,std::ios::binary|std::ios::ate);if(!file)return false;const auto bytes=file.tellg();
-    if(bytes<132||bytes>32*1024*1024+132)return false;file.seekg(0);char magic[8];DepthStreamFrame next;
+    if(bytes<132||bytes>128*1024*1024+132)return false;file.seekg(0);char magic[8];DepthStreamFrame next;
     file.read(magic,8);file.read(reinterpret_cast<char*>(&next.width),4);file.read(reinterpret_cast<char*>(&next.height),4);file.read(reinterpret_cast<char*>(&next.format),4);
     file.read(reinterpret_cast<char*>(next.projection.data()),64);file.read(reinterpret_cast<char*>(next.view.data()),48);
-    if(!file||std::memcmp(magic,"HSVRD2\0\0",8)||next.width<2||next.height<2||next.width>1920||next.height>1920||uint64_t(next.width)*next.height>3686400||(next.format!=122&&next.format!=123)||bytes!=std::streamoff(132+uint64_t(next.width)*next.height*8))return false;
+    if(!file||std::memcmp(magic,"HSVRD2\0\0",8)||next.width<2||next.height<2||next.width>4096||next.height>4096||uint64_t(next.width)*next.height>16777216||(next.format!=122&&next.format!=123)||bytes!=std::streamoff(132+uint64_t(next.width)*next.height*8))return false;
     const auto& p=next.projection;const auto& v=next.view;
     for(float value:p)if(!std::isfinite(value))return false;for(float value:v)if(!std::isfinite(value))return false;
     if(p[0]<.0001f||p[5]<.0001f||p[0]>10000||p[5]>10000||std::abs(p[2])>4||std::abs(p[6])>4||p[10]>-1||p[11]>=0||std::abs(p[14]+1)>1e-5)return false;

@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <limits>
+#include <cmath>
 using Memory=std::map<uint64_t,std::vector<unsigned char>>;
 struct Fixture {Memory memory;int roots=0;bool change=false;};
 extern "C" int host_vr_c_primary(HostVrRead,void*,HostVrPrimary*);
@@ -34,5 +35,8 @@ int main(){try{
     check(cache.uniform==9000,"main-view uniform cached");auto other=out;other.rows[3]+=5;host_vr_cache_uniform(&cache,10000,other.rows);
     check(cache.uniform==9000,"auxiliary view does not replace main-view provenance");host_vr_cache_primary(&cache,6000,out.rows,0);
     check(cache.uniform==0,"camera identity change clears prior uniform");host_vr_cache_primary(&cache,6000,out.rows,1);check(cache.primary==0,"debug camera excluded");
+    float visibility=0;check(host_vr_visibility_tangent(2.28f,.96375f,160,&visibility)&&visibility>5.8f,"wide visibility extent independent of raster lens");
+    check(2*std::atan(visibility)*180/3.141592653589793>=159.99&&2*std::atan(visibility*.96375)*180/3.141592653589793>=159.99,"both visibility axes cover requested angle");
+    const auto saved_visibility=visibility;check(!host_vr_visibility_tangent(2.28f,.96375f,161,&visibility)&&visibility==saved_visibility,"out-of-bound visibility rejected atomically");
     std::cout<<"Guarded live camera refresh, race rejection and uniform provenance checked\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

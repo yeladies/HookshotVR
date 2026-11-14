@@ -1,5 +1,6 @@
-param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$GpuWorldPreview,[switch]$GpuXrReproject,[ValidateSet(1440,1600,1920)][int]$GpuSquareSize=1440,[ValidateRange(0,15)][int]$GpuGuardBandPercent=0,[switch]$Audio,[switch]$WideFov,[switch]$LowLatencyPreview,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,65)][int]$FovMarginPercent=0)
+param([ValidateRange(120,180)][int]$Seconds=180,[switch]$Window,[switch]$GpuWorldPreview,[switch]$GpuXrReproject,[ValidateSet(1440,1600,1920,4096)][int]$GpuSquareSize=1440,[ValidateSet(0,1440,1600,1920,2560)][int]$GpuEyeSize=0,[ValidateRange(0,160)][int]$CullingFovDegrees=0,[ValidateRange(0,15)][int]$GpuGuardBandPercent=0,[switch]$Audio,[switch]$WideFov,[switch]$LowLatencyPreview,[switch]$TemporalStereo,[ValidateSet("720p","1080p")][string]$PreviewResolution="720p",[ValidateRange(0,65)][int]$FovMarginPercent=0)
 $ErrorActionPreference='Stop'
+if(($GpuEyeSize -or $CullingFovDegrees) -and !$GpuXrReproject){throw 'Independent eye size and visibility volume require XR-owned mode.'}
 if($GpuWorldPreview -and ($TemporalStereo -or $LowLatencyPreview)){throw 'GPU world preview cannot use temporal stereo or the CPU readback latency mode.'}
 $project=[IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $mutex=[Threading.Mutex]::new($false,'Local\HookshotVR-Immersive-Preview')
@@ -20,7 +21,7 @@ try{
     Write-Host 'Prueba giros pequenos y desplazamientos leves. Se cerrara automaticamente.'
     Write-Host ('Registros privados: '+$scope)
     $arguments=@('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+(Join-Path $PSScriptRoot 'run-game.ps1')+'"'),$(if($GpuWorldPreview){'-GpuWorldPreview'}else{'-ImmersivePreview'}),'-SnapshotStableSaves','-LoadTestSave','-Seconds',$Seconds.ToString(),'-StopSignal',('"'+$stop+'"'))
-    if($GpuXrReproject){$arguments+=@('-GpuXrReproject','-GpuSquareSize',$GpuSquareSize.ToString())}
+    if($GpuXrReproject){$arguments+=@('-GpuXrReproject','-GpuSquareSize',$GpuSquareSize.ToString(),'-GpuEyeSize',$GpuEyeSize.ToString(),'-CullingFovDegrees',$CullingFovDegrees.ToString())}
     if($GpuWorldPreview){$arguments+=@('-GpuGuardBandPercent',$GpuGuardBandPercent.ToString())}
     $arguments+=@('-PreviewResolution',$PreviewResolution)
     if(!$GpuWorldPreview -or $PSBoundParameters.ContainsKey('FovMarginPercent')){$arguments+=@('-FovMarginPercent',$FovMarginPercent.ToString())}

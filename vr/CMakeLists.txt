@@ -399,6 +399,7 @@ if(MINGW)
 endif()
 add_test(NAME vr_temporal_stereo COMMAND hookshot_vr_temporal_stereo_tests)
 if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_visibility_fields COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_visibility_fields.py")
     add_test(NAME vr_game_lens_hook COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_lens_patch.py" --cxx "${CMAKE_CXX_COMPILER}")
 endif()
 

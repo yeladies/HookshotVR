@@ -36,13 +36,13 @@ def _ratio(vreg, base=None):
     if base is not None:
         # A main camera may already have the picture ratio from an earlier hook.
         # Update both matrix registers and engine fields so visibility sees it too.
-        text += (" { extern volatile float hos_vr_fov, hos_vr_aspect, hos_wide_ratio; const float _vf = hos_vr_fov, _va = hos_vr_aspect, _wr = hos_wide_ratio; "
+        text += (" { extern volatile float hos_vr_fov, hos_vr_aspect, hos_wide_ratio, hos_vr_cull_tangent; const float _vf = hos_vr_fov, _va = hos_vr_aspect, _wr = hos_wide_ratio; "
                  "float _old; memcpy(&_old, c->vreg[%d], 4); if (_vf > 0.2f && _vf < 2.8f && _va >= 0.5f && _va <= 2.5f "
                  "&& ((_old > 1.767f && _old < 1.788f) || (_old > _va - 0.01f && _old < _va + 0.01f) || (_wr > 0.0f && _old > _wr - 0.01f && _old < _wr + 0.01f))) { "
-                 "uint32_t _vf_bits, _va_bits; memcpy(&_vf_bits, &_vf, 4); memcpy(&_va_bits, &_va, 4); "
+                 "const float _requested_cull = hos_vr_cull_tangent; const float _vc = (_requested_cull >= _vf && _requested_cull < 16.0f) ? _requested_cull : _vf; uint32_t _vf_bits, _va_bits, _vc_bits; memcpy(&_vf_bits, &_vf, 4); memcpy(&_va_bits, &_va, 4); memcpy(&_vc_bits, &_vc, 4); "
                  "a64_vset64(c->vreg[0], _vf_bits); a64_vset64(c->vreg[%d], _va_bits); "
-                 "recomp_store32(c, c->x[%d] + 0xac, _vf_bits); recomp_store32(c, c->x[%d] + 0xb0, _va_bits); } }"
-                 " /* (HookshotVR: opt-in perspective FOV and CPU frustum) */" % (vreg, vreg, base, base))
+                 "recomp_store32(c, c->x[%d] + 0xac, _vc_bits); recomp_store32(c, c->x[%d] + 0xb0, _va_bits); if (_vc > _vf) { extern void hos_vr_visibility_observed(uint64_t, float, float, float); uint32_t _seen_bits = (uint32_t)recomp_load32(c, c->x[%d] + 0xac); float _seen; memcpy(&_seen, &_seen_bits, 4); hos_vr_visibility_observed(c->x[%d], _vf, _seen, _va); } } }"
+                 " /* (HookshotVR: opt-in perspective FOV and CPU frustum) */" % (vreg, vreg, base, base, base, base))
     return text
 
 

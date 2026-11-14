@@ -1,6 +1,6 @@
 # Status, evidence and roadmap
 
-The current follow-up widens the actual source drawing frustum from 30% to 60% tangent margin and fixes a reproduced camera-ratio path that could skip the engine lens update. Sharp stays 1920-square; headset optics stay unchanged. [Implementation, regression evidence and current validation](../../vr-xr-owned-reconstruction.md). Wider-volume headset acceptance is pending.
+Quest result for the [combined 4096-source / 2560-eye candidate](../../vr-combined-visibility-quality.md): the user confirms much better detail and perceived smooth motion. Off-center geometry still disappears, including Link, and intermittent blackouts remain. Overall acceptance is pending; the next proposed diagnostic isolates engine occlusion with the same build.
 
 The first GPU-only VDXR session delivered the 3D world (2,654 pair copies / 6,363 projection frames, clean close). The user reported pixelation, turn boundaries and dark silhouette defects. The HD source / eye guard-band / depth-aware filtering comparison produced no substantial improvement according to the user. Neither profile is visually accepted. [Next renderer stage and age instrumentation](../../vr-presentation-age-and-next-renderer.md).
 

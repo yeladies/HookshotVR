@@ -49,3 +49,12 @@ static inline int host_vr_lens_fields(float vertical_radians,float ratio,float* 
     if(!isfinite(value)||value<=0.2||value>=2.8)return 0;
     *tangent=(float)value;*aspect=ratio;return 1;
 }
+
+/* Opt-in conservative visibility volume. Raster lens remains separate. */
+static inline int host_vr_visibility_tangent(float raster,float aspect,float degrees,float* out) {
+    if(!out||!isfinite(raster)||!isfinite(aspect)||!isfinite(degrees)||raster<=0.2f||raster>=2.8f||aspect<0.5f||aspect>2.5f||degrees<90||degrees>160)return 0;
+    const double edge=tan((double)degrees*0.0087266462599716478846);
+    const double value=fmax((double)raster,fmax(edge,edge/aspect));
+    if(!isfinite(value)||value>=16)return 0;
+    *out=(float)value;return 1;
+}

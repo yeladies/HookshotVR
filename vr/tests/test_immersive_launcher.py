@@ -13,6 +13,10 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'vr/run-game.ps1'),*args],capture_output=True,text=True,timeout=20)
         self.assertNotEqual(result.returncode,0)
         self.assertIn(message,result.stdout+result.stderr)
+    def test_combined_modes_require_explicit_opt_in(self):
+        self.reject(['-GpuEyeSize','2560'],'Independent eye size requires')
+        self.reject(['-GpuSquareSource','-GpuSquareSize','4096','-GpuEyeStreamProbe'],'4096 source requires an explicit bounded eye size')
+        self.reject(['-CullingFovDegrees','160'],'Visibility volume requires')
     def test_gpu_source_requires_private_save(self):
         for mode in ('-GpuSceneSourceProbe','-GpuDepthPairProbe','-GpuEyeStreamProbe'):
             self.reject([mode],'GPU scene source probe requires a private test save')

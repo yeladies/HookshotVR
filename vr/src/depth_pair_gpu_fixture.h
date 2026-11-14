@@ -19,13 +19,13 @@ public:
     DepthPairGpuFixture(uint32_t source_width,uint32_t source_height,uint32_t target_width,uint32_t target_height,bool direct=false):gpu(initialize_smoke(c)),sw(source_width),sh(source_height),tw(target_width),th(target_height),
         source_bytes(uint64_t(sw)*sh*8),eye_bytes(uint64_t(tw)*th*4),pair_bytes(2*eye_bytes),readback_bytes(pair_bytes+source_bytes+32),eyes(new EyeResourcePair,FixturePairDelete{&c}),target(new EyeResourcePair,FixturePairDelete{&c}){
     direct_buffer=direct;
-    require(sw>=2&&sh>=2&&sw<=1920&&sh<=1920&&uint64_t(sw)*sh<=3686400&&tw>=2&&th>=2&&tw<=1920&&th<=1920&&uint64_t(tw)*th<=3686400,"bounded source/target fixture dimensions");
+    require(sw>=2&&sh>=2&&sw<=4096&&sh<=4096&&uint64_t(sw)*sh<=16777216&&tw>=2&&th>=2&&tw<=2560&&th<=2560&&uint64_t(tw)*th<=6553600,"bounded source/target fixture dimensions");
     const auto api=gpu.api;
     if(!direct_buffer)require(eyes->create(c.device,api,gpu.memory,tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,64*1024*1024),"allocate independent eye images");
-    require(target->create(c.device,api,gpu.memory,2*tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,64*1024*1024),"allocate same-state pair target");
+    require(target->create(c.device,api,gpu.memory,2*tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,128*1024*1024),"allocate same-state pair target");
     address_buffer(c,api,gpu.memory,source_bytes,c.auxiliary[0]);address_buffer(c,api,gpu.memory,256,c.auxiliary[1]);address_buffer(c,api,gpu.memory,pair_bytes,c.auxiliary[2]);address_buffer(c,api,gpu.memory,32,c.auxiliary[3]);
     VkBufferCreateInfo staging{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};staging.size=readback_bytes;staging.usage=VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-    checked(api.create_buffer(c.device,&staging,nullptr,&c.staging),"create bounded readback");VkMemoryRequirements requirements{};api.buffer_requirements(c.device,c.staging,&requirements);require(requirements.size<=64*1024*1024,"readback allocation bound");
+    checked(api.create_buffer(c.device,&staging,nullptr,&c.staging),"create bounded readback");VkMemoryRequirements requirements{};api.buffer_requirements(c.device,c.staging,&requirements);require(requirements.size<=256*1024*1024,"readback allocation bound");
     uint32_t type=UINT32_MAX;for(uint32_t i=0;i<gpu.memory.memoryTypeCount;++i)if((requirements.memoryTypeBits&(1u<<i))&&(gpu.memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)){type=i;coherent=(gpu.memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)!=0;break;}
     require(type!=UINT32_MAX,"readback host visibility");VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};allocation.allocationSize=requirements.size;allocation.memoryTypeIndex=type;checked(api.allocate(c.device,&allocation,nullptr,&c.memory),"allocate readback");checked(api.bind_buffer(c.device,c.staging,c.memory,0),"bind readback");
     VkShaderModuleCreateInfo shader{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};shader.codeSize=sizeof kDepthPairReprojectSpv;shader.pCode=kDepthPairReprojectSpv;

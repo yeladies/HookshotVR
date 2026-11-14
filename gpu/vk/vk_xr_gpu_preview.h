@@ -36,7 +36,7 @@ struct GpuPairPreview {
     bool vk_ok(VkResult r,const char* label){if(r==VK_SUCCESS)return true;logf("xr-gpu: %s failed (%d)",label,int(r));return false;}
     static uint32_t extent(const char* name,uint32_t maximum){const char* value=std::getenv(name);if(!value||!*value)return 1024;char* end=nullptr;const auto n=std::strtoul(value,&end,10);return end==value||*end||n<8||n>maximum||n%8?0:uint32_t(n);}
     bool initialize(XrSession s,VkInstance instance,VkPhysicalDevice physical,VkDevice d,uint32_t queue_family){
-        session=s;device=d;family=queue_family;width=extent("HOOKSHOT_VR_GPU_EYE_WIDTH",1920);height=extent("HOOKSHOT_VR_GPU_EYE_HEIGHT",1920);if(!width||!height||!bridge.vulkan_get)return false;
+        session=s;device=d;family=queue_family;width=extent("HOOKSHOT_VR_GPU_EYE_WIDTH",2560);height=extent("HOOKSHOT_VR_GPU_EYE_HEIGHT",2560);if(!width||!height||!bridge.vulkan_get)return false;
         auto get_device=reinterpret_cast<PFN_vkGetDeviceProcAddr>(bridge.vulkan_get(instance,"vkGetDeviceProcAddr"));if(!get_device)return false;
 #define LOAD(n) n=reinterpret_cast<PFN_vk##n>(get_device(device,"vk" #n));if(!n){logf("xr-gpu: missing vk%s",#n);return false;}
         GPU_PREVIEW_VK_FUNCTIONS(LOAD)

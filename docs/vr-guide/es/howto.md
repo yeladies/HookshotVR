@@ -1,6 +1,6 @@
 # Cómo compilar y probar
 
-Candidata actual del juego: [reconstrucción desde OpenXR](../../vr-xr-owned-reconstruction.md). Usa `-Profile Sharp` para comparar a 1920 cuadrados; Balanced conserva 1440. El nuevo perfil sigue pendiente de valoración en visor.
+Comparación combinada actual: [fuente 4096, ojos 2560 y visibilidad separada](../../vr-combined-visibility-quality.md). Usa `-Profile Combined` para probar ambos cambios juntos; el flujo del juego está comprobado, pero siguen faltando geometría y continuidad en el visor.
 
 [Inicio](index.md) · [Cómo empezar](howto.md) · [Estado](status.md) · [Desarrollo](development.md) · [Ayuda](help.md) · [English / Castellano](../en/howto.md)
 

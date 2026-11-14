@@ -1,0 +1,55 @@
+# Combined visibility and quality candidate / Candidata combinada
+
+## English
+
+This opt-in candidate combines the two requested changes in one build: **4096x4096 source**, **2560x2560 per eye**, and a **160-degree conservative visibility-field target**. Launch the SDK-enabled isolated build with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File vr/run-xr-owned-preview.ps1 -Profile Combined
+```
+
+The source raster lens retains its 60% tangent margin (about 131x133 degrees in the previous real VDXR run); output eye margin remains 8% with matching projection metadata. The visibility fields are separated from the matrix-input registers at all four reviewed perspective sites: the raster tangent feeds the matrix; the conservative tangent is written to the engine object. For aspect below one, the vertical extent grows enough to cover the requested horizontal angle too. Actual guest-field readback is logged separately. Invalid/absent opt-in leaves the ordinary raster/frustum behavior unchanged.
+
+Local inspection identified separate class methods that directly read these tangent/aspect fields when computing projection extents. This establishes a relevant field consumer, not a complete call trace proving every CPU/GPU visibility test uses it. The report deliberately declares `complete_culling_coverage_proven=false`. A read-back field or larger requested angle is not visual acceptance of missing geometry. Derived planes, matrix-based GPU selection, occlusion, shadow fitting and picking may need additional integration; a single-source depth reconstruction cannot recover unseen surfaces.
+
+The explicit VR square admission increases to 4096. Source packet/pool caps are 128/512 MiB; diagnostic eye packet/pool caps are 64/256 MiB; the live XR-owned eye output/parameter allocation is capped at 64 MiB. Freshness, generation, origin, immutable source leasing and GPU completion checks remain enforced. Ordinary output admission and the stable installation remain separate. The source has 4.55 times the previous pixels; eye output has 1.78 times. Performance on RTX 2060 SUPER needs testing, particularly because the preceding 1920-square session still had a 93.04 ms mean source-pose CPU observation age. That is not motion-to-photon latency.
+
+### Evidence so far
+
+All 158 VR cases pass, including actual perspective-hook field separation/readback, conservative two-axis lens math, launcher opt-in guards, and invalid/inconsistent report rejection. A real-GPU authored-input test of the actual XR-owner component uses a 4096-square immutable source and 2560-square eyes: 13,107,200 output pixels match the independent camera fixture and the source is unchanged. Output allocation is 52,429,056 bytes. This explicit offscreen test uses upload/readback for validation, opens no XR session and contains no game input. It does not establish live-game performance or headset quality.
+
+Native regeneration and Windows SDK source `752ec1a2` build succeeded. The final inherited suite is 358 passed / 5 known environment failures / 59 skipped. Native C syntax and five focused post-correction cases pass. Keep captures, matrices, generated code and binaries private under work/. Human headset validation is required after those checks.
+
+## Castellano
+
+Esta candidata reúne ambos cambios en una build: **fuente 4096x4096**, **ojos 2560x2560** y **objetivo de 160 grados para los campos de visibilidad**. El comando anterior activa `-Profile Combined` sobre la build aislada con SDK.
+
+La proyección fuente conserva el margen de tangentes del 60% (aproximadamente 131x133 grados en la sesión VDXR anterior); los ojos mantienen el 8% y sus metadatos correspondientes. Las cuatro entradas de perspectiva revisadas separan el valor que construye la matriz del que se escribe en el objeto del motor para sus consultas de extensión. Si la proporción es menor que uno, se amplía la extensión vertical para cubrir también el ángulo horizontal solicitado. Se registra una lectura posterior del campo realmente escrito.
+
+La inspección local encuentra consultas de la clase que leen directamente estos campos. Esto no equivale a demostrar que todos los descartes CPU/GPU utilicen esos datos. El informe declara expresamente `complete_culling_coverage_proven=false`. Siguen pendientes la valoración visual y, si hace falta, la integración de planos derivados, selección GPU basada en matrices, oclusión, sombras y apuntado. La reconstrucción desde una sola fuente no recupera superficies que nunca estaban visibles.
+
+La admisión cuadrada exige activación VR explícita. Los límites fuente/total son 128/512 MiB, los del productor diagnóstico de ojos 64/256 MiB y la salida del propietario XR conserva un límite de 64 MiB. Se mantienen los controles de frescura, origen, generación, préstamos inmutables y finalización GPU. No se cambia la instalación estable. La fuente procesa 4,55 veces más píxeles y los ojos 1,78 veces; falta medir el coste. La sesión anterior de 1920 cuadrados todavía tenía 93,04 ms de antigüedad media observada de la pose fuente; no es una medida de latencia total del visor.
+
+Pasan 158 pruebas VR. El componente GPU real también coincide con la referencia en 13.107.200 píxeles con datos inventados a 4096/2560, fuente intacta y reserva de salida de 52.429.056 bytes. Esa prueba explícita utiliza subida/lectura para inspección, no abre XR y no usa datos del juego. Se regeneró y compiló la build SDK `752ec1a2`; la batería heredada final mantiene 358 correctas, cinco fallos conocidos y 59 omitidas. Pasan la sintaxis C nativa y cinco comprobaciones específicas posteriores. Falta la valoración en Quest. Capturas, matrices, código generado y binarios permanecen privados.
+
+### Real game / Juego real
+
+The 150-second non-XR private-save run verified world target/camera at 4096-square, eyes at 2560-square, 210 completed/published pairs, three changing samples and zero producer failures. The raster camera measured 132.73x124.65 degrees; guest-field readback measured visibility 163.26x160.00 degrees, proving separation in these observed fields. Source allocations total 268,435,456 bytes across two buffers; eye diagnostic allocations total 157,286,912 bytes; peak working set was 5,616 MiB. Tracking was synthetic. These totals are not FPS measurements or proof of every visibility consumer. Real VDXR coverage, sharpness and performance still need a headset test. The previous-hook regression fails as expected with the new split-field fixture.
+
+La prueba real de 150 segundos sin XR confirmó objetivo/cámara de 4096 cuadrados, ojos de 2560, 210 pares completados/publicados, tres muestras cambiantes y cero fallos. La cámara raster midió 132,73x124,65 grados; la lectura de campos del motor dio 163,26x160,00 grados, demostrando esa separación en los campos observados. La fuente reservó 268.435.456 bytes en dos buffers, el diagnóstico de ojos 157.286.912 bytes y el proceso llegó a 5.616 MiB. El seguimiento era sintético; los contadores no son FPS ni prueban todos los consumidores de visibilidad. Faltan cobertura, nitidez y rendimiento en VDXR real. La regresión nueva falla con el hook anterior, como se esperaba.
+
+### Real Quest result: detail improved, geometry/blackouts unresolved
+
+The Combined VDXR session closed without XR API errors: source/camera 4096-square, eyes 2560-square, 1,824 pair copies / 2,567 projection frames, 1,020 completed sources and peak working set 6,797 MiB. Actual raster FOV was about 131.16x132.73 degrees; the logged visibility fields were 160.00x160.71. The user reports a large detail improvement and perceived smooth motion, but objects including Link disappear outside the center during yaw/pitch, and seconds-long blackouts recur. This candidate is not visually accepted overall.
+
+Mean eye/source-pose CPU observation ages were 33.74/170.33 ms, with maxima 183.35/334.91 ms at `xrEndFrame` return. Validation occurs before that return; these are not display-latency measurements or a count of rejected frames. The projection helper rejects source age above 250 ms at validation, so age-related layer omission is a plausible blackout mechanism, not a confirmed attribution. Focus-state transitions occur at shutdown, with no logged mid-session focus cycle. Scene-present log intervals include roughly 11-17 FPS and some lower compilation/loading intervals; these are game presents, not headset refresh or the user's perceived tracking smoothness.
+
+The split-field experiment has not established the actual visibility-volume fix. The shared projection object's fields may feed queries other than culling; coherent camera data and the true CPU/GPU discard consumers require further audit. The existing `HOOKSHOT_OCCLUSION_OFF=1` engine switch can isolate conditional occlusion rendering with the same binary and unchanged quality/profile. A temporary local launcher is prepared for that diagnostic; it has not been run. If blackouts remain, add rejection-reason/time telemetry before changing scheduling; keep existing freshness/origin/device checks.
+
+### Resultado real en Quest: mejora el detalle, siguen geometría y apagones
+
+La sesión combinada terminó sin errores OpenXR: fuente/cámara de 4096 cuadrados, ojos de 2560, 1.824 copias de pares / 2.567 fotogramas de proyección, 1.020 fuentes completadas y máximo de 6.797 MiB. El usuario confirma mucho más detalle y movimiento percibido fluido, pero siguen desapareciendo objetos, incluido Link, al mirar a los lados o arriba; también hay apagones intermitentes de varios segundos. La aceptación visual global sigue pendiente.
+
+Las edades medias observadas de las poses de ojos/fuente fueron 33,74/170,33 ms, con máximos de 183,35/334,91 ms al devolver `xrEndFrame`. No son latencia de pantalla ni contadores de rechazos; la validación ocurre antes. El límite de 250 ms para la fuente puede provocar omisiones de capa, pero falta atribuir los apagones mediante contadores. No aparecen ciclos de foco en mitad de la sesión ni errores de API. Los intervalos del log del juego rondan 11-17 FPS, con otros inferiores durante carga/compilación; no son los Hz del visor ni contradicen la fluidez percibida del seguimiento.
+
+Los campos separados no demuestran una corrección del volumen real de visibilidad. El objeto compartido de proyección también puede alimentar consultas ajenas al culling; hace falta revisar coherencia de cámara y consumidores reales de los descartes. La siguiente prueba propuesta usa `HOOKSHOT_OCCLUSION_OFF=1` con el mismo binario, resolución y perfil. Hay un lanzador temporal preparado, todavía sin ejecutar. Si siguen los apagones, se propone medir los motivos y tiempos de rechazo antes de cambiar la planificación, conservando los controles de frescura/origen/dispositivo.

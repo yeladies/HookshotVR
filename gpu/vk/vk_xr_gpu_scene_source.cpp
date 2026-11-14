@@ -15,7 +15,7 @@
 namespace mkwvk {
 struct XrGpuSceneSourceAccess {static void pin(XrGpuSceneSource& frame,const std::shared_ptr<const void>& token){frame.lifetime_=token;}};
 namespace {
-constexpr uint64_t gpu_scene_packet_cap=32ull*1024*1024,gpu_scene_pool_cap=128ull*1024*1024;
+constexpr uint64_t gpu_scene_packet_cap=128ull*1024*1024,gpu_scene_pool_cap=512ull*1024*1024;
 int64_t gpu_scene_now(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 struct GpuSceneBuffer {VkBuffer buffer=VK_NULL_HANDLE;VkDeviceMemory memory=VK_NULL_HANDLE;uint64_t capacity=0,allocated=0,address=0;void* mapped=nullptr;bool coherent=false;};
 struct GpuSceneCandidate {const Texture* color=nullptr;const Texture* depth=nullptr;uint64_t texture_generation=0;uint32_t format=0;std::array<float,16> projection{};std::array<float,12> view{};ImmersiveTag pose;bool synthetic=false;};
@@ -53,7 +53,7 @@ bool gpu_scene_allocate(GpuScenePool& p,uint64_t bytes,bool host,GpuSceneBuffer&
     else{VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};info.buffer=b.buffer;b.address=vkGetBufferDeviceAddress(p.device,&info);if(!b.address||b.address%16||b.address>UINT64_MAX-bytes)return fail();}
     b.capacity=bytes;b.allocated=requirements.size;p.allocated+=b.allocated;out=b;++p.allocations;return true;
 }
-bool gpu_scene_shape(const Texture* t,VkFormat format){return t&&t->image&&t->allocation&&!t->sparse&&t->type==VK_IMAGE_TYPE_2D&&t->format==format&&t->samples==VK_SAMPLE_COUNT_1_BIT&&t->depth==1&&t->levels==1&&t->layers==1&&t->width>=2&&t->height>=2&&t->width<=1920&&t->height<=1920&&uint64_t(t->width)*t->height<=3686400&&(t->usage&VK_IMAGE_USAGE_TRANSFER_SRC_BIT);}
+bool gpu_scene_shape(const Texture* t,VkFormat format){return t&&t->image&&t->allocation&&!t->sparse&&t->type==VK_IMAGE_TYPE_2D&&t->format==format&&t->samples==VK_SAMPLE_COUNT_1_BIT&&t->depth==1&&t->levels==1&&t->layers==1&&t->width>=2&&t->height>=2&&t->width<=4096&&t->height<=4096&&uint64_t(t->width)*t->height<=16777216&&(t->usage&VK_IMAGE_USAGE_TRANSFER_SRC_BIT);}
 bool gpu_scene_camera(const float* c,size_t count){
     if(!c||count<0x230/4)return false;for(unsigned i=0;i<44;++i)if(!std::isfinite(c[i]))return false;const auto* p=c+28;
     if(p[0]<.0001f||p[5]<.0001f||p[0]>10000||p[5]>10000||std::abs(p[2])>4||std::abs(p[6])>4||p[10]>-1||p[11]>=0||std::abs(p[14]+1)>1e-5)return false;

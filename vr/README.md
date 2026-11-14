@@ -1,5 +1,7 @@
 # HookshotVR development
 
+Latest combined candidate: [4096 source, 2560 eyes and separated 160-degree visibility fields](../docs/vr-combined-visibility-quality.md). The user confirms much better detail and perceived smooth motion in Combined, but missing geometry and intermittent blackouts remain. Overall headset acceptance is pending.
+
 Experimental PCVR adaptation for Quest 3 on Windows, initially through Virtual Desktop / VDXR.
 **Experimental in-game depth reconstruction is visible in Quest through VDXR.** The user reports improved contours/turn edges but incomplete geometry and low resolution. The latest [XR-owned candidate](../docs/vr-xr-owned-reconstruction.md) removes scheduling delays and adds an opt-in 1920-square profile; its headset retest is pending. Full native per-eye geometry, menus/HUD and motion controls remain work in progress.
 

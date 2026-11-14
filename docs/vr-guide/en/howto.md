@@ -1,6 +1,6 @@
 # How to build and try the previews
 
-Latest in-game candidate: [XR-owned reconstruction](../../vr-xr-owned-reconstruction.md). Use `-Profile Sharp` for the optional 1920-square comparison; Balanced remains 1440-square. This profile still needs headset acceptance.
+Current combined comparison: [4096 source, 2560 eyes and separated visibility fields](../../vr-combined-visibility-quality.md). Select `-Profile Combined` to test both changes together; live-game data flow passes, but the headset test still shows missing geometry and blackouts.
 
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/howto.md)
 

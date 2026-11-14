@@ -12,7 +12,10 @@ fixture=r"""
 #include <cmath>
 #include <stdexcept>
 struct Ctx {uint64_t x[32]{};unsigned char vreg[32][16]{};};
-volatile float hos_wide_ratio=0,hos_vr_fov=0,hos_vr_aspect=0;
+volatile float hos_wide_ratio=0,hos_vr_fov=0,hos_vr_aspect=0,hos_vr_cull_tangent=0;
+unsigned observations=0;float observed_raster=0,observed_visibility=0;
+void hos_vr_visibility_observed(uint64_t,float raster,float visibility,float){++observations;observed_raster=raster;observed_visibility=visibility;}
+uint32_t recomp_load32(Ctx*,uint64_t at){uint32_t out;std::memcpy(&out,reinterpret_cast<void*>(uintptr_t(at)),4);return out;}
 void a64_vset64(unsigned char* out,uint64_t value){std::memcpy(out,&value,8);}
 void recomp_store32(Ctx*,uint64_t at,uint32_t value){std::memcpy(reinterpret_cast<void*>(uintptr_t(at)),&value,4);}
 void patch(Ctx* c){SITE}
@@ -21,6 +24,8 @@ void input(Ctx& c,unsigned char* object,float fov,float ratio){c.x[BASE]=uintptr
 void check(bool b){if(!b)throw std::runtime_error("lens hook register/culling mismatch");}
 int main(){Ctx c;alignas(16) unsigned char object[512]{};input(c,object,.7f,16.f/9);patch(&c);check(lane(c,0)==.7f&&lane(c,RATIO)==16.f/9);
 hos_vr_fov=1.1917536f;hos_vr_aspect=.9f;patch(&c);check(lane(c,0)==1.1917536f&&lane(c,RATIO)==.9f);float f,a;std::memcpy(&f,object+0xac,4);std::memcpy(&a,object+0xb0,4);check(f==1.1917536f&&a==.9f);
+hos_vr_cull_tangent=5.8f;input(c,object,.7f,16.f/9);patch(&c);std::memcpy(&f,object+0xac,4);check(lane(c,0)==1.1917536f&&f==5.8f&&observations==1&&observed_raster==1.1917536f&&observed_visibility==5.8f);
+hos_vr_cull_tangent=20;input(c,object,.7f,16.f/9);patch(&c);std::memcpy(&f,object+0xac,4);check(lane(c,0)==1.1917536f&&f==1.1917536f&&observations==1);hos_vr_cull_tangent=0;
 input(c,object,.7f,1.f);patch(&c);check(lane(c,0)==.7f&&lane(c,RATIO)==1.f);
 // The picture-ratio hook may have converted the main camera before this site.
 hos_wide_ratio=1.25f;input(c,object,.7f,16.f/9);patch(&c);check(lane(c,0)==1.1917536f&&lane(c,RATIO)==.9f);

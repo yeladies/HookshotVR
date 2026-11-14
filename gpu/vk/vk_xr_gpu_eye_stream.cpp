@@ -39,11 +39,11 @@ void eye_stream_report(const EyeStream& p,const char* status){
 }
 void eye_stream_free(EyeStream& p,EyeStreamBuffer& b){if(b.mapped)p.unmap(p.device,b.memory);if(b.buffer)vkDestroyBuffer(p.device,b.buffer,nullptr);if(b.memory)vkFreeMemory(p.device,b.memory,nullptr);p.allocated-=b.allocated;b={};}
 bool eye_stream_allocate(EyeStream& p,uint64_t bytes,bool host,EyeStreamBuffer& out){
-    if(!bytes||bytes>32ull*1024*1024)return false;EyeStreamBuffer b;
+    if(!bytes||bytes>64ull*1024*1024)return false;EyeStreamBuffer b;
     VkBufferCreateInfo create{VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};create.size=bytes;create.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT;if(!host)create.usage|=VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     if(vkCreateBuffer(p.device,&create,nullptr,&b.buffer)!=VK_SUCCESS)return false;
     auto fail=[&](){if(b.mapped)p.unmap(p.device,b.memory);if(b.buffer)vkDestroyBuffer(p.device,b.buffer,nullptr);if(b.memory)vkFreeMemory(p.device,b.memory,nullptr);return false;};
-    VkMemoryRequirements requirements{};vkGetBufferMemoryRequirements(p.device,b.buffer,&requirements);if(!requirements.size||requirements.size>32ull*1024*1024||requirements.size>128ull*1024*1024-p.allocated)return fail();
+    VkMemoryRequirements requirements{};vkGetBufferMemoryRequirements(p.device,b.buffer,&requirements);if(!requirements.size||requirements.size>64ull*1024*1024||requirements.size>256ull*1024*1024-p.allocated)return fail();
     VkPhysicalDeviceMemoryProperties memory{};vkGetPhysicalDeviceMemoryProperties(dev.physical,&memory);uint32_t type=UINT32_MAX;const auto wanted=host?VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT:VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     for(uint32_t i=0;i<memory.memoryTypeCount;++i)if((requirements.memoryTypeBits&(1u<<i))&&(memory.memoryTypes[i].propertyFlags&wanted)==wanted){type=i;break;}if(type==UINT32_MAX)return fail();b.coherent=(memory.memoryTypes[type].propertyFlags&VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)!=0;
     VkMemoryAllocateFlagsInfo flags{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO};flags.flags=VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;VkMemoryAllocateInfo allocation{VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};allocation.pNext=host?nullptr:&flags;allocation.allocationSize=requirements.size;allocation.memoryTypeIndex=type;
@@ -56,7 +56,7 @@ uint32_t eye_stream_dimension(const char* name,uint32_t fallback,uint32_t maximu
 bool eye_stream_initialize(EyeStream& p,const XrGpuSceneSource& source){
     if(!dev.features.shaderInt64)return false;
     if(const char* value=std::getenv("HOOKSHOT_VR_GPU_EYE_TANGENT_SCALE")){char* end=nullptr;p.guard_scale=std::strtof(value,&end);if(end==value||*end||!std::isfinite(p.guard_scale)||p.guard_scale<1||p.guard_scale>1.25f)return false;}
-    p.device=source.device;p.generation=source.generation;p.width=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_WIDTH",1024,1920);p.height=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_HEIGHT",1024,1920);if(!p.width||!p.height)return false;
+    p.device=source.device;p.generation=source.generation;p.width=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_WIDTH",1024,2560);p.height=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_HEIGHT",1024,2560);if(!p.width||!p.height)return false;
     p.unmap=reinterpret_cast<PFN_vkUnmapMemory>(vkGetDeviceProcAddr(p.device,"vkUnmapMemory"));p.invalidate=reinterpret_cast<PFN_vkInvalidateMappedMemoryRanges>(vkGetDeviceProcAddr(p.device,"vkInvalidateMappedMemoryRanges"));if(!p.unmap||!p.invalidate)return false;
     VkShaderModuleCreateInfo shader{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};shader.codeSize=sizeof kDepthPairReprojectSpv;shader.pCode=kDepthPairReprojectSpv;if(vkCreateShaderModule(p.device,&shader,nullptr,&p.shader)!=VK_SUCCESS)return false;
     VkPushConstantRange push{VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof(DepthPairDispatch)};VkPipelineLayoutCreateInfo layout{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};layout.pushConstantRangeCount=1;layout.pPushConstantRanges=&push;if(vkCreatePipelineLayout(p.device,&layout,nullptr,&p.layout)!=VK_SUCCESS)return false;

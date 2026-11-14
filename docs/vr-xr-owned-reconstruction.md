@@ -1,5 +1,9 @@
 # XR-owned reconstruction / Reconstrucción desde OpenXR
 
+The settings/evidence below describe earlier candidates. The Combined page records the current larger source/eye budgets and the latest headset result: improved detail, unresolved geometry and blackouts. / Los valores siguientes corresponden a candidatas anteriores; la página combinada recoge los límites actuales y el resultado en visor.
+
+Current combined follow-up / Candidata combinada actual: [4096 source, 2560 eyes and separated visibility fields / fuente 4096, ojos 2560 y visibilidad separada](vr-combined-visibility-quality.md). The previous wider-frustum headset test was only a partial improvement; geometry and resolution remain unaccepted.
+
 ## English
 
 This opt-in candidate addresses three observed defects: silhouette gaps, source-frustum edge rejection and low angular source resolution. It also moves eye reconstruction off the game-present schedule and into the XR owner. The first headset retest improved contours and turn boundaries according to the user, but geometry coverage and sharpness remain inadequate. It is not complete geometry stereo.

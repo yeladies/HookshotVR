@@ -61,7 +61,7 @@ inline void address_buffer(Context& c,const EyeResourceApi& api,const VkPhysical
     bi.usage=VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_TRANSFER_DST_BIT|VK_BUFFER_USAGE_STORAGE_BUFFER_BIT|VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     checked(api.create_buffer(c.device,&bi,nullptr,&out.buffer),"create auxiliary address buffer");
     VkMemoryRequirements req{};api.buffer_requirements(c.device,out.buffer,&req);
-    require(req.size&&req.size<=96ull*1024*1024-c.auxiliary_bytes,"auxiliary actual-allocation budget");
+    require(req.size&&req.size<=256ull*1024*1024-c.auxiliary_bytes,"auxiliary actual-allocation budget");
     uint32_t type=UINT32_MAX;
     for(uint32_t i=0;i<memory.memoryTypeCount;++i)if((req.memoryTypeBits&(1u<<i))&&(memory.memoryTypes[i].propertyFlags&VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)){type=i;break;}
     require(type!=UINT32_MAX,"auxiliary device-local memory required");
