@@ -1,6 +1,6 @@
 # Status, evidence and roadmap
 
-Quest result for the [combined 4096-source / 2560-eye candidate](../../vr-combined-visibility-quality.md): the user confirms much better detail and perceived smooth motion. Off-center geometry still disappears, including Link, and intermittent blackouts remain. Overall acceptance is pending; the next proposed diagnostic isolates engine occlusion with the same build.
+The user confirms much better detail and perceived smooth motion at 4096 source / 2560 eyes. Disabling engine occlusion only helped slightly: Link/enemies still disappear off-center and blackouts continue. [Results and proposed camera/visibility and no-layer diagnostics](../../vr-combined-visibility-quality.md). The quality profile is retained; overall visual acceptance still fails.
 
 The first GPU-only VDXR session delivered the 3D world (2,654 pair copies / 6,363 projection frames, clean close). The user reported pixelation, turn boundaries and dark silhouette defects. The HD source / eye guard-band / depth-aware filtering comparison produced no substantial improvement according to the user. Neither profile is visually accepted. [Next renderer stage and age instrumentation](../../vr-presentation-age-and-next-renderer.md).
 

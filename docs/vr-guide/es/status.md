@@ -1,6 +1,6 @@
 # Estado, resultados y hoja de ruta
 
-Resultado en Quest de la [candidata combinada con fuente 4096 y ojos 2560](../../vr-combined-visibility-quality.md): el usuario confirma mucho más detalle y movimiento percibido fluido. Siguen desapareciendo geometría y Link fuera del centro, y continúan los apagones intermitentes. La aceptación global está pendiente; se propone aislar la oclusión del motor con la misma build.
+El usuario confirma mucho más detalle y movimiento percibido fluido con fuente 4096 y ojos 2560. Desactivar la oclusión solo mejoró algo: siguen desapareciendo Link/enemigos fuera del centro y continúan los apagones. [Resultados y propuesta de diagnóstico de cámaras/visibilidad y fotogramas sin capa](../../vr-combined-visibility-quality.md). Se conserva la calidad; la aceptación visual global sigue pendiente.
 
 La primera sesión VDXR por GPU mostró el mundo 3D (2.654 pares / 6.363 proyecciones y cierre correcto). El usuario señaló pixelado, bordes al girar y contornos oscuros. La comparación con fuente HD, margen en los ojos y filtrado no produjo mejora sustancial según el usuario. Ningún perfil está aceptado visualmente. [Siguiente etapa e instrumentación](../../vr-presentation-age-and-next-renderer.md).
 
