@@ -10,6 +10,17 @@ struct DepthPairLocatedEye {
 struct DepthPairTrackingTarget {
     std::array<DepthPairLocatedEye,2> eyes;uint64_t origin=0,serial=0;int64_t observed_ns=0;
 };
+// Expand actual rendered eye frusta and their production metadata together.
+// Reprojection can then sample a guard band instead of exposing a hard boundary.
+inline bool expand_depth_pair_fovs(DepthPairTrackingTarget& target,float scale){
+    if(!std::isfinite(scale)||scale<1||scale>1.25f)return false;
+    auto expanded=target;
+    for(auto& eye:expanded.eyes){const auto& f=eye.fov;
+        if(f[0]>=0||f[1]<=0||f[2]<=0||f[3]>=0)return false;
+        for(float& angle:eye.fov){if(!std::isfinite(angle)||std::abs(angle)>=1.45f)return false;const float value=std::atan(std::tan(angle)*scale);if(!std::isfinite(value)||std::abs(value)>=1.5f)return false;if(scale!=1)angle=value;}
+    }
+    target=expanded;return true;
+}
 namespace depth_tracking_detail {
 inline bool rotation(const float* q,std::array<double,9>& r){
     double n=0;for(unsigned i=0;i<4;++i){if(!std::isfinite(q[i]))return false;n+=double(q[i])*q[i];}if(std::abs(n-1)>.01)return false;

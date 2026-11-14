@@ -11,6 +11,11 @@ int main(){try{
     auto s=source();mkwvk::ImmersiveTag captured;captured.valid=true;captured.generation=7;captured.observed_ns=1000000000;
     DepthPairTrackingTarget target;target.origin=7;target.serial=19;target.observed_ns=1010000000;
     for(unsigned eye=0;eye<2;++eye){auto& e=target.eyes[eye];e.orientation_valid=e.position_valid=true;e.position[0]=eye?.032f:-.032f;e.fov={-.7f,.8f,.75f,-.65f};}
+    const auto initial=target;auto guarded=target;check(expand_depth_pair_fovs(guarded,1.1f),"bounded eye overscan accepted");
+    check(guarded.serial==target.serial&&guarded.origin==target.origin&&guarded.observed_ns==target.observed_ns&&guarded.eyes[0].position==target.eyes[0].position,"overscan preserves pose identity");
+    for(unsigned eye=0;eye<2;++eye)for(unsigned i=0;i<4;++i)check(std::abs(std::tan(guarded.eyes[eye].fov[i])-1.1f*std::tan(initial.eyes[eye].fov[i]))<1e-6,"eye frustum expands in tangent space including asymmetry");
+    for(float invalid:{.99f,1.26f,NAN}){auto before=guarded;check(!expand_depth_pair_fovs(guarded,invalid)&&!std::memcmp(&before,&guarded,sizeof guarded),"invalid guard scale rejected atomically");}
+    auto malformed=target;malformed.eyes[1].fov[2]=-1;const auto before=malformed;check(!expand_depth_pair_fovs(malformed,1.1f)&&!std::memcmp(&before,&malformed,sizeof before),"one malformed eye cannot partially modify the other");
     std::array<DepthPairParameters,2> out;check(prepare_tracked_depth_pair_parameters(s,captured,target,1020000000,800,600,out),"tracked pair accepted");
     check(std::abs(out[0].source_from_eye[3]+.032f)<1e-6&&std::abs(out[1].source_from_eye[3]-.032f)<1e-6,"physical eye translations preserve IPD and handedness");check(out[0].eye_tangents[0]!=-out[0].eye_tangents[1]&&out[0].optical[0]==.01f,"asymmetric runtime lens and source optical center remain separate");
     // Independent oracle: apply the existing engine camera override to a

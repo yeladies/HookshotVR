@@ -27,7 +27,7 @@ struct EyeStream {
     std::mutex mutex;VkDevice device=VK_NULL_HANDLE;uint64_t generation=0,origin=0,allocated=0,sequence=0,last_tick=UINT64_MAX,last_record_frame=UINT64_MAX;
     VkShaderModule shader=VK_NULL_HANDLE;VkPipelineLayout layout=VK_NULL_HANDLE;VkPipeline pipeline=VK_NULL_HANDLE;
     PFN_vkUnmapMemory unmap=nullptr;PFN_vkInvalidateMappedMemoryRanges invalidate=nullptr;
-    uint32_t width=0,height=0;std::array<EyeStreamSlot,3> slots;std::shared_ptr<const XrGpuEyeFrame> latest;
+    float guard_scale=1;uint32_t width=0,height=0;std::array<EyeStreamSlot,3> slots;std::shared_ptr<const XrGpuEyeFrame> latest;
     uint64_t recorded=0,completed=0,published=0,leased_skips=0,pose_rejections=0,failures=0,real_consumer_acquires=0;bool stopped=false,retained=false;
     EyeStreamBuffer probe;std::shared_ptr<const XrGpuEyeFrame> probe_source;uint64_t probe_recording=0,probe_next=1;uint32_t probe_samples=0,probe_attempts=0;bool probe_pending=false;uint64_t last_eye_difference=0;uint32_t last_rgb_span=0;
 };
@@ -35,7 +35,7 @@ EyeStream& eye_stream(){static auto* p=new EyeStream;return *p;}
 bool eye_stream_probe(){return env_on("RX_VK_XR_GPU_EYE_STREAM_PROBE");}
 void eye_stream_report(const EyeStream& p,const char* status){
     const char* path=std::getenv("HOOKSHOT_VR_GPU_EYE_STREAM_REPORT_FILE");if(!path||!*path)return;
-    try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"recorded_pairs\":"<<p.recorded<<",\"completed_pairs\":"<<p.completed<<",\"published_pairs\":"<<p.published<<",\"leased_skips\":"<<p.leased_skips<<",\"pose_rejections\":"<<p.pose_rejections<<",\"failures\":"<<p.failures<<",\"allocated_bytes\":"<<p.allocated<<",\"width_per_eye\":"<<p.width<<",\"height\":"<<p.height<<",\"probe_samples\":"<<p.probe_samples<<",\"probe_attempts\":"<<p.probe_attempts<<",\"last_eye_difference\":"<<p.last_eye_difference<<",\"last_rgb_span\":"<<p.last_rgb_span<<",\"source_CPU_upload\":false,\"intermediate_CPU_pixels\":false,\"output_validation_readback\":"<<(p.probe_attempts?"true":"false")<<",\"synthetic_tracking\":"<<(eye_stream_probe()?"true":"false")<<",\"XR_consumer_connected\":"<<(p.real_consumer_acquires?"true":"false")<<",\"native_geometry_stereo\":false}\n";}catch(...){}
+    try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"recorded_pairs\":"<<p.recorded<<",\"completed_pairs\":"<<p.completed<<",\"published_pairs\":"<<p.published<<",\"leased_skips\":"<<p.leased_skips<<",\"pose_rejections\":"<<p.pose_rejections<<",\"failures\":"<<p.failures<<",\"allocated_bytes\":"<<p.allocated<<",\"width_per_eye\":"<<p.width<<",\"height\":"<<p.height<<",\"eye_tangent_scale\":"<<p.guard_scale<<",\"depth_aware_color_filter\":"<<(env_on("HOOKSHOT_VR_GPU_DEPTH_FILTER")?"true":"false")<<",\"probe_samples\":"<<p.probe_samples<<",\"probe_attempts\":"<<p.probe_attempts<<",\"last_eye_difference\":"<<p.last_eye_difference<<",\"last_rgb_span\":"<<p.last_rgb_span<<",\"source_CPU_upload\":false,\"intermediate_CPU_pixels\":false,\"output_validation_readback\":"<<(p.probe_attempts?"true":"false")<<",\"synthetic_tracking\":"<<(eye_stream_probe()?"true":"false")<<",\"XR_consumer_connected\":"<<(p.real_consumer_acquires?"true":"false")<<",\"native_geometry_stereo\":false}\n";}catch(...){}
 }
 void eye_stream_free(EyeStream& p,EyeStreamBuffer& b){if(b.mapped)p.unmap(p.device,b.memory);if(b.buffer)vkDestroyBuffer(p.device,b.buffer,nullptr);if(b.memory)vkFreeMemory(p.device,b.memory,nullptr);p.allocated-=b.allocated;b={};}
 bool eye_stream_allocate(EyeStream& p,uint64_t bytes,bool host,EyeStreamBuffer& out){
@@ -55,6 +55,7 @@ bool eye_stream_allocate(EyeStream& p,uint64_t bytes,bool host,EyeStreamBuffer& 
 uint32_t eye_stream_dimension(const char* name,uint32_t fallback,uint32_t maximum){const char* value=std::getenv(name);if(!value||!*value)return fallback;char* end=nullptr;const auto n=std::strtoul(value,&end,10);if(end==value||*end||n<8||n>maximum||n%8)return 0;return uint32_t(n);}
 bool eye_stream_initialize(EyeStream& p,const XrGpuSceneSource& source){
     if(!dev.features.shaderInt64)return false;
+    if(const char* value=std::getenv("HOOKSHOT_VR_GPU_EYE_TANGENT_SCALE")){char* end=nullptr;p.guard_scale=std::strtof(value,&end);if(end==value||*end||!std::isfinite(p.guard_scale)||p.guard_scale<1||p.guard_scale>1.25f)return false;}
     p.device=source.device;p.generation=source.generation;p.width=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_WIDTH",1024,1920);p.height=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_HEIGHT",1024,1080);if(!p.width||!p.height)return false;
     p.unmap=reinterpret_cast<PFN_vkUnmapMemory>(vkGetDeviceProcAddr(p.device,"vkUnmapMemory"));p.invalidate=reinterpret_cast<PFN_vkInvalidateMappedMemoryRanges>(vkGetDeviceProcAddr(p.device,"vkInvalidateMappedMemoryRanges"));if(!p.unmap||!p.invalidate)return false;
     VkShaderModuleCreateInfo shader{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};shader.codeSize=sizeof kDepthPairReprojectSpv;shader.pCode=kDepthPairReprojectSpv;if(vkCreateShaderModule(p.device,&shader,nullptr,&p.shader)!=VK_SUCCESS)return false;
@@ -63,7 +64,7 @@ bool eye_stream_initialize(EyeStream& p,const XrGpuSceneSource& source){
     return vkCreateComputePipelines(p.device,VK_NULL_HANDLE,1,&pipeline,nullptr,&p.pipeline)==VK_SUCCESS;
 }
 void eye_stream_order(VkCommandBuffer command,VkPipelineStageFlags2 stage,VkAccessFlags2 access){VkMemoryBarrier2 b{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};b.srcStageMask=VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;b.srcAccessMask=VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT;b.dstStageMask=stage;b.dstAccessMask=access;VkDependencyInfo d{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};d.memoryBarrierCount=1;d.pMemoryBarriers=&b;vkCmdPipelineBarrier2(command,&d);}
-bool eye_stream_target(const XrGpuSceneSource& source,const XrFrameSnapshot& snapshot,bool probe,int64_t now,DepthPairTrackingTarget& target){
+bool eye_stream_target(const XrGpuSceneSource& source,const XrFrameSnapshot& snapshot,bool probe,int64_t now,float guard_scale,DepthPairTrackingTarget& target){
     target={};target.origin=source.pose.generation;target.observed_ns=probe?now:snapshot.observed_at_monotonic_ns;target.serial=probe?uint64_t(now):snapshot.sequence;
     if(probe){if(xr_vulkan_active()||!source.synthetic_pose||!env_on("HOOKSHOT_VR_IMMERSIVE_TEST"))return false;
         std::array<double,9> rotation;if(!hookshot::vr::depth_tracking_detail::rotation(source.pose.orientation,rotation))return false;
@@ -71,7 +72,7 @@ bool eye_stream_target(const XrGpuSceneSource& source,const XrFrameSnapshot& sna
             out.fov={-.9599311f,.9599311f,.8726646f,-.8726646f};out.orientation_valid=out.position_valid=true;}
     }else{if(!snapshot.running||!snapshot.focused||!snapshot.should_render||snapshot.origin_generation!=target.origin||(snapshot.head.flags&3)!=3)return false;
         for(unsigned eye=0;eye<2;++eye){auto& out=target.eyes[eye];const auto& in=snapshot.eyes[eye];std::copy(in.pose.orientation,in.pose.orientation+4,out.orientation.begin());std::copy(in.pose.position,in.pose.position+3,out.position.begin());std::copy(in.fov,in.fov+4,out.fov.begin());out.orientation_valid=(in.pose.flags&1)!=0;out.position_valid=(in.pose.flags&2)!=0;}}
-    return true;
+    return hookshot::vr::expand_depth_pair_fovs(target,guard_scale);
 }
 bool eye_stream_probe_write(EyeStream& p){
     const char* base=std::getenv("HOOKSHOT_VR_GPU_EYE_STREAM_IMAGE_BASE");if(!base||!*base||!p.probe_source)return false;const auto& frame=*p.probe_source;const uint64_t pixels=uint64_t(frame.width)*frame.height;const auto* rgba=static_cast<const unsigned char*>(p.probe.mapped);std::array<unsigned char,3> lo{255,255,255},hi{};p.last_eye_difference=0;
@@ -106,7 +107,8 @@ void xr_gpu_eye_stream_network(VkCommandBuffer command,uint64_t recording,uint64
         DepthPairTrackingTarget target;std::array<DepthPairParameters,2> cameras;
         hookshot::vr::DepthPairSource identity{source->address,source->bytes,source->state,origin,uint64_t(source->pose.observed_ns),source->recording,p.generation,source->width,source->height,source->format,source->queue_family,true,true};
         identity.projection={source->projection[0],source->projection[5],source->projection[10],source->projection[11]};identity.optical_center={source->projection[2],source->projection[6]};
-        if(!eye_stream_target(*source,snapshot,probe,now,target)||!hookshot::vr::prepare_tracked_depth_pair_parameters(identity,source->pose,target,now,p.width,p.height,cameras)){++p.pose_rejections;return;}
+        if(!eye_stream_target(*source,snapshot,probe,now,p.guard_scale,target)||!hookshot::vr::prepare_tracked_depth_pair_parameters(identity,source->pose,target,now,p.width,p.height,cameras)){++p.pose_rejections;return;}
+        if(env_on("HOOKSHOT_VR_GPU_DEPTH_FILTER"))for(auto& camera:cameras)camera.settings[2]=1;
         EyeStreamSlot* chosen=nullptr;for(auto& slot:p.slots){if(slot.pending)continue;slot.frame.reset();if(slot.pin.use_count()==1){chosen=&slot;break;}}
         if(!chosen){++p.leased_skips;return;}auto& slot=*chosen;const uint64_t eye_bytes=uint64_t(p.width)*p.height*4,pair_bytes=2*eye_bytes;
         if(!slot.storage.buffer&&!eye_stream_allocate(p,pair_bytes+256,false,slot.storage)){++p.failures;if(p.failures>=3)p.stopped=true;eye_stream_report(p,"slot_allocation_failed");return;}

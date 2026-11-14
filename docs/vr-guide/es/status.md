@@ -1,5 +1,7 @@
 # Estado, resultados y hoja de ruta
 
+La primera sesión VDXR por GPU mostró el mundo 3D (2.654 pares / 6.363 proyecciones y cierre correcto). El usuario señaló pixelado, bordes al girar y contornos oscuros. La variante con fuente HD, margen real en los ojos y filtrado por profundidad está compilada y en validación; todavía no está aceptada visualmente.
+
 Alfa OpenXR GPU del mismo estado: [prueba y limitaciones](../../vr-gpu-world-preview.md).
 
 ## Ojos GPU continuos — 2026-11-14

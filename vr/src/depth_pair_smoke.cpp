@@ -57,5 +57,26 @@ try{const bool direct=std::strcmp(argv[1],"--run-direct")==0;DepthPairGpuFixture
         const auto result=fixture.run(source,cameras,6);require(result.source==source,"discontinuous-depth source unchanged");uint64_t residuals=0;
         for(const auto& c:result.counters){require(uint64_t(c[0])+c[1]+c[2]+c[3]==4096&&c[2]==0,"every discontinuous-depth pixel accounted without invented invalid depth");residuals+=c[3];}require(residuals>0,"nonconverging depth discontinuities still rejected");for(auto word:result.pixels)require((word>>24)==255,"discontinuity output completely written");
     }
-    std::cout<<"same_source_depth_pair=true; direct_buffer_copy="<<(direct?"true":"false")<<"; GPU="<<fixture.gpu.props.deviceName<<"; target_pixels_checked=49152; unequal_aspect_verified=true; discontinuity_rejection_verified=true; source_formats_checked=2; rotated_plane_verified=true; invalid_depth_rejected=true; original_color_depth_unchanged=true; intermediate_CPU_pixels=false; submissions=6; allocations_reused=true; XR=false; game=false\n";return 0;
+    // Filtered reconstruction must reproduce an analytic continuous linear
+    // ramp, not the old nearest-neighbour staircase. Both packed HDR formats.
+    for(unsigned round=0;round<2;++round){std::array<DepthPairParameters,2> cameras{parameters(0,round),parameters(1,round)};
+        for(auto& p:cameras){p.settings[2]=1;p.projection[0]=.83f;p.projection[1]=.79f;}const float depth=float((1.-double(cameras[0].projection[2])+double(cameras[0].projection[3])/2)/2);std::vector<uint32_t> source(12800);
+        for(unsigned y=0;y<80;++y)for(unsigned x=0;x<80;++x){const unsigned i=y*80+x;source[i]=round?mini_float(float(x)/128,6)|(mini_float(float(y)/128,6)<<11)|(mini_float(.25f,5)<<22):x*4|(y*4<<9)|(128u<<18)|(15u<<27);source[6400+i]=float_word(depth);}
+        const auto result=fixture.run(source,cameras,7+round);require(result.source==source,"filtered reconstruction preserves source packet");unsigned different=0;
+        for(unsigned eye=0;eye<2;++eye){require(result.counters[eye][0]==4096,"filtered planar coverage is complete");const auto& p=cameras[eye];
+            for(unsigned y=0;y<64;++y)for(unsigned x=0;x<64;++x){const double ray_x=2*(x+.5)/64-1,ray_y=1-2*(y+.5)/64;const double sx=p.source_from_eye[3]+2*ray_x,sy=2*ray_y;
+                const double px=(p.projection[0]*sx/2+1)*40-.5,py=(1-p.projection[1]*sy/2)*40-.5;const auto actual=result.pixels[y*128+eye*64+x];
+                const int red=int(std::floor(px*255/128+.5)),green=int(std::floor(py*255/128+.5));require(std::abs(int(actual&255)-red)<=1&&std::abs(int((actual>>8)&255)-green)<=1&&((actual>>16)&255)==64,"filtered GPU color agrees with continuous independent plane oracle");
+                const auto nearest=analytic_source_pixel(p,x,y);if(actual!=expected_color(nearest[0],nearest[1],false))++different;
+            }}require(different>1000,"filter actually removes nearest-neighbour staircase");
+    }
+    // A red foreground in front of a blue background must stay red or blue:
+    // four-tap color filtering cannot blur across the depth discontinuity.
+    {std::array<DepthPairParameters,2> cameras{parameters(0,0),parameters(1,0)};for(auto& p:cameras)p.settings[2]=1;std::vector<uint32_t> source(12800);
+        for(unsigned y=0;y<80;++y)for(unsigned x=0;x<80;++x){const auto i=y*80+x;const bool foreground_pixel=x<40;const double z=foreground_pixel?1:4;source[i]=(foreground_pixel?384u:0u)|(foreground_pixel?0u:(384u<<18))|(15u<<27);source[6400+i]=float_word(float((1.-double(cameras[0].projection[2])+double(cameras[0].projection[3])/z)/2));}
+        const auto result=fixture.run(source,cameras,9);require(result.source==source,"depth-edge filtering preserves source packet");unsigned foreground=0,background=0;
+        for(auto word:result.pixels){const auto r=word&255,b=(word>>16)&255;require(!(r&&b),"depth-aware filter cannot mix red foreground with blue background");if(r)++foreground;if(b)++background;}
+        require(foreground>2000&&background>2000,"both sides of depth edge retain real color");
+    }
+    std::cout<<"same_source_depth_pair=true; direct_buffer_copy="<<(direct?"true":"false")<<"; GPU="<<fixture.gpu.props.deviceName<<"; target_pixels_checked=73728; depth_aware_filter_verified=true; unequal_aspect_verified=true; discontinuity_rejection_verified=true; source_formats_checked=2; rotated_plane_verified=true; invalid_depth_rejected=true; original_color_depth_unchanged=true; intermediate_CPU_pixels=false; submissions=9; allocations_reused=true; XR=false; game=false\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

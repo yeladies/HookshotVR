@@ -12,7 +12,7 @@ struct alignas(16) DepthPairParameters {
     std::array<float,4> projection{}; // P00, P11, P22, P23, OpenGL -1..1 clip depth
     std::array<float,4> optical{}; // P02, P12, maximum source distance, residual in source pixels
     std::array<uint32_t,4> dimensions{}; // source width/height, target width/height
-    std::array<uint32_t,4> settings{}; // native color format 122/123, iterations, reserved, reserved
+    std::array<uint32_t,4> settings{}; // native color format 122/123, iterations, depth-aware color filtering (0/1), reserved
 };
 struct DepthPairDispatch {uint64_t source=0,destination=0,parameters=0,counters=0;};
 static_assert(sizeof(DepthPairParameters)==128);
@@ -25,7 +25,7 @@ inline bool depth_pair_parameters_valid(const DepthPairParameters& p){
        t[0]>=-.0001f||t[1]<=.0001f||t[2]<=.0001f||t[3]>=-.0001f||
        q[0]<.0001f||q[1]<.0001f||q[0]>10000||q[1]>10000||q[2]>-1||q[3]>=0||
        std::abs(o[0])>4||std::abs(o[1])>4||o[2]<=0||o[2]>100000||o[3]<.05f||o[3]>2||
-       (p.settings[0]!=122&&p.settings[0]!=123)||p.settings[1]<2||p.settings[1]>16||p.settings[2]||p.settings[3])return false;
+       (p.settings[0]!=122&&p.settings[0]!=123)||p.settings[1]<2||p.settings[1]>16||p.settings[2]>1||p.settings[3])return false;
     for(float f:t)if(std::abs(f)>8)return false;
     const auto& r=p.source_from_eye;
     for(int a=0;a<3;++a){if(std::abs(r[4*a+3])>o[2])return false;
