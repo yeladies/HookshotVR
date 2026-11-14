@@ -16,7 +16,7 @@
 void check(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
 template<class T>T handle(uint64_t n){if constexpr(std::is_pointer_v<T>)return reinterpret_cast<T>(uintptr_t(n));else return T(n);}
 namespace mkwvk {
-struct {VkDevice device=handle<VkDevice>(1);VkPhysicalDevice physical=handle<VkPhysicalDevice>(2);uint32_t queue_family=3;} dev;
+struct {VkDevice device=handle<VkDevice>(1);VkPhysicalDevice physical=handle<VkPhysicalDevice>(2);uint32_t queue_family=3;VkPhysicalDeviceFeatures features{};} dev;
 bool par_active=false;
 struct Texture {VkImage image=VK_NULL_HANDLE;void* allocation=nullptr;bool sparse=false;VkImageType type=VK_IMAGE_TYPE_2D;VkFormat format=VK_FORMAT_UNDEFINED;VkSampleCountFlagBits samples=VK_SAMPLE_COUNT_1_BIT;uint32_t depth=1,levels=1,layers=1,width=4,height=4;VkImageUsageFlags usage=VK_IMAGE_USAGE_TRANSFER_SRC_BIT;VkImageAspectFlags aspect=0;};
 struct Fake {uint64_t next=100,frame=1,completed=0,generation=1;int calls=0,fail=0;bool missing=false,probe=false;ImmersiveTag pose;bool synthetic=false;
@@ -47,7 +47,7 @@ void vkCmdCopyBuffer(VkCommandBuffer,VkBuffer src,VkBuffer dst,uint32_t,const Vk
 #include "gpu_scene_source_function.inc"
 using namespace mkwvk;
 Texture color,depth;std::array<float,140> camera;
-void reset(){auto& p=gpu_scene_pool();p.~GpuScenePool();new(&p)GpuScenePool;fake={};dev.device=handle<VkDevice>(1);par_active=false;
+void reset(){auto& p=gpu_scene_pool();p.~GpuScenePool();new(&p)GpuScenePool;fake={};dev.device=handle<VkDevice>(1);dev.features.shaderInt64=VK_TRUE;par_active=false;
     color={};color.image=handle<VkImage>(10);color.allocation=handle<void*>(20);color.format=VK_FORMAT_B10G11R11_UFLOAT_PACK32;color.aspect=VK_IMAGE_ASPECT_COLOR_BIT;
     depth=color;depth.image=handle<VkImage>(11);depth.allocation=handle<void*>(21);depth.format=VK_FORMAT_D32_SFLOAT;depth.aspect=VK_IMAGE_ASPECT_DEPTH_BIT;
     fake.images[color.image]=std::vector<unsigned char>(64,19);fake.images[depth.image]=std::vector<unsigned char>(64,43);

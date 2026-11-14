@@ -14,10 +14,10 @@ class ImmersiveLaunchGuards(unittest.TestCase):
         self.assertNotEqual(result.returncode,0)
         self.assertIn(message,result.stdout+result.stderr)
     def test_gpu_source_requires_private_save(self):
-        for mode in ('-GpuSceneSourceProbe','-GpuDepthPairProbe'):
+        for mode in ('-GpuSceneSourceProbe','-GpuDepthPairProbe','-GpuEyeStreamProbe'):
             self.reject([mode],'GPU scene source probe requires a private test save')
     def test_gpu_source_cannot_open_xr_or_share_capture(self):
-        for mode in ('-GpuSceneSourceProbe','-GpuDepthPairProbe'):
+        for mode in ('-GpuSceneSourceProbe','-GpuDepthPairProbe','-GpuEyeStreamProbe'):
             for flag in ('-XrPreview','-TemporalStereo','-DepthSceneCapture','-GpuRootAliasProbe'):
                 self.reject([mode,'-SnapshotStableSaves','-LoadTestSave','-Seconds','120',flag],'GPU scene source probe requires its own non-XR run')
     def test_lens_selection_flag_is_forwarded_as_one_native_argument(self):

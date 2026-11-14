@@ -1,5 +1,9 @@
 # Estado, resultados y hoja de ruta
 
+## Ojos GPU continuos — 2026-11-14
+
+La ejecución aislada corregida completa/publica 2.190 parejas GPU de fuente común a 1024×1024 por ojo, con cámara sintética, cero incidencias y sin transporte del preview antiguo. Tres muestras de salida cambian con el tiempo. La coherencia independiente de resolución elimina la rejilla negra en ojos cuadrados; oráculo GPU de 49.152 píxeles. Pasan 114 pruebas VR; regresiones 358 correctas / 5 conocidas / 59 omitidas. Faltan consumo por la sesión/swapchain real y HUD; aún no es una build validada en visor. Consulta [flujo continuo, instrucciones y límites](../../vr-continuous-gpu-eyes.md).
+
 ## Pareja nativa desde GPU viva — 2026-11-14
 
 La prueba aislada ya reconstruye los dos ojos desde la misma fuente GPU viva, sin descargarla/subirla: tres parejas, 1152×648 por ojo, 588.154 píxeles distintos y ninguna incidencia registrada. Solo se lee la salida para inspección. Pasan 110 pruebas VR. La matemática de poses recientes está contrastada por separado; faltan presentación OpenXR, HUD y prueba en visor. Consulta la [ruta nativa, instrucciones y límites](../../vr-live-gpu-depth-pair.md).

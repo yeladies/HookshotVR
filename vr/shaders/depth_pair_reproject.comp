@@ -49,8 +49,14 @@ void main(){
     vec2 ndc=vec2(2*(float(source_pixel.x)+.5)/p.camera.dimensions.x-1,1-2*(float(source_pixel.y)+.5)/p.camera.dimensions.y);
     vec3 surface=vec3(-z*(ndc+p.camera.optical.xy)/p.camera.projection.xy,z)-origin;
     vec3 eye=p.camera.row0.xyz*surface.x+p.camera.row1.xyz*surface.y+p.camera.row2.xyz*surface.z;
-    vec2 tan_eye=eye.xy/(-eye.z);
-    vec2 target=vec2((tan_eye.x-p.camera.tangents.x)/(p.camera.tangents.y-p.camera.tangents.x),(p.camera.tangents.z-tan_eye.y)/(p.camera.tangents.z-p.camera.tangents.w))*vec2(p.camera.dimensions.zw);
-    if(eye.z>=0||any(isnan(target))||any(isinf(target))||length(target-(vec2(pixel)+.5))>p.camera.optical.w){finish(index,0xff000000u,3u);return;}
+    // Check the final ray/depth agreement in SOURCE pixel units. A sampled
+    // source texel has a finite footprint: measuring this quantization in
+    // target pixels spuriously rejects flat surfaces when resolution/aspect
+    // changes (for example a 1152x648 source feeding 1024x1024 eyes).
+    float final_t=(z-origin.z)/ray.z;vec3 final_point=origin+ray*final_t;
+    vec2 final_uv=project_source(final_point);uvec2 checked_pixel;
+    if(final_t<=0||final_point.z>=0||!pixel_at(final_uv,checked_pixel)){finish(index,0xff000000u,1u);return;}
+    vec2 source_error=final_uv*vec2(p.camera.dimensions.xy)-(vec2(source_pixel)+.5);
+    if(eye.z>=0||any(isnan(eye))||any(isinf(eye))||any(isnan(source_error))||any(isinf(source_error))||length(source_error)>p.camera.optical.w){finish(index,0xff000000u,3u);return;}
     finish(index,color_at(source_pixel),0u);
 }

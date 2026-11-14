@@ -9,7 +9,10 @@
 #include "xr_depth_pair_reproject_spv.h"
 #include <set>
 namespace mkwvk {
-bool env_on(const char* name){return std::strcmp(name,"RX_VK_XR_GPU_DEPTH_PAIR_PROBE")==0;}
+#ifndef HOOKSHOT_PAIR_ENV_NAME
+#define HOOKSHOT_PAIR_ENV_NAME env_on
+#endif
+bool HOOKSHOT_PAIR_ENV_NAME(const char* name){return std::strcmp(name,"RX_VK_XR_GPU_DEPTH_PAIR_PROBE")==0;}
 struct PairFake {std::set<VkShaderModule> shaders;std::set<VkPipelineLayout> layouts;std::set<VkPipeline> pipelines;hookshot::vr::DepthPairDispatch dispatch;uint64_t shared_source=0;unsigned dispatches=0;bool corrupt=false,uniform=false;} pair_fake;
 VkResult vkCreateShaderModule(VkDevice,const VkShaderModuleCreateInfo* c,const VkAllocationCallbacks*,VkShaderModule* out){check(c->codeSize==sizeof kDepthPairReprojectSpv,"actual authored shader only");if(fail())return VK_ERROR_OUT_OF_DEVICE_MEMORY;*out=handle<VkShaderModule>(++fake.next);pair_fake.shaders.insert(*out);return VK_SUCCESS;}
 void vkDestroyShaderModule(VkDevice,VkShaderModule s,const VkAllocationCallbacks*){check(pair_fake.shaders.erase(s)==1,"owned shader");}
@@ -25,7 +28,7 @@ void vkCmdFillBuffer(VkCommandBuffer,VkBuffer b,VkDeviceSize offset,VkDeviceSize
 unsigned char* address(uint64_t a,uint64_t bytes){const auto b=handle<VkBuffer>(a>>20);const auto offset=a&((1<<20)-1);auto& dst=fake.memory.at(fake.bindings.at(b));check(offset+bytes<=dst.size(),"bounded device address");return dst.data()+offset;}
 // Transport/lifetime double only; the real shader has a separate GPU oracle.
 void vkCmdDispatch(VkCommandBuffer,uint32_t x,uint32_t y,uint32_t z){check(x==1&&y==1&&z==1,"bounded fixture dispatch");const auto& d=pair_fake.dispatch;hookshot::vr::DepthPairParameters camera;std::memcpy(&camera,address(d.parameters,128),128);check(camera.dimensions[0]==4&&camera.dimensions[1]==4,"source shape retained");
-    if(pair_fake.dispatches%2==0)pair_fake.shared_source=d.source;else check(pair_fake.shared_source==d.source,"both eyes read the same GPU source address");address(d.source,128);uint32_t pixels[16];for(auto& p:pixels)p=pair_fake.uniform||camera.source_from_eye[3]<0?0xff123456:0xff654321;std::memcpy(address(d.destination,64),pixels,64);uint32_t counts[4]={pair_fake.corrupt?15u:16u,0,0,0};std::memcpy(address(d.counters,16),counts,16);++pair_fake.dispatches;
+    if(pair_fake.dispatches%2==0)pair_fake.shared_source=d.source;else check(pair_fake.shared_source==d.source,"both eyes read the same GPU source address");address(d.source,128);const uint32_t count=camera.dimensions[2]*camera.dimensions[3];std::vector<uint32_t> pixels(count);for(auto& p:pixels)p=pair_fake.uniform||camera.source_from_eye[3]<0?0xff123456:0xff654321;std::memcpy(address(d.destination,count*4),pixels.data(),count*4);if(d.counters){uint32_t counts[4]={pair_fake.corrupt?count-1:count,0,0,0};std::memcpy(address(d.counters,16),counts,16);}++pair_fake.dispatches;
 }
 }
 #include "gpu_depth_pair_probe_function.inc"
@@ -33,6 +36,7 @@ using namespace mkwvk;
 void reset_pair(){auto& p=depth_probe();p.~DepthProbe();new(&p)DepthProbe;pair_fake={};reset();}
 void record_pair(uint64_t frame=1){capture(frame);complete(frame);xr_gpu_depth_pair_probe_network(handle<VkCommandBuffer>(3),frame*10+5,0xfd029a317a9a4b94ull);}
 void assert_clean(){check(pair_fake.pipelines.empty()&&pair_fake.layouts.empty()&&pair_fake.shaders.empty()&&depth_probe().allocated==0,"all optional resources unwind");}
+#ifndef HOOKSHOT_PAIR_FIXTURE_ONLY
 int main(){try{
     for(int failure=1;failure<=19;++failure){reset_pair();capture(1);complete(1);fake.fail=fake.calls+failure;xr_gpu_depth_pair_probe_network(handle<VkCommandBuffer>(3),15,0xfd029a317a9a4b94ull);check(depth_probe().stopped&&depth_probe().failures==1&&pair_fake.dispatches==0,"each setup failure records no partial pair");assert_clean();check(fake.memory.size()==1&&xr_gpu_scene_source_stop(),"setup unwind leaves original source intact");}
     reset_pair();record_pair();check(depth_probe().pending&&depth_probe().source&&pair_fake.dispatches==2,"pair retains one source through both dispatches");xr_gpu_depth_pair_probe_tick(2);check(depth_probe().completed==0,"no early output publication");check(!xr_gpu_depth_pair_probe_stop()&&depth_probe().source&&!pair_fake.pipelines.empty(),"shutdown retains in-flight consumer and source lease");fake.completed=15;check(xr_gpu_depth_pair_probe_stop(),"known completion permits consumer release");assert_clean();check(xr_gpu_scene_source_stop()&&fake.memory.empty(),"source storage retires after consumer release");
@@ -51,3 +55,5 @@ int main(){try{
     check(depth_probe().complete&&depth_probe().completed==3&&pair_fake.dispatches==6,"three different live sources complete paired dispatches with reused allocations");check(depth_probe().source_states[0]<depth_probe().source_states[1]&&depth_probe().source_states[1]<depth_probe().source_states[2],"strictly advancing scene states");check(std::filesystem::file_size(path)==11+4*4*6,"authored side-by-side diagnostic image extent");std::filesystem::remove(path);check(xr_gpu_depth_pair_probe_stop(),"completed consumer releases");assert_clean();check(xr_gpu_scene_source_stop()&&fake.memory.empty(),"all completed source/consumer allocations released");
     std::cout<<"Actual native GPU depth-pair consumer: shared source, 19 setup failures, timeline gating, reused storage and uncertain-work retention passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+
+#endif

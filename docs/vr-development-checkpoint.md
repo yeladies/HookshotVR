@@ -19,7 +19,7 @@ The playable Quest experiment has head-tracked game-image transport and audio, b
 - Reviewed NVN projection-depth extraction, with unresolved/infinite far-plane handling.
 - Validated full-payload CPU eye uniform copies, retaining every unknown byte.
 - Opt-in [real-game uniform upload/readback](vr-game-uniform-upload-probe.md): both 13,568-byte private payloads validate and retire; source descriptors remain unchanged.
-- 112 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
+- 114 game-free VR CTest cases pass; inherited suite has five documented baseline failures.
 - Read-only native profiling identifies a view-writer caller context; a repeatable render-only engine phase remains unproved.
 
 Raw graphs, matrices, modules, generated game code, binaries and save snapshots stay
@@ -444,3 +444,12 @@ Castellano: la copia directa elimina dos imágenes intermedias. Oráculo GPU de 
 The [projection metadata builder](vr-gpu-projection-metadata.md) preserves both production poses/FOVs and full eye rectangles. It rejects old origins, expired/temporal pairs, incomplete copies and invalid eyes atomically; copied metadata has no dangling internal view pointer. All 112 VR cases pass. This is checked metadata preparation, not real OpenXR submission. The continuous native pair producer/session wiring and HUD remain next; no headset session was opened.
 
 Castellano: metadatos de proyección con poses/FOV de producción y rectángulos completos. Rechazo atómico de origen viejo, caducidad, fuentes temporales, copias pendientes u ojos inválidos; duración correcta al copiar el array. Pasan 112 pruebas VR. No es presentación OpenXR real: faltan productor continuo, conexión de sesión y HUD. No se abrió el visor.
+
+
+## Continuous immutable GPU eye stream and source-pixel coherence
+
+The [continuous native producer](vr-continuous-gpu-eyes.md) now publishes leased output pairs without source readback/upload. The corrected synthetic-camera game run completed/published 2,190 pairs at 1024×1024 per eye, zero failures, one pose rejection and 25,166,336 stream bytes. Three private samples visibly change; old preview image publication stays zero. Immutable copied/weak leases, real/synthetic scope, allocation failures after GPU recording and recenter-with-pending-work are checked. All 114 VR cases pass; inherited 358 passed / 5 known failures / 59 skipped. Source inputs remain untouched.
+
+A rectangular-source/square-eye GPU regression reproduced black quantization stripes in the old target-pixel residual check. Coherence is now measured in source pixels, preserving the bounded tolerance and rejecting oscillating depth. Both GPU transport routes pass 49,152 pixels over six submissions. Actual output review confirms stripe removal; remaining source resolution, edge geometry/culling, disocclusion and color limits are explicit. Actual OpenXR swapchain/session consumption and HUD are next; no headset session was opened.
+
+Castellano: flujo nativo continuo con parejas protegidas, sin descargar/subir la fuente. Prueba corregida: 2.190 parejas de 1024×1024 por ojo, cero incidencias, una pose rechazada y 25.166.336 bytes del flujo. Tres muestras distintas y publicación del preview antiguo a cero. 114 pruebas VR; regresiones 358 / 5 conocidas / 59 omitidas. Nuevo caso GPU reproduce las líneas negras anteriores y valida medir la coherencia en píxeles de origen: 49.152 píxeles/seis envíos por ambas rutas, profundidad oscilante todavía rechazada. La revisión confirma la desaparición de la rejilla; quedan resolución, geometría lateral, huecos, color, presentación OpenXR y HUD. Sin abrir el visor ni modificar entradas estables.

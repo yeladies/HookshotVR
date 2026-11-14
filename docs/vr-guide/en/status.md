@@ -1,5 +1,9 @@
 # Status, evidence and roadmap
 
+## Continuous native GPU eyes — 2026-11-14
+
+The corrected isolated run completed/published 2,190 same-source GPU pairs at 1024×1024 per eye with synthetic camera motion, zero failures and no old preview image transport. Three output-only inspection samples change over time. A source-resolution-independent depth check removes the square-eye quantization stripes and passes a 49,152-pixel GPU oracle. All 114 VR cases pass; inherited baseline is 358 passed / 5 known failures / 59 skipped. Real swapchain/session consumption and HUD remain pending; this is not a validated headset build. See [continuous flow, how-to and limits](../../vr-continuous-gpu-eyes.md).
+
 ## Native live GPU pair — 2026-11-14
 
 The normal isolated game test now reconstructs both eyes directly from the same live GPU source, with no source readback/upload: three pairs, 1152×648 per eye, 588,154 different eye pixels and zero reported failures. Completed output is read back only for inspection. All 110 VR cases pass. Current head-pose math is checked separately; OpenXR presentation, HUD and headset validation are still pending. See the [native path, how-to and limitations](../../vr-live-gpu-depth-pair.md).

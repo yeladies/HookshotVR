@@ -19,3 +19,6 @@ El constructor de metadatos transforma un par GPU completo e inmutable en dos vi
 Exige origen LOCAL actual, generación de dispositivo coincidente, tiempos válidos/ordenados, posición y orientación válidas, límites de imagen y destino adquirido/esperado con copia GPU completada. Rechaza fuentes temporales, datos de más de 250 ms y cualquier ojo inválido sin modificar parcialmente la salida. Copiar los metadatos conserva correctamente la duración del array de vistas; el propietario debe mantenerlo vivo hasta `xrEndFrame`.
 
 No llama a GPU ni a OpenXR. Las marcas de adquisición/finalización son contratos del propietario, no pruebas independientes. Faltan productor continuo, adquisición/copia/liberación del swapchain real, conexión al bucle de sesión, UI y prueba en visor. Las pruebas comprueban poses/FOV, rectángulos completos, duración de copias, caducidad y recentrado. No se ha abierto el visor.
+
+
+The [continuous native pair producer](vr-continuous-gpu-eyes.md) is now checked independently; connecting this projection description to a real session consumer remains pending. Castellano: productor continuo contrastado por separado; aún falta conectar esta descripción al consumidor real de sesión.

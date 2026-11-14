@@ -10,7 +10,7 @@ struct alignas(16) DepthPairParameters {
     std::array<float,12> source_from_eye{};
     std::array<float,4> eye_tangents{}; // left, right, up, down
     std::array<float,4> projection{}; // P00, P11, P22, P23, OpenGL -1..1 clip depth
-    std::array<float,4> optical{}; // P02, P12, maximum source distance, residual pixels
+    std::array<float,4> optical{}; // P02, P12, maximum source distance, residual in source pixels
     std::array<uint32_t,4> dimensions{}; // source width/height, target width/height
     std::array<uint32_t,4> settings{}; // native color format 122/123, iterations, reserved, reserved
 };
