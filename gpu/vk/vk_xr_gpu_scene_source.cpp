@@ -53,7 +53,7 @@ bool gpu_scene_allocate(GpuScenePool& p,uint64_t bytes,bool host,GpuSceneBuffer&
     else{VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO};info.buffer=b.buffer;b.address=vkGetBufferDeviceAddress(p.device,&info);if(!b.address||b.address%16||b.address>UINT64_MAX-bytes)return fail();}
     b.capacity=bytes;b.allocated=requirements.size;p.allocated+=b.allocated;out=b;++p.allocations;return true;
 }
-bool gpu_scene_shape(const Texture* t,VkFormat format){return t&&t->image&&t->allocation&&!t->sparse&&t->type==VK_IMAGE_TYPE_2D&&t->format==format&&t->samples==VK_SAMPLE_COUNT_1_BIT&&t->depth==1&&t->levels==1&&t->layers==1&&t->width>=2&&t->height>=2&&t->width<=1920&&t->height<=1080&&(t->usage&VK_IMAGE_USAGE_TRANSFER_SRC_BIT);}
+bool gpu_scene_shape(const Texture* t,VkFormat format){return t&&t->image&&t->allocation&&!t->sparse&&t->type==VK_IMAGE_TYPE_2D&&t->format==format&&t->samples==VK_SAMPLE_COUNT_1_BIT&&t->depth==1&&t->levels==1&&t->layers==1&&t->width>=2&&t->height>=2&&t->width<=1920&&t->height<=1920&&uint64_t(t->width)*t->height<=2073600&&(t->usage&VK_IMAGE_USAGE_TRANSFER_SRC_BIT);}
 bool gpu_scene_camera(const float* c,size_t count){
     if(!c||count<0x230/4)return false;for(unsigned i=0;i<44;++i)if(!std::isfinite(c[i]))return false;const auto* p=c+28;
     if(p[0]<.0001f||p[5]<.0001f||p[0]>10000||p[5]>10000||std::abs(p[2])>4||std::abs(p[6])>4||p[10]>-1||p[11]>=0||std::abs(p[14]+1)>1e-5)return false;

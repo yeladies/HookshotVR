@@ -1,3 +1,4 @@
+#include <string>
 // SPDX-License-Identifier: GPL-3.0-or-later
 #define XR_NO_PROTOTYPES
 #define XR_USE_GRAPHICS_API_VULKAN
@@ -14,6 +15,9 @@
 #include <chrono>
 namespace {
 bool mode(const char* value) { const char* s=std::getenv("XR_FAKE_MODE");return s&&!std::strcmp(s,value); }
+bool late_preview(){const char* s=std::getenv("XR_FAKE_MODE");return s&&std::strncmp(s,"preview_pair_late_",18)==0;}
+bool pair_case(const char* suffix){const char* s=std::getenv("XR_FAKE_MODE");return s&&(std::string(s)==std::string("preview_pair_")+suffix||std::string(s)==std::string("preview_pair_late_")+suffix);}
+float late_recorded_x[2]{},late_released_x[2]{};
 bool pair_preview(){const char* s=std::getenv("XR_FAKE_MODE");return s&&std::strncmp(s,"preview_pair_",13)==0;}
 bool preview_hd(){const char* h=std::getenv("RX_VK_XR_PREVIEW_HD");const char* m=std::getenv("XR_FAKE_MODE");return h&&!std::strcmp(h,"1")&&m&&std::strstr(m,"preview_immersive");}
 uint32_t preview_w(){return pair_preview()?8u:preview_hd()?1920u:1280u;}uint32_t preview_h(){return pair_preview()?8u:preview_hd()?1080u:720u;}
@@ -86,7 +90,7 @@ XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
         if(pair_preview()){
             ++counts[19];const auto* p=reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[0]);
             if(info->layerCount!=1||p->type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION||p->viewCount!=2||!p->views||p->layerFlags)++counts[5];
-            else for(unsigned eye=0;eye<2;++eye){const auto& v=p->views[eye];if(v.type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW||v.subImage.imageRect.extent.width!=8||v.subImage.imageRect.extent.height!=8||v.subImage.imageRect.offset.x!=int(eye*8)||v.subImage.imageArrayIndex||v.pose.orientation.w!=1||std::abs(v.pose.position.x-(eye?10.032f:9.968f))>.0001f||v.pose.position.y!=20||v.pose.position.z!=30||v.fov.angleLeft!=-.72f||v.fov.angleRight!=.78f||v.fov.angleUp!=.88f||v.fov.angleDown!=-.62f)++counts[5];}
+            else for(unsigned eye=0;eye<2;++eye){const auto& v=p->views[eye];if(v.type!=XR_TYPE_COMPOSITION_LAYER_PROJECTION_VIEW||v.subImage.imageRect.extent.width!=8||v.subImage.imageRect.extent.height!=8||v.subImage.imageRect.offset.x!=int(eye*8)||v.subImage.imageArrayIndex||v.pose.orientation.w!=1||std::abs(v.pose.position.x-(late_preview()?late_released_x[eye]:(eye?10.032f:9.968f)))>.0001f||v.pose.position.y!=(late_preview()?0:20)||v.pose.position.z!=(late_preview()?0:30)||v.fov.angleLeft!=(late_preview()?-.7f:-.72f)||v.fov.angleRight!=(late_preview()?.8f:.78f)||v.fov.angleUp!=(late_preview()?.9f:.88f)||v.fov.angleDown!=(late_preview()?-.6f:-.62f))++counts[5];}
         }else if(mode("preview_immersive")||mode("preview_immersive_stereo")||(mode("preview_immersive_transition")&&info->layers[0]->type==XR_TYPE_COMPOSITION_LAYER_PROJECTION)){
             ++counts[19];
             const auto* p=reinterpret_cast<const XrCompositionLayerProjection*>(info->layers[0]);
@@ -114,7 +118,7 @@ XrResult XRAPI_CALL locate_space(XrSpace,XrSpace,XrTime time,XrSpaceLocation* ou
 XrResult XRAPI_CALL locate_views(XrSession,const XrViewLocateInfo* info,XrViewState* state,uint32_t capacity,uint32_t* count,XrView* views) {
     if(info->displayTime!=located_time||capacity!=2)++counts[5];
     *count=2;state->viewStateFlags=mode("session_invalid_pose")?0:XR_VIEW_STATE_POSITION_VALID_BIT|XR_VIEW_STATE_ORIENTATION_VALID_BIT;
-    for(int i=0;i<2;++i){views[i].pose.orientation.w=1;views[i].pose.position.x=i?0.032f:-0.032f;if(mode("preview_immersive_stereo")||mode("preview_immersive_stereo_missing")){views[i].pose.position.x+=1;views[i].pose.position.y=2;views[i].pose.position.z=3;}views[i].fov={-0.7f,0.8f,0.9f,-0.6f};}
+    for(int i=0;i<2;++i){views[i].pose.orientation.w=1;views[i].pose.position.x=(i?0.032f:-0.032f)+(late_preview()?float(frames)*.001f:0);if(mode("preview_immersive_stereo")||mode("preview_immersive_stereo_missing")){views[i].pose.position.x+=1;views[i].pose.position.y=2;views[i].pose.position.z=3;}views[i].fov={-0.7f,0.8f,0.9f,-0.6f};}
     return XR_SUCCESS;
 }
 XrResult XRAPI_CALL extensions(const char*,uint32_t cap,uint32_t* count,XrExtensionProperties* props) {

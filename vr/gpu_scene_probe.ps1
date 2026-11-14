@@ -11,7 +11,7 @@ function Test-VrGpuSourceProbe {
             $magic=$reader.ReadBytes(8)
             if([BitConverter]::ToString($magic) -ne '48-53-56-52-44-32-00-00'){return $false}
             [uint64]$width=$reader.ReadUInt32();[uint64]$height=$reader.ReadUInt32();$format=$reader.ReadUInt32()
-            return $width -ge 2 -and $width -le 1920 -and $height -ge 2 -and $height -le 1080 -and $format -in @(122,123) -and $stream.Length -eq (132+8*$width*$height)
+            return $width -ge 2 -and $width -le 1920 -and $height -ge 2 -and $height -le 1920 -and ($width*$height -le 2073600) -and $format -in @(122,123) -and $stream.Length -eq (132+8*$width*$height)
         } finally {$reader.Dispose();$stream.Dispose()}
     } catch {return $false}
 }

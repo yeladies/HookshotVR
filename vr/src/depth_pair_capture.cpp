@@ -11,10 +11,11 @@ using namespace hookshot::vr::smoke;
 namespace {
 bool inside(const std::filesystem::path& root,const std::filesystem::path& path){auto a=root.begin(),b=path.begin();for(;a!=root.end();++a,++b)if(b==path.end()||*a!=*b)return false;return true;}
 }
-int main(int argc,char** argv){if(argc!=6||(std::strcmp(argv[1],"--run")&&std::strcmp(argv[1],"--run-direct"))||std::strcmp(argv[2],"--capture")||std::strcmp(argv[4],"--output")){
+int main(int argc,char** argv){if((argc!=6&&argc!=7)||(std::strcmp(argv[1],"--run")&&std::strcmp(argv[1],"--run-direct"))||std::strcmp(argv[2],"--capture")||std::strcmp(argv[4],"--output")){
     std::cerr<<"Private offscreen GPU check: --run|--run-direct --capture <work/frame.hsvrd> --output <work/new-pair.ppm>\n";return 2;
 }
 try{
+    require(argc==6||!std::strcmp(argv[6],"--repair"),"unknown optional capture argument");const bool repair=argc==7;
     namespace fs=std::filesystem;
     const auto root=fs::weakly_canonical(fs::current_path()/"work");const auto input=fs::weakly_canonical(fs::u8path(argv[3]));
     const auto output=fs::weakly_canonical(fs::u8path(argv[5]));
@@ -23,7 +24,7 @@ try{
     std::array<DepthPairParameters,2> cameras;
     for(unsigned eye=0;eye<2;++eye){auto& p=cameras[eye];p.source_from_eye={1,0,0,eye?.032f:-.032f,0,1,0,0,0,0,1,0};
         const auto& q=source.projection;p.eye_tangents={(q[2]-1)/q[0],(q[2]+1)/q[0],(q[6]+1)/q[5],(q[6]-1)/q[5]};
-        p.projection={q[0],q[5],q[10],q[11]};p.optical={q[2],q[6],100000,1.25f};p.dimensions={source.width,source.height,source.width,source.height};p.settings={source.format,6,0,0};require(depth_pair_parameters_valid(p),"source-derived camera parameters invalid");
+        p.projection={q[0],q[5],q[10],q[11]};p.optical={q[2],q[6],25000,.85f};p.dimensions={source.width,source.height,source.width,source.height};p.settings={source.format,8,1,repair?8u:0u};require(depth_pair_parameters_valid(p),"source-derived camera parameters invalid");
     }
     const bool direct=std::strcmp(argv[1],"--run-direct")==0;
     DepthPairGpuFixture gpu(source.width,source.height,source.width,source.height,direct);

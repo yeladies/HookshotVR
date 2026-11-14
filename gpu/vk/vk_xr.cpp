@@ -39,7 +39,7 @@ struct Bridge {
     std::atomic<bool> preview_accepting{false},readback_only{false};
     PreviewFeed preview_feed;
     PFN_vkGetInstanceProcAddr vulkan_get=nullptr;
-    bool retained_gpu_work=false;
+    bool retained_gpu_work=false,reproject_capable=false;
     std::mutex worker_mutex, mailbox_mutex;
     std::condition_variable worker_cv;
     bool initialized=false, start_ok=false, done=true;
@@ -76,6 +76,7 @@ bool ok(XrResult result, const char* operation) {
 }
 } // namespace mkwvk
 #include "vk_xr_preview.h"
+#include "vk_xr_gpu_late_pair.h"
 #include "vk_xr_gpu_preview.h"
 #include "vk_xr_session.h"
 namespace mkwvk {
@@ -239,6 +240,13 @@ bool xr_vulkan_device(PFN_vkGetInstanceProcAddr get, VkPhysicalDevice physical, 
     request.vulkanPhysicalDevice=physical; request.vulkanCreateInfo=&info;
     VkResult result=VK_ERROR_INITIALIZATION_FAILED;
     const bool success=ok(create(bridge.instance,&request,out,&result),"create Vulkan device") && result==VK_SUCCESS;
+    bool int64=info.pEnabledFeatures&&info.pEnabledFeatures->shaderInt64,bda=false;
+    for(auto* node=reinterpret_cast<const VkBaseInStructure*>(info.pNext);node;node=node->pNext){
+        if(node->sType==VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2)int64=reinterpret_cast<const VkPhysicalDeviceFeatures2*>(node)->features.shaderInt64;
+        if(node->sType==VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES)bda=reinterpret_cast<const VkPhysicalDeviceVulkan12Features*>(node)->bufferDeviceAddress;
+        if(node->sType==VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES)bda=reinterpret_cast<const VkPhysicalDeviceBufferDeviceAddressFeatures*>(node)->bufferDeviceAddress;
+    }
+    bridge.reproject_capable=success&&int64&&bda;
     if (!success) logf("xr: Vulkan device result %d",int(result));
     else logf("xr: renderer Vulkan device negotiated; game still uses flat presentation");
     return success;

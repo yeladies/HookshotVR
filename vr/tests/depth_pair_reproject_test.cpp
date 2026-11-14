@@ -13,6 +13,7 @@ int main(){try{
         if(i==7)q.optical[2]=0;if(i==8)q.dimensions[0]=1921;if(i==9)q.dimensions[2]=4097;if(i==10)q.settings[0]=124;if(i==11)q.settings[1]=17;if(i==12)q.settings[2]=2;
         check(!depth_pair_parameters_valid(q),"invalid dimensions, reflection, frustum or shader setting rejected");}
     auto filtered=p;filtered.settings[2]=1;check(depth_pair_parameters_valid(filtered),"depth-aware color filtering is an explicit admitted mode");
+    auto square=p;square.dimensions={1440,1440,1440,1440};square.settings[3]=8;check(depth_pair_parameters_valid(square),"square HDR source and bounded repair fit the HD pixel budget");square.dimensions[0]=1920;check(!depth_pair_parameters_valid(square),"tall source cannot exceed unchanged pixel budget");
     DepthPairDispatch d{0x10000,0x20000,0x30000,0x40000};
     auto admitted=[&](auto value){return depth_pair_dispatch_valid(value,p,51200,16384,128,16);};check(admitted(d),"disjoint bounded GPU dispatch");
     auto q=d;q.counters=0;check(depth_pair_dispatch_valid(q,p,51200,16384,128,0),"production counters can be disabled without atomics");

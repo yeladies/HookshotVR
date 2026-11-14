@@ -12,7 +12,7 @@ struct alignas(16) DepthPairParameters {
     std::array<float,4> projection{}; // P00, P11, P22, P23, OpenGL -1..1 clip depth
     std::array<float,4> optical{}; // P02, P12, maximum source distance, residual in source pixels
     std::array<uint32_t,4> dimensions{}; // source width/height, target width/height
-    std::array<uint32_t,4> settings{}; // native color format 122/123, iterations, depth-aware color filtering (0/1), reserved
+    std::array<uint32_t,4> settings{}; // native color format 122/123, iterations, depth-aware color filtering (0/1), bounded background repair radius (0..8)
 };
 struct DepthPairDispatch {uint64_t source=0,destination=0,parameters=0,counters=0;};
 static_assert(sizeof(DepthPairParameters)==128);
@@ -21,11 +21,11 @@ inline bool depth_pair_parameters_valid(const DepthPairParameters& p){
     for(float f:p.source_from_eye)if(!std::isfinite(f))return false;
     for(const auto* fields:{&p.eye_tangents,&p.projection,&p.optical})for(float f:*fields)if(!std::isfinite(f))return false;
     const auto& d=p.dimensions;const auto& t=p.eye_tangents;const auto& q=p.projection;const auto& o=p.optical;
-    if(d[0]<2||d[1]<2||d[0]>1920||d[1]>1080||d[2]<2||d[3]<2||d[2]>4096||d[3]>4096||uint64_t(d[2])*d[3]>8388608||
+    if(d[0]<2||d[1]<2||d[0]>1920||d[1]>1920||uint64_t(d[0])*d[1]>2073600||d[2]<2||d[3]<2||d[2]>4096||d[3]>4096||uint64_t(d[2])*d[3]>8388608||
        t[0]>=-.0001f||t[1]<=.0001f||t[2]<=.0001f||t[3]>=-.0001f||
        q[0]<.0001f||q[1]<.0001f||q[0]>10000||q[1]>10000||q[2]>-1||q[3]>=0||
        std::abs(o[0])>4||std::abs(o[1])>4||o[2]<=0||o[2]>100000||o[3]<.05f||o[3]>2||
-       (p.settings[0]!=122&&p.settings[0]!=123)||p.settings[1]<2||p.settings[1]>16||p.settings[2]>1||p.settings[3])return false;
+       (p.settings[0]!=122&&p.settings[0]!=123)||p.settings[1]<2||p.settings[1]>16||p.settings[2]>1||p.settings[3]>8)return false;
     for(float f:t)if(std::abs(f)>8)return false;
     const auto& r=p.source_from_eye;
     for(int a=0;a<3;++a){if(std::abs(r[4*a+3])>o[2])return false;

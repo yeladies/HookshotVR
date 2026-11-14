@@ -40,13 +40,31 @@ uint color_at(uvec2 pixel,vec2 uv,float surface_z){
         if(weight>0&&depth_at(sample_pixel,z)&&abs(z-surface_z)<=max(.0001,abs(surface_z)*.01)){color+=weight*rgb_at(sample_pixel);total+=weight;}}
     return pack_color(total>0?color/total:rgb_at(pixel));
 }
+// Optional bounded background extrapolation for inverse-warp disocclusions.
+// Only repairs failed surface correspondence, never invalid depth or coverage.
+// It samples real farther-depth texels; hidden geometry remains an approximation.
+bool repair_background(uvec2 center,vec3 ray,vec3 origin,out uint color){
+    int radius=int(p.camera.settings.w);if(radius==0)return false;float front_z,back_z=0;if(!depth_at(center,front_z))return false;
+    float best_distance=1e30;uvec2 chosen=center;bool found=false;
+    const ivec2 directions[4]=ivec2[4](ivec2(1,0),ivec2(-1,0),ivec2(0,1),ivec2(0,-1));
+    for(int distance=1;distance<=radius;++distance)for(int axis=0;axis<4;++axis){ivec2 candidate=ivec2(center)+directions[axis]*distance;
+        if(any(lessThan(candidate,ivec2(0)))||any(greaterThanEqual(candidate,ivec2(p.camera.dimensions.xy))))continue;float z;if(!depth_at(uvec2(candidate),z))continue;front_z=max(front_z,z);
+        float t=(z-origin.z)/ray.z;vec3 point=origin+ray*t;uvec2 checked;vec2 uv=project_source(point);if(t<=0||point.z>=0||!pixel_at(uv,checked))continue;
+        float error=length(uv*vec2(p.camera.dimensions.xy)-(vec2(candidate)+.5));if(error>float(radius)+.75)continue;
+        if(!found||z<back_z-max(.0001,abs(back_z)*.01)||(abs(z-back_z)<=max(.0001,abs(back_z)*.01)&&error<best_distance)){back_z=z;best_distance=error;chosen=uvec2(candidate);found=true;}}
+    if(!found||back_z>=front_z-max(.0001,abs(front_z)*.01))return false;color=pack_color(rgb_at(chosen));return true;
+}
 void main(){
     uvec2 pixel=gl_GlobalInvocationID.xy;if(any(greaterThanEqual(pixel,p.camera.dimensions.zw)))return;
     uint index=pixel.y*p.camera.dimensions.z+pixel.x;vec2 fraction=(vec2(pixel)+.5)/vec2(p.camera.dimensions.zw);
     vec3 eye_ray=vec3(mix(p.camera.tangents.x,p.camera.tangents.y,fraction.x),mix(p.camera.tangents.z,p.camera.tangents.w,fraction.y),-1);
     vec3 ray=vec3(dot(p.camera.row0.xyz,eye_ray),dot(p.camera.row1.xyz,eye_ray),dot(p.camera.row2.xyz,eye_ray));
     vec3 origin=vec3(p.camera.row0.w,p.camera.row1.w,p.camera.row2.w);uvec2 source_pixel;float z;
-    if(ray.z>=-.00001||!pixel_at(project_source(ray),source_pixel)){finish(index,0xff000000u,1u);return;}
+    if(ray.z>=-.00001){finish(index,0xff000000u,1u);return;}
+    vec2 seed=project_source(ray);if(any(isnan(seed))||any(isinf(seed))){finish(index,0xff000000u,1u);return;}
+    // Clamp only the initial depth seed. Every final intersection must still
+    // project inside the source: this does not stretch edge colors outward.
+    source_pixel=uvec2(clamp(seed,vec2(0),vec2(1)-.5/vec2(p.camera.dimensions.xy))*vec2(p.camera.dimensions.xy));
     if(!depth_at(source_pixel,z)){finish(index,0xff000000u,2u);return;}
     float t=(z-origin.z)/ray.z;
     for(uint iteration=0u;iteration<p.camera.settings.y;++iteration){
@@ -69,6 +87,7 @@ void main(){
     vec2 final_uv=project_source(final_point);uvec2 checked_pixel;
     if(final_t<=0||final_point.z>=0||!pixel_at(final_uv,checked_pixel)){finish(index,0xff000000u,1u);return;}
     vec2 source_error=final_uv*vec2(p.camera.dimensions.xy)-(vec2(source_pixel)+.5);
-    if(eye.z>=0||any(isnan(eye))||any(isinf(eye))||any(isnan(source_error))||any(isinf(source_error))||length(source_error)>p.camera.optical.w){finish(index,0xff000000u,3u);return;}
+    if(eye.z>=0||any(isnan(eye))||any(isinf(eye))||any(isnan(source_error))||any(isinf(source_error))){finish(index,0xff000000u,3u);return;}
+    if(length(source_error)>p.camera.optical.w){uint repaired;finish(index,repair_background(source_pixel,ray,origin,repaired)?repaired:0xff000000u,3u);return;}
     finish(index,color_at(source_pixel,final_uv,z),0u);
 }

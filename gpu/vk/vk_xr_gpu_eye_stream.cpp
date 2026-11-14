@@ -56,7 +56,7 @@ uint32_t eye_stream_dimension(const char* name,uint32_t fallback,uint32_t maximu
 bool eye_stream_initialize(EyeStream& p,const XrGpuSceneSource& source){
     if(!dev.features.shaderInt64)return false;
     if(const char* value=std::getenv("HOOKSHOT_VR_GPU_EYE_TANGENT_SCALE")){char* end=nullptr;p.guard_scale=std::strtof(value,&end);if(end==value||*end||!std::isfinite(p.guard_scale)||p.guard_scale<1||p.guard_scale>1.25f)return false;}
-    p.device=source.device;p.generation=source.generation;p.width=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_WIDTH",1024,1920);p.height=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_HEIGHT",1024,1080);if(!p.width||!p.height)return false;
+    p.device=source.device;p.generation=source.generation;p.width=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_WIDTH",1024,1920);p.height=eye_stream_dimension("HOOKSHOT_VR_GPU_EYE_HEIGHT",1024,1920);if(!p.width||!p.height)return false;
     p.unmap=reinterpret_cast<PFN_vkUnmapMemory>(vkGetDeviceProcAddr(p.device,"vkUnmapMemory"));p.invalidate=reinterpret_cast<PFN_vkInvalidateMappedMemoryRanges>(vkGetDeviceProcAddr(p.device,"vkInvalidateMappedMemoryRanges"));if(!p.unmap||!p.invalidate)return false;
     VkShaderModuleCreateInfo shader{VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};shader.codeSize=sizeof kDepthPairReprojectSpv;shader.pCode=kDepthPairReprojectSpv;if(vkCreateShaderModule(p.device,&shader,nullptr,&p.shader)!=VK_SUCCESS)return false;
     VkPushConstantRange push{VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof(DepthPairDispatch)};VkPipelineLayoutCreateInfo layout{VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};layout.pushConstantRangeCount=1;layout.pPushConstantRanges=&push;if(vkCreatePipelineLayout(p.device,&layout,nullptr,&p.layout)!=VK_SUCCESS)return false;

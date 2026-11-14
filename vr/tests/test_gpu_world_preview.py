@@ -27,6 +27,21 @@ $original=[IO.File]::ReadAllText($stream)
 foreach($mutation in @({$r.depth_aware_color_filter=$false},{$r.eye_tangent_scale=1.1},{$r.synthetic_tracking=$true},{$r.output_validation_readback=$true},{$r.XR_consumer_connected=$false},{$r.source_CPU_upload=$true},{$r.failures=1},{$r.allocated_bytes=67108865})){$r=$original|ConvertFrom-Json;& $mutation;[IO.File]::WriteAllText($stream,($r|ConvertTo-Json));Assert-World $false}
 [IO.File]::WriteAllText($stream,$original)
 $r=Get-Content -LiteralPath $source -Raw|ConvertFrom-Json;$r.validation_packet_readback=$true;[IO.File]::WriteAllText($source,($r|ConvertTo-Json));Assert-World $false
+$r.validation_packet_readback=$false;[IO.File]::WriteAllText($source,($r|ConvertTo-Json))
+$r=Get-Content -LiteralPath $world -Raw|ConvertFrom-Json
+$r|Add-Member xr_owned_reconstruction $true
+$r|Add-Member eye_tangent_scale 1
+$r|Add-Member depth_aware_color_filter $true
+$r|Add-Member background_repair_radius 8
+$r|Add-Member reprojection_recorded 120
+$r|Add-Member reprojection_allocated_bytes 16589056
+$r|Add-Member presentation_timing ([pscustomobject]@{samples=160;invalid_samples=0})
+$r.width_per_eye=1440;$r.height=1440
+[IO.File]::WriteAllText($world,($r|ConvertTo-Json))
+if(!(Test-VrGpuWorldPreview -Report $world -StreamReport 'Z:/missing-stream' -SourceReport $source -XrOwned $true)){throw 'XR-owned report must not depend on game-paced stream report'}
+$r.reprojection_allocated_bytes=16777217;[IO.File]::WriteAllText($world,($r|ConvertTo-Json))
+if(Test-VrGpuWorldPreview -Report $world -SourceReport $source -XrOwned $true){throw 'XR-owned allocation overflow must be rejected'}
+
 '''
             path=root/'test.ps1';path.write_text(script,encoding='utf-8-sig')
             result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(path)],capture_output=True,text=True,timeout=30)

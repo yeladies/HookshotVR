@@ -19,7 +19,7 @@ public:
     DepthPairGpuFixture(uint32_t source_width,uint32_t source_height,uint32_t target_width,uint32_t target_height,bool direct=false):gpu(initialize_smoke(c)),sw(source_width),sh(source_height),tw(target_width),th(target_height),
         source_bytes(uint64_t(sw)*sh*8),eye_bytes(uint64_t(tw)*th*4),pair_bytes(2*eye_bytes),readback_bytes(pair_bytes+source_bytes+32),eyes(new EyeResourcePair,FixturePairDelete{&c}),target(new EyeResourcePair,FixturePairDelete{&c}){
     direct_buffer=direct;
-    require(sw>=2&&sh>=2&&sw<=1920&&sh<=1080&&tw>=2&&th>=2&&tw<=1920&&th<=1080,"bounded source/target fixture dimensions");
+    require(sw>=2&&sh>=2&&sw<=1920&&sh<=1920&&uint64_t(sw)*sh<=2073600&&tw>=2&&th>=2&&tw<=1920&&th<=1920&&uint64_t(tw)*th<=2073600,"bounded source/target fixture dimensions");
     const auto api=gpu.api;
     if(!direct_buffer)require(eyes->create(c.device,api,gpu.memory,tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,64*1024*1024),"allocate independent eye images");
     require(target->create(c.device,api,gpu.memory,2*tw,th,VK_FORMAT_R8G8B8A8_SRGB,16,64*1024*1024),"allocate same-state pair target");

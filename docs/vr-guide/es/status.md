@@ -1,5 +1,7 @@
 # Estado, resultados y hoja de ruta
 
+Nueva implementación preparada para validación en visor: [reconstrucción desde XR, corrección periférica, reparación acotada y fuente cuadrada](../../vr-xr-owned-reconstruction.md). Todavía no está aceptada visualmente.
+
 La primera sesión VDXR por GPU mostró el mundo 3D (2.654 pares / 6.363 proyecciones y cierre correcto). El usuario señaló pixelado, bordes al girar y contornos oscuros. La comparación con fuente HD, margen en los ojos y filtrado no produjo mejora sustancial según el usuario. Ningún perfil está aceptado visualmente. [Siguiente etapa e instrumentación](../../vr-presentation-age-and-next-renderer.md).
 
 Alfa OpenXR GPU del mismo estado: [prueba y limitaciones](../../vr-gpu-world-preview.md).

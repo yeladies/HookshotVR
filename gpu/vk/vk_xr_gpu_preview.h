@@ -19,6 +19,7 @@ struct GpuPairPreview {
     bool acquired=false,waited=false,pending=false,uncertain=false,released_valid=false,layer_ready=false;
     uint64_t generation=0,copy_sequence=0,last_state=0,layer_frames=0,image_updates=0,submitted_frames=0;
     hookshot::vr::GpuPresentationTiming timing;
+    std::unique_ptr<GpuLatePair> late;
     std::shared_ptr<const XrGpuEyeFrame> held;
     hookshot::vr::GpuProjectionPair last_metadata;hookshot::vr::GpuProjectionData projection_data;XrCompositionLayerProjection projection{XR_TYPE_COMPOSITION_LAYER_PROJECTION};
     PFN_xrDestroySwapchain destroy_chain=nullptr;PFN_xrAcquireSwapchainImage acquire=nullptr;PFN_xrWaitSwapchainImage wait_image=nullptr;PFN_xrReleaseSwapchainImage release=nullptr;
@@ -29,13 +30,13 @@ struct GpuPairPreview {
     static int64_t now_ns(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
     void report(const char* status)const{
         const char* path=std::getenv("HOOKSHOT_VR_GPU_WORLD_REPORT_FILE");if(!path||!*path)return;
-        try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"width_per_eye\":"<<width<<",\"height\":"<<height<<",\"device_generation\":"<<generation<<",\"source_state\":"<<last_metadata.source_state<<",\"origin\":"<<last_metadata.target.origin<<",\"gpu_pair_copies\":"<<image_updates<<",\"projection_frames_submitted\":"<<submitted_frames<<",\"CPU_pixel_staging\":false,\"production_pose_metadata\":true,\"same_source_state\":true,\"native_geometry_stereo\":false,\"pending\":"<<(pending?"true":"false")<<",\"acquired\":"<<(acquired?"true":"false")<<",\"uncertain\":"<<(uncertain?"true":"false")<<",\"presentation_timing\":";if(f){timing.json(f);f<<"}\n";}}catch(...){}
+        try{std::ofstream f(std::filesystem::u8path(path),std::ios::trunc);if(f)f<<"{\"schema\":1,\"status\":\""<<status<<"\",\"width_per_eye\":"<<width<<",\"height\":"<<height<<",\"device_generation\":"<<generation<<",\"source_state\":"<<last_metadata.source_state<<",\"origin\":"<<last_metadata.target.origin<<",\"gpu_pair_copies\":"<<image_updates<<",\"projection_frames_submitted\":"<<submitted_frames<<",\"xr_owned_reconstruction\":"<<(late?"true":"false")<<",\"eye_tangent_scale\":"<<(late?late->guard:1.f)<<",\"depth_aware_color_filter\":"<<(late?"true":"false")<<",\"background_repair_radius\":"<<(late?8:0)<<",\"reprojection_recorded\":"<<(late?late->state:0)<<",\"reprojection_allocated_bytes\":"<<(late?late->allocated:0)<<",\"CPU_pixel_staging\":false,\"production_pose_metadata\":true,\"same_source_state\":true,\"native_geometry_stereo\":false,\"pending\":"<<(pending?"true":"false")<<",\"acquired\":"<<(acquired?"true":"false")<<",\"uncertain\":"<<(uncertain?"true":"false")<<",\"presentation_timing\":";if(f){timing.json(f);f<<"}\n";}}catch(...){}
     }
     void submitted(){timing.record(last_state,last_metadata.source_state,generation,last_metadata.target.origin,last_metadata.source_observed_ns,last_metadata.target.observed_ns,last_metadata.ready_ns,now_ns());++submitted_frames;if(submitted_frames==1||submitted_frames%60==0)report("presenting");}
     bool vk_ok(VkResult r,const char* label){if(r==VK_SUCCESS)return true;logf("xr-gpu: %s failed (%d)",label,int(r));return false;}
     static uint32_t extent(const char* name,uint32_t maximum){const char* value=std::getenv(name);if(!value||!*value)return 1024;char* end=nullptr;const auto n=std::strtoul(value,&end,10);return end==value||*end||n<8||n>maximum||n%8?0:uint32_t(n);}
-    bool initialize(XrSession s,VkInstance instance,VkPhysicalDevice,VkDevice d,uint32_t queue_family){
-        session=s;device=d;family=queue_family;width=extent("HOOKSHOT_VR_GPU_EYE_WIDTH",1920);height=extent("HOOKSHOT_VR_GPU_EYE_HEIGHT",1080);if(!width||!height||!bridge.vulkan_get)return false;
+    bool initialize(XrSession s,VkInstance instance,VkPhysicalDevice physical,VkDevice d,uint32_t queue_family){
+        session=s;device=d;family=queue_family;width=extent("HOOKSHOT_VR_GPU_EYE_WIDTH",1920);height=extent("HOOKSHOT_VR_GPU_EYE_HEIGHT",1920);if(!width||!height||!bridge.vulkan_get)return false;
         auto get_device=reinterpret_cast<PFN_vkGetDeviceProcAddr>(bridge.vulkan_get(instance,"vkGetDeviceProcAddr"));if(!get_device)return false;
 #define LOAD(n) n=reinterpret_cast<PFN_vk##n>(get_device(device,"vk" #n));if(!n){logf("xr-gpu: missing vk%s",#n);return false;}
         GPU_PREVIEW_VK_FUNCTIONS(LOAD)
@@ -51,6 +52,7 @@ struct GpuPairPreview {
         GetDeviceQueue(device,family,0,&queue);VkCommandPoolCreateInfo cp{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};cp.flags=VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;cp.queueFamilyIndex=family;
         if(!vk_ok(CreateCommandPool(device,&cp,nullptr,&pool),"create copy pool"))return false;VkCommandBufferAllocateInfo ca{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};ca.commandPool=pool;ca.level=VK_COMMAND_BUFFER_LEVEL_PRIMARY;ca.commandBufferCount=1;
         if(!vk_ok(AllocateCommandBuffers(device,&ca,&command),"allocate copy command"))return false;VkFenceCreateInfo fi{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO};if(!vk_ok(CreateFence(device,&fi,nullptr,&fence),"create copy fence"))return false;
+        if(const char* mode=std::getenv("RX_VK_XR_GPU_LATE_REPROJECT");mode&&!std::strcmp(mode,"1")){late=std::make_unique<GpuLatePair>();if(!late->initialize(bridge,instance,physical,device,family,width,height))return false;}
         logf("xr-gpu: pair swapchain ready, %ux%u per eye, no CPU pixel staging",width,height);report("initialized");return true;
     }
     static hookshot::vr::GpuProjectionPair metadata(const XrGpuEyeFrame& f){hookshot::vr::GpuProjectionPair p;p.source_state=f.source_state;p.device_generation=f.generation;p.width=f.width;p.height=f.height;p.source_observed_ns=f.source_observed_ns;p.ready_ns=f.ready_ns;p.immutable=p.complete=true;p.target=f.target;return p;}
@@ -62,20 +64,22 @@ struct GpuPairPreview {
     bool release_image(){if(!acquired)return true;if(!waited||pending||uncertain)return false;XrSwapchainImageReleaseInfo info{XR_TYPE_SWAPCHAIN_IMAGE_RELEASE_INFO};std::lock_guard lock(queue_mutex);if(!ok(release(chain,&info),"release GPU pair image")){uncertain=true;return false;}acquired=waited=false;return true;}
     bool finish(XrSpace local,uint64_t origin,uint64_t timeout){
         const auto result=WaitForFences(device,1,&fence,VK_TRUE,timeout);if(result==VK_TIMEOUT)return show_previous(local,origin,now_ns());if(!vk_ok(result,"complete pair copy")){uncertain=true;return false;}
-        pending=false;if(!release_image())return false;last_metadata=metadata(*held);last_state=held->state;released_valid=true;++image_updates;held.reset();return show_previous(local,origin,now_ns());
+        pending=false;if(!release_image())return false;last_metadata=late?late->completed(now_ns()):metadata(*held);last_state=late?late->state:held->state;if(late)late->discard();released_valid=true;++image_updates;held.reset();return show_previous(local,origin,now_ns());
     }
-    bool frame(XrSpace local,uint64_t origin){
+    bool frame(XrSpace local,uint64_t origin,const hookshot::vr::DepthPairTrackingTarget* current=nullptr){
         layer_ready=false;if(uncertain)return false;if(pending)return finish(local,origin,0);
-        if(!acquired){auto next=xr_gpu_eye_stream_acquire(device,origin,now_ns());if(!next||!valid(*next,origin,now_ns()))return show_previous(local,origin,now_ns());
+        if(late&&!acquired){if(!current||!late->prepare(*current,now_ns())){if(late->fault){uncertain=true;return false;}return show_previous(local,origin,now_ns());}generation=late->generation;XrSwapchainImageAcquireInfo info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};{std::lock_guard lock(queue_mutex);if(!ok(acquire(chain,&info,&index),"acquire late GPU image")){late->discard();return false;}}acquired=true;waited=false;}
+        if(!late&&!acquired){auto next=xr_gpu_eye_stream_acquire(device,origin,now_ns());if(!next||!valid(*next,origin,now_ns()))return show_previous(local,origin,now_ns());
             if(generation&&generation!=next->generation){uncertain=true;return false;}if(!generation)generation=next->generation;
             if(released_valid&&next->state==last_state)return show_previous(local,origin,now_ns());held=std::move(next);XrSwapchainImageAcquireInfo info{XR_TYPE_SWAPCHAIN_IMAGE_ACQUIRE_INFO};
             {std::lock_guard lock(queue_mutex);if(!ok(acquire(chain,&info,&index),"acquire GPU pair image")){held.reset();return false;}}acquired=true;waited=false;
         }
         if(!waited){XrSwapchainImageWaitInfo info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};info.timeout=0;const auto result=wait_image(chain,&info);if(result==XR_TIMEOUT_EXPIRED)return show_previous(local,origin,now_ns());if(!ok(result,"wait GPU pair image"))return false;waited=true;}
-        if(index>=images.size()||!held||!valid(*held,origin,now_ns())){released_valid=false;if(!release_image())return false;held.reset();return index<images.size();}
+        if(index>=images.size()||(late?(!current||!late->prepare(*current,now_ns())):(!held||!valid(*held,origin,now_ns())))){if(late&&late->fault){uncertain=true;return false;}released_valid=false;if(!release_image())return false;held.reset();if(late)late->discard();return index<images.size()&&(!late||!late->fault);}
         if(!vk_ok(ResetCommandBuffer(command,0),"reset pair copy"))return false;VkCommandBufferBeginInfo begin{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};begin.flags=VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;if(!vk_ok(BeginCommandBuffer(command,&begin),"begin pair copy"))return false;
-        const uint64_t recording=++copy_sequence;const hookshot::vr::SameStateBufferPair source{device,held->buffer,held->bytes,held->state,origin,held->target.serial,recording,generation,width,height,family,held->format};
-        const hookshot::vr::SameStateBufferTarget target{device,images[index].image,generation,2*width,height,family,held->format,true,true};
+        if(late&&!late->record(command))return false;
+        const uint64_t recording=++copy_sequence;const hookshot::vr::SameStateBufferPair source{device,late?late->buffer:held->buffer,late?late->bytes:held->bytes,late?late->state:held->state,origin,late?late->planned.target.serial:held->target.serial,recording,generation,width,height,family,VK_FORMAT_R8G8B8A8_UNORM};
+        const hookshot::vr::SameStateBufferTarget target{device,images[index].image,generation,2*width,height,family,VK_FORMAT_R8G8B8A8_UNORM,true,true};
         if(!hookshot::vr::record_same_state_buffer_copy(command,recording,source,target,CmdPipelineBarrier,CmdCopyBufferToImage)||!vk_ok(EndCommandBuffer(command),"end pair copy")||!vk_ok(ResetFences(device,1,&fence),"reset pair fence"))return false;
         VkSubmitInfo submit{VK_STRUCTURE_TYPE_SUBMIT_INFO};submit.commandBufferCount=1;submit.pCommandBuffers=&command;pending=true;
         {std::lock_guard lock(queue_mutex);if(!vk_ok(QueueSubmit(queue,1,&submit,fence),"submit pair copy")){uncertain=true;return false;}}
@@ -85,7 +89,7 @@ struct GpuPairPreview {
     bool close(){
         if(uncertain)return false;if(pending){const auto result=WaitForFences(device,1,&fence,VK_TRUE,250000000);if(!vk_ok(result,"drain GPU pair copy"))return false;pending=false;}
         if(acquired&&!waited){XrSwapchainImageWaitInfo info{XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};info.timeout=250000000;if(wait_image(chain,&info)!=XR_SUCCESS)return false;waited=true;}
-        if(!release_image())return false;held.reset();if(fence&&DestroyFence)DestroyFence(device,fence,nullptr);fence=VK_NULL_HANDLE;if(pool&&DestroyCommandPool)DestroyCommandPool(device,pool,nullptr);pool=VK_NULL_HANDLE;
+        if(!release_image())return false;held.reset();if(late)late->close();if(fence&&DestroyFence)DestroyFence(device,fence,nullptr);fence=VK_NULL_HANDLE;if(pool&&DestroyCommandPool)DestroyCommandPool(device,pool,nullptr);pool=VK_NULL_HANDLE;
         if(chain&&destroy_chain&&!ok(destroy_chain(chain),"destroy GPU pair swapchain"))return false;chain=XR_NULL_HANDLE;
         logf("xr-gpu: closed; projection frames %llu, GPU pair copies %llu",(unsigned long long)submitted_frames,(unsigned long long)image_updates);report("closed");return true;
     }

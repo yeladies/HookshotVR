@@ -135,7 +135,9 @@ int hos_output_parse(const char *text, uint32_t *w, uint32_t *h) {   /* (an expl
     if (!text) return 0;
     if (sscanf(text, "%u%*[xX]%u", &a, &b) == 2) {
         a &= ~7u, b &= ~7u;
-        if (!hos_output_size_valid(a, b)) {
+        const char *vr_square = getenv("HOS_VR_SQUARE_SOURCE");
+        const int square = vr_square && !strcmp(vr_square,"1") && a==b && a>=640 && a<=1440;
+        if (!hos_output_size_valid(a, b) && !square) {
             hos_log("oe: output_res=%s is not a size the game can use (640x360 to 5120x2880's pixels, 5:4 to 48:9): the game's own", text);
             return 0;
         }

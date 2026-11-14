@@ -135,7 +135,9 @@ struct SessionProbe {
             auto image=bridge.preview_feed.latest(now);
             if(image.pixels&&(!preview->immersive||((image.immersive.valid||image.immersive.menu)&&image.immersive.generation==generation))){draw_ok=preview->frame(local,location.pose,generation,std::move(image));quad=draw_ok;}
         }
-        if(gpu_preview&&located&&frame.shouldRender&&frame.predictedDisplayTime>=suppress_until&&(location.locationFlags&needed)==needed){draw_ok=gpu_preview->frame(local,generation);quad=draw_ok&&gpu_preview->submitted_layer();}
+        hookshot::vr::DepthPairTrackingTarget current;current.origin=generation;current.serial=sequence;current.observed_ns=GpuPairPreview::now_ns();
+        for(unsigned eye=0;eye<2;++eye){auto& out=current.eyes[eye];const auto& in=views[eye];out.orientation={in.pose.orientation.x,in.pose.orientation.y,in.pose.orientation.z,in.pose.orientation.w};out.position={in.pose.position.x,in.pose.position.y,in.pose.position.z};out.fov={in.fov.angleLeft,in.fov.angleRight,in.fov.angleUp,in.fov.angleDown};out.orientation_valid=(state.viewStateFlags&XR_VIEW_STATE_ORIENTATION_VALID_BIT)!=0;out.position_valid=(state.viewStateFlags&XR_VIEW_STATE_POSITION_VALID_BIT)!=0;}
+        if(gpu_preview&&located&&frame.shouldRender&&frame.predictedDisplayTime>=suppress_until&&(location.locationFlags&needed)==needed){draw_ok=gpu_preview->frame(local,generation,&current);quad=draw_ok&&gpu_preview->submitted_layer();}
         // Balance every begun frame, including failures and no-image/not-visible frames.
         XrFrameEndInfo end{XR_TYPE_FRAME_END_INFO};end.displayTime=frame.predictedDisplayTime;
         end.environmentBlendMode=XR_ENVIRONMENT_BLEND_MODE_OPAQUE;
