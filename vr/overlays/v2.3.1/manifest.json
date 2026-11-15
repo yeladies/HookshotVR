@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "upstream_url": "https://git.notrexed.dev/Hookshot/Hookshot.git",
+  "upstream_commit": "5d3de413df5587a1896b2b7df6a3a385ae24195a",
+  "source_tree": "8b78fb497e9a557d7e48031f7e0c57d29dfaf82a",
+  "abi": 24,
+  "patch": "source.patch",
+  "patch_sha256": "e00376cb7d25e8cb56565b8d887494e8633429058f3109d90cb3b3c2096c3c07",
+  "source_files": 363,
+  "compatibility": "unverified",
+  "release_ready": false,
+  "vr_contract_tests_passed": 179,
+  "native_game_validation": false,
+  "headset_test_ready": false,
+  "publication": "authored source patch only; upstream tree/history, saves and binaries excluded"
+}

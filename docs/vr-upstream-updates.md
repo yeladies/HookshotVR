@@ -47,3 +47,7 @@ check may detect changes; it cannot guarantee that all future updates will work.
 
 Only authored source, tests and documentation may be published. Candidate binaries,
 game files, translated code, saves, captures and private receipts stay local.
+
+## Hookshot 2.3.1 source overlay
+
+Use the [English / Spanish overlay guide](vr-hookshot-2.3.1.md) for the pinned ABI24 candidate. The root source retains its older ABI21 profile. `vr/prepare_overlay.py` verifies a reviewed source patch and prepares an isolated worktree; it performs no network, build, install or publishing action. Both the source patch and its resulting tree are checked. New official source includes scrubbed saves, so its full tree/history is never imported into the public mod branch. Only the authored adaptation is distributed. Source application and passing contracts still leave compatibility unverified until real game and headset validation.

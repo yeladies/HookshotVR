@@ -761,3 +761,8 @@ if(Python3_Interpreter_FOUND)
         add_test(NAME vr_eye_uniform_probe_${vr_eye_probe_case} COMMAND hookshot_vr_eye_uniform_probe_tests "${vr_eye_probe_case}" "${CMAKE_CURRENT_BINARY_DIR}/eye-uniform-unit/${vr_eye_probe_case}.json")
     endforeach()
 endif()
+
+# Overlay preparation is Git-only: no game, SDK, runtime or network needed.
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_source_overlay COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_source_overlay.py")
+endif()

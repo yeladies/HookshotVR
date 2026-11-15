@@ -1,3 +1,6 @@
 * text=auto eol=lf
 *.bat text eol=crlf
 *.xz binary
+
+# Unified-diff context uses a space for an empty source line. Preserve patch syntax.
+vr/overlays/**/source.patch -whitespace

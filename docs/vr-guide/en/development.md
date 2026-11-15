@@ -2,6 +2,9 @@
 
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/development.md)
 
+
+For Hookshot **2.3.1**, use the [pinned source overlay](../../vr-hookshot-2.3.1.md). The root checkout retains the earlier base; the overlay prepares ABI 24 separately. First-person camera work is active; the earlier depth/temporal viewer is archived, and a complete native stereo headset build is still pending.
+
 ## Source map
 
 | Location | Purpose |
@@ -25,7 +28,7 @@ The mod is a source adaptation, not a universal drop-in DLL. The recorded base i
 From a clean committed checkout, add the upstream remote once if absent, fetch and choose the exact revision to review:
 
 ```powershell
-git remote add upstream https://github.com/NotRexed/Hookshot.git
+git remote add upstream https://git.notrexed.dev/Hookshot/Hookshot.git
 git fetch upstream
 python -I -B vr/update_upstream.py audit --revision upstream/main
 python -I -B vr/update_upstream.py prepare --revision upstream/main
@@ -45,6 +48,4 @@ The inherited suite needs its documented compiler and fixture dependencies. Reco
 
 For the complete update rules see [upstream compatibility](../../vr-upstream-updates.md). These bilingual guide pages are part of the allowed source-only patch and travel with update candidates.
 
-The separate [same-state eye patch audit](../../vr-same-state-eye-patch.md) now identifies which observed shader reads fit the private matrix patch extent and which require further review. This is offline preparation for native stereo; temporal stereo remains the current playable diagnostic.
-
-The [same-state isolated lens draw](../../vr-same-state-isolated-draw.md) has now passed on actual game D32 data: two exact controls and two opposite four-pixel mask shifts from one submitted draw. It remains a private diagnostic; playable headset output still uses temporal stereo.
+The [same-state eye patch audit](../../vr-same-state-eye-patch.md) and [isolated lens draw](../../vr-same-state-isolated-draw.md) record earlier diagnostics. Their results do not establish a playable native stereo build. The active camera work is documented in [first-person development](../../vr-first-person.md).

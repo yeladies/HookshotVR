@@ -2,6 +2,9 @@
 
 [Inicio](index.md) · [Cómo empezar](howto.md) · [Estado](status.md) · [Desarrollo](development.md) · [Ayuda](help.md) · [English / Castellano](../en/development.md)
 
+
+Para Hookshot **2.3.1**, utiliza el [parche de código fijado](../../vr-hookshot-2.3.1.md). La raíz conserva la base anterior; el parche prepara ABI 24 en otra carpeta. El trabajo activo es la cámara de primera persona: el visor anterior por profundidad/estéreo temporal está archivado y falta completar la build de estéreo nativo para el visor.
+
 ## Mapa del código
 
 | Ruta | Función |
@@ -25,7 +28,7 @@ El mod es una adaptación de código, no una DLL universal. La base registrada e
 Con el repositorio limpio y los cambios confirmados, añade upstream una sola vez si falta, descarga referencias y elige la revisión:
 
 ```powershell
-git remote add upstream https://github.com/NotRexed/Hookshot.git
+git remote add upstream https://git.notrexed.dev/Hookshot/Hookshot.git
 git fetch upstream
 python -I -B vr/update_upstream.py audit --revision upstream/main
 python -I -B vr/update_upstream.py prepare --revision upstream/main
@@ -45,6 +48,4 @@ La batería heredada necesita el compilador y dependencias de sus fixtures. Regi
 
 Consulta [las reglas completas de actualización](../../vr-upstream-updates.md). Estas guías bilingües forman parte del parche permitido y acompañan a los candidatos de actualización.
 
-La [auditoría de cámara desde un mismo estado](../../vr-same-state-eye-patch.md) identifica qué lecturas observadas de los shaders cubre el prefijo privado de matrices y cuáles requieren revisión. Es preparación sin visor para el estéreo nativo; el diagnóstico jugable actual sigue siendo temporal.
-
-El [dibujo aislado desde un mismo estado](../../vr-same-state-isolated-draw.md) ya pasó sobre D32 real del juego: dos referencias exactas y dos desplazamientos de máscara opuestos de cuatro píxeles desde un único dibujo. Es un diagnóstico privado; el modo jugable del visor sigue usando estéreo temporal.
+La [auditoría de matrices](../../vr-same-state-eye-patch.md) y el [dibujo aislado](../../vr-same-state-isolated-draw.md) registran diagnósticos anteriores. Sus resultados no demuestran una build jugable de estéreo nativo. El trabajo activo figura en [desarrollo de primera persona](../../vr-first-person.md).
