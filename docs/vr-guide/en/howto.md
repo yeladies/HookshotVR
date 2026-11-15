@@ -1,5 +1,7 @@
 # How to build and try the previews
 
+**Camera rebuild branch:** headset depth-camera profiles are retired. [Read the current rebuild status](../../vr-camera-rebuild.md) before using the historical commands below. No new native-stereo headset test is ready.
+
 Current combined comparison: [4096 source, 2560 eyes and separated visibility fields](../../vr-combined-visibility-quality.md). Select `-Profile Combined` to test both changes together; live-game data flow passes, but the headset test still shows missing geometry and blackouts.
 
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/howto.md)

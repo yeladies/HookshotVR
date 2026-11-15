@@ -27,7 +27,13 @@
     "gpu/vk/vk_bank.cpp",
     "gpu/vk/eden/shader_recompiler/backend/spirv/spirv_emit_context.cpp",
     "gpu/vk/vk_state.h",
-    "gpu/vk/eden/shader_recompiler/shader_info.h"
+    "gpu/vk/eden/shader_recompiler/shader_info.h",
+    "nx2/version.py",
+    "vr/src/vr_camera.c",
+    "vr/src/vr_camera.h",
+    "gpu/vk/vk_xr_camera_frame.cpp",
+    "gpu/vk/xr_camera_frame.h",
+    "gpu/vk/vk_xr_session.h"
   ],
   "release_policy": "unverified_until_source_review_build_tests_and_headset_validation"
 }

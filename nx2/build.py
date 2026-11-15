@@ -989,6 +989,12 @@ def main():
         # (the bundled fonts, compiled in: nx2/ui_fonts.py's file of the build's own)
         vk_jobs.append((cxx, fonts_cpp, os.path.join(obj_dir, "vk_ui_fonts.o"), target() + (["-fPIC"] if LINUX else []) + ["-O0", "-g0", "-w"],
                         b""))
+        # The replacement camera is a separate C99 module, never compiled as C++.
+        camera_dir = os.path.normpath(os.path.join(kit.HERE, "..", "vr", "src"))
+        camera_deps = tree_headers(camera_dir)
+        vk_jobs.append((cc, os.path.join(camera_dir, "vr_camera.c"), os.path.join(obj_dir, "vk_vr_camera.o"),
+                        target() + CPU + (["-fPIC"] if LINUX else []) +
+                        ["-std=c99", "-O2", "-g0", "-fvisibility=hidden"], camera_deps))
         for src in vk_sources():
             name = os.path.relpath(src, vk).replace(os.sep, "_")[:-4]
             lib = os.path.relpath(src, vk).split(os.sep)[0] in ("eden", "sirit")
@@ -1002,7 +1008,8 @@ def main():
                             vk_lib_deps if lib else vdeps + (logo_text if os.path.basename(src) == "vk_imgui.cpp" else b"") +
                             (ngx_deps if os.path.basename(src) == "vk_dlss.cpp" else b"") +
                             (imgui_deps if os.path.basename(src) in imgui_users else b"") +
-                            (xr_deps if os.path.basename(src) == "vk_xr.cpp" else b"")))
+                            (xr_deps if os.path.basename(src) == "vk_xr.cpp" else b"") +
+                            (camera_deps if os.path.basename(src) == "vk_xr_camera_frame.cpp" else b"")))
         if NGX_SDK and not LINUX and toolchain.mingw():
             # (llvm-mingw: NVIDIA's static library was built with Microsoft's compiler for its static runtime (/MT). What it asks
             # of that runtime: the C parts as for the static FFmpeg (host/mingw_msvc_shims.c), the C++ ones in vk_ngx_msvc_rt.cpp)

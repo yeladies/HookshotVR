@@ -1,5 +1,7 @@
 # Status, evidence and roadmap
 
+**Camera rebuild branch — 2026-11-15.** The depth camera and its launchers are retired; the prototype is archived. A new C module separates rig/poses and builds asymmetric projections, but complete per-eye scene rendering is still pending. [Current status, diagnosis and remaining gates](../../vr-camera-rebuild.md). Entries below describe historical experiments.
+
 Quest check on 2026-11-15: the user accepts Tuned geometry/FOV and reports good fluency, decent detail and a minor Link halo. Blackouts persist, though reduced. New counters attribute recorded missing layers to aged source poses, with no tracking/API errors. A same-binary 3200-source/2304-eye Performance comparison is being tested; Tuned 3584 remains available. [Results and interpretation](../../vr-coherent-view-and-gaps.md).
 
 Tuned native source `33fe8ca1` is now compiled: both ±45° private-save sweeps pass with coherent view/lens data, 660/780 GPU pairs, six changing samples and zero producer failures. A default-off run passes and 19 stable hashes are unchanged. The next required step is Quest/VDXR visual validation, including the new blackout counters. No new headset acceptance is claimed.

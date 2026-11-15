@@ -46,9 +46,9 @@ if(Test-VrGpuWorldPreview -Report $world -SourceReport $source -XrOwned $true){t
             path=root/'test.ps1';path.write_text(script,encoding='utf-8-sig')
             result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(path)],capture_output=True,text=True,timeout=30)
             self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-    def test_invalid_modes_fail_before_runtime_or_installation_access(self):
+    def test_retired_modes_fail_before_runtime_or_installation_access(self):
         for flags in [[],['-SnapshotStableSaves','-LoadTestSave','-TemporalStereo'],['-SnapshotStableSaves','-LoadTestSave','-GpuEyeStreamProbe'],['-SnapshotStableSaves','-LoadTestSave','-ImmersiveReadbackTest']]:
             result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(ROOT/'vr/run-game.ps1'),'-GpuWorldPreview','-Seconds','120','-InstallationRoot','Z:/nonexistent-vr-guard-input',*flags],capture_output=True,text=True,timeout=20)
             self.assertNotEqual(result.returncode,0)
-            self.assertRegex(result.stderr,'GPU world preview (requires|cannot)')
+            self.assertIn('Depth camera retired',result.stderr)
 if __name__=='__main__':unittest.main()

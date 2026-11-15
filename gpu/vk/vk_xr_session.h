@@ -97,7 +97,7 @@ struct SessionProbe {
                 const auto& event=*reinterpret_cast<XrEventDataReferenceSpaceChangePending*>(&data);
                 if(event.session==session&&event.referenceSpaceType==XR_REFERENCE_SPACE_TYPE_LOCAL) {
                     generation=++bridge.origin_epoch;suppress_until=std::max(suppress_until,event.changeTime);
-                    snapshot={}; // A new origin notification invalidates the previous sample immediately.
+                    snapshot={};publish_snapshot(); // Invalidate the old origin before another consumer can use it.
                 }
             }
             data={XR_TYPE_EVENT_DATA_BUFFER};
@@ -108,9 +108,13 @@ struct SessionProbe {
         out={{in.orientation.x,in.orientation.y,in.orientation.z,in.orientation.w},
              {in.position.x,in.position.y,in.position.z},flags};
     }
+    void publish_snapshot(){
+        std::lock_guard lock(bridge.mailbox_mutex);
+        bridge.latest=bridge.stop.load()?XrFrameSnapshot{}:snapshot;
+    }
     bool tick() {
         if(!events()||terminal)return false;
-        if(!running) { snapshot={};return true; }
+        if(!running) { snapshot={};publish_snapshot();return true; }
         XrFrameWaitInfo wait{XR_TYPE_FRAME_WAIT_INFO};XrFrameState frame{XR_TYPE_FRAME_STATE};
         if(!ok(wait_frame(session,&wait,&frame),"wait renderer frame"))return false;
         XrFrameBeginInfo begin{XR_TYPE_FRAME_BEGIN_INFO};
@@ -128,6 +132,25 @@ struct SessionProbe {
         std::array<XrView,2> views{{{XR_TYPE_VIEW},{XR_TYPE_VIEW}}};
         const bool located=ok(locate_space(head,local,frame.predictedDisplayTime,&location),"locate renderer head")&&
             ok(locate_views(session,&locate,&state,2,&count,views.data()),"locate renderer views")&&count==2;
+        if(located&&frame.predictedDisplayTime>=suppress_until) {
+            pose(candidate.head,location.pose,location.locationFlags);
+            uint64_t flags=0;
+            if(state.viewStateFlags&XR_VIEW_STATE_POSITION_VALID_BIT)flags|=XR_SPACE_LOCATION_POSITION_VALID_BIT;
+            if(state.viewStateFlags&XR_VIEW_STATE_ORIENTATION_VALID_BIT)flags|=XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+            if(state.viewStateFlags&XR_VIEW_STATE_POSITION_TRACKED_BIT)flags|=XR_SPACE_LOCATION_POSITION_TRACKED_BIT;
+            if(state.viewStateFlags&XR_VIEW_STATE_ORIENTATION_TRACKED_BIT)flags|=XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
+            for(int i=0;i<2;++i) {
+                pose(candidate.eyes[i].pose,views[i].pose,flags);
+                const auto f=views[i].fov;candidate.eyes[i].fov[0]=f.angleLeft;candidate.eyes[i].fov[1]=f.angleRight;
+                candidate.eyes[i].fov[2]=f.angleUp;candidate.eyes[i].fov[3]=f.angleDown;
+            }
+            constexpr auto need=XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
+            if((candidate.head.flags&need)==need)++head_samples;
+            if((flags&need)==need)++stereo_samples;
+        }
+        candidate.observed_at_monotonic_ns=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        snapshot=candidate;
+        publish_snapshot();
         bool quad=false,draw_ok=true;
         constexpr auto needed=XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
         if(preview&&located&&frame.shouldRender&&frame.predictedDisplayTime>=suppress_until&&(location.locationFlags&needed)==needed) {
@@ -152,24 +175,6 @@ struct SessionProbe {
         }
         if(!located||!draw_ok)return false;
         if(quad&&gpu_preview)gpu_preview->submitted();
-        if(frame.predictedDisplayTime>=suppress_until) {
-            pose(candidate.head,location.pose,location.locationFlags);
-            uint64_t flags=0;
-            if(state.viewStateFlags&XR_VIEW_STATE_POSITION_VALID_BIT)flags|=XR_SPACE_LOCATION_POSITION_VALID_BIT;
-            if(state.viewStateFlags&XR_VIEW_STATE_ORIENTATION_VALID_BIT)flags|=XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-            if(state.viewStateFlags&XR_VIEW_STATE_POSITION_TRACKED_BIT)flags|=XR_SPACE_LOCATION_POSITION_TRACKED_BIT;
-            if(state.viewStateFlags&XR_VIEW_STATE_ORIENTATION_TRACKED_BIT)flags|=XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT;
-            for(int i=0;i<2;++i) {
-                pose(candidate.eyes[i].pose,views[i].pose,flags);
-                const auto f=views[i].fov;candidate.eyes[i].fov[0]=f.angleLeft;candidate.eyes[i].fov[1]=f.angleRight;
-                candidate.eyes[i].fov[2]=f.angleUp;candidate.eyes[i].fov[3]=f.angleDown;
-            }
-            constexpr auto need=XR_SPACE_LOCATION_POSITION_VALID_BIT|XR_SPACE_LOCATION_ORIENTATION_VALID_BIT;
-            if((candidate.head.flags&need)==need)++head_samples;
-            if((flags&need)==need)++stereo_samples;
-        }
-        candidate.observed_at_monotonic_ns=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-        snapshot=candidate;
         if(sequence==1||sequence%120==0)logf("xr: %s frames %llu, valid head %llu, valid stereo poses %llu",
             visual?"flat-preview session":"zero-layer",
             (unsigned long long)sequence,(unsigned long long)head_samples,(unsigned long long)stereo_samples);

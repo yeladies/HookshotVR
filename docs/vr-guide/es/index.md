@@ -1,5 +1,7 @@
 # HookshotVR — guía del proyecto
 
+**Rama de reconstrucción:** los perfiles de cámara por profundidad están retirados. [Consulta el estado actual](../../vr-camera-rebuild.md) antes de usar los comandos históricos de esta página. Todavía no hay una nueva prueba de estéreo nativo para el visor.
+
 [Inicio](index.md) · [Cómo empezar](howto.md) · [Estado](status.md) · [Desarrollo](development.md) · [Ayuda](help.md) · [English / Castellano](../en/index.md)
 
 Investigación experimental de PCVR para **Hookshot**, orientada a Quest 3 en Windows mediante Virtual Desktop / VDXR. El objetivo es render estereoscópico nativo, seguimiento de cabeza con seis grados de libertad y, después, interacción con mandos. **Todavía no es un mod VR nativo terminado ni jugable.**

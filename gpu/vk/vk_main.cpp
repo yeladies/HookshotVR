@@ -1389,8 +1389,9 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     table.describe = describe;
     fill_replay_table(table);
     table.camera_observation = xr_camera_observation;
-    table.head_camera = xr_immersive_head_camera;
-    table.head_lens = xr_immersive_head_lens;
+    // The depth-camera callbacks are retired. ABI 20 slots remain null.
+    table.head_camera = nullptr;
+    table.head_lens = nullptr;
     return &table;
 }
 

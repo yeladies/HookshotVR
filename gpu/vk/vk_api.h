@@ -256,9 +256,9 @@ typedef struct MkwVkRenderer {
     int (*setting_set)(const char *key, int value, MkwVkSetting *out);
     /* version 18: observational diagnostics only; no camera override or game-memory access. */
     void (*camera_observation)(const MkwVkCameraObservation *sample);
-    /* version 20: opt-in tracked head/eye camera; present identifies temporal eye phase. */
+    /* version 20 retired camera slot; kept for layout compatibility, always null. */
     int (*head_camera)(uint64_t camera, float rows[12], int64_t game_present);
-    /* version 20: reviewed perspective lens, shared by CPU frustum and GPU matrix construction. */
+    /* version 20 retired lens slot; kept for layout compatibility, always null. */
     int (*head_lens)(float *vertical_fov, float *aspect);
 } MkwVkRenderer;
 

@@ -1,5 +1,7 @@
 # Estado, resultados y hoja de ruta
 
+**Rama de reconstrucción de cámara — 15-11-2026.** La cámara por profundidad y sus lanzadores están retirados; el prototipo queda archivado. Existe un módulo C nuevo con rig/poses separados y proyección asimétrica, todavía sin renderizado completo por ojo. [Estado actual, diagnóstico y pasos pendientes](../../vr-camera-rebuild.md). Las entradas siguientes documentan pruebas históricas.
+
 Prueba Quest del 15-11-2026: el usuario acepta geometría/FOV de Tuned, fluidez buena y detalle decente; queda un halo menor alrededor de Link. Los apagones persisten, aunque reducidos. Los nuevos contadores relacionan las capas omitidas con poses fuente antiguas, sin fallos de seguimiento/API. Se prueba Performance 3200/2304 con el mismo binario y se conserva Tuned 3584. [Resultados e interpretación](../../vr-coherent-view-and-gaps.md).
 
 La build Tuned `33fe8ca1` ya está compilada: pasan ambos giros de ±45° con vista/lente coherentes, 660/780 pares GPU, seis muestras cambiantes y cero fallos del productor. Pasa el arranque sin VR y siguen intactos 19 hashes de la instalación estable. El siguiente paso requiere valoración visual en Quest/VDXR, incluidos los nuevos contadores de apagones. No se da por aceptada en visor.

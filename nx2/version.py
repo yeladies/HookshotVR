@@ -7,7 +7,7 @@ The game prints it as the first line of hookshot_log.txt and in the Insert menu,
 The release name comes from, in order: HOOKSHOT_VERSION; a VERSION file at the root (written when a release is packaged,
 since the builder's tools folder has no git history); `git describe --tags --always --dirty` in a checkout, matching
 only version tags (`v0.1.0`, not the branch-like tags from before the scheme). The
-fingerprint is a hash of the sources in this folder (host/, gpu/, nx2/), line endings aside: every build from the
+fingerprint is a hash of the sources in this folder (host/, gpu/, nx2/, vr/src/), line endings aside: every build from the
 same release zip gives the same one, so even a build that says "unknown" can be traced to the zip it came from. (A
 checkout and a release's tools folder hold different sets of files, so their fingerprints differ.)
 """
@@ -17,7 +17,7 @@ import re
 import subprocess
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SOURCES = ("host", "gpu", "nx2")
+SOURCES = ("host", "gpu", "nx2", "vr/src")
 SOURCE_EXT = (".c", ".cc", ".cpp", ".h", ".hpp", ".inc", ".py", ".glsl", ".comp", ".vert", ".frag", ".spv")
 
 

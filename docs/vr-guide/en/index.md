@@ -1,5 +1,7 @@
 # HookshotVR — project guide
 
+**Camera rebuild branch:** headset depth-camera profiles are retired. [Read the current rebuild status](../../vr-camera-rebuild.md) before using the historical commands below. No new native-stereo headset test is ready.
+
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/index.md)
 
 Experimental PCVR research for **Hookshot**, targeting Quest 3 on Windows through Virtual Desktop / VDXR. The goal is native stereo, head tracking with six degrees of freedom, and eventually tracked interaction. **This is not a finished or playable native VR mod.**

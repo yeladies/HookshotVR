@@ -106,6 +106,11 @@ XrResult XRAPI_CALL end_frame(XrSession,const XrFrameEndInfo* info) {
         }
         ++counts[17];
     }
+    if(mode("session_publish_before_end")&&frames==1){
+        ++counts[30];const auto limit=std::chrono::steady_clock::now()+std::chrono::seconds(2);
+        while(!counts[31].load()&&std::chrono::steady_clock::now()<limit)std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if(!counts[31].load())++counts[5];
+    }
     frame_open=false;++counts[3];return mode("session_end_error")?XR_ERROR_RUNTIME_FAILURE:XR_SUCCESS;
 }
 XrResult XRAPI_CALL locate_space(XrSpace,XrSpace,XrTime time,XrSpaceLocation* out) {
@@ -189,3 +194,5 @@ extern "C" EXPORT int XRAPI_CALL xrTestCount(int key) { return key>=0&&key<32?co
 extern "C" EXPORT void XRAPI_CALL xrTestSetQueueCheck(bool (*check)()) { queue_check=check; }
 
 extern "C" EXPORT PFN_vkVoidFunction VKAPI_CALL xrTestVulkanGetInstanceProcAddr(VkInstance instance,const char* name) {return preview_instance_proc(instance,name);}
+
+extern "C" EXPORT void XRAPI_CALL xrTestReleaseEndFrame(){counts[31]=1;}

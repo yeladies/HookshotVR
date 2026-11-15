@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "vk_xr.h"
+#include "xr_camera_route.h"
 #include "xr_preview_feed.h"
 #include "xr_preview_capture.h"
 namespace mkwvk { void logf(const char*, ...); }
@@ -120,7 +121,6 @@ bool xr_vulkan_session_start(VkInstance instance,VkPhysicalDevice physical,VkDev
                 const auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(duration_ms);
                 while(started&&!bridge.stop.load()&&std::chrono::steady_clock::now()<deadline) {
                     if(!probe.tick())break;
-                    { std::lock_guard lock(bridge.mailbox_mutex);bridge.latest=bridge.stop.load()?XrFrameSnapshot{}:probe.snapshot; }
                     if(!probe.running)std::this_thread::sleep_for(std::chrono::milliseconds(5));
                 }
             } catch(const std::exception& e) { logf("xr: session owner exception: %s",e.what()); }
@@ -160,6 +160,7 @@ void xr_vulkan_reset() { bridge.reset(); }
 bool xr_vulkan_active() { return bridge.ready; }
 bool xr_vulkan_prepare(bool requested) {
     bridge.reset();
+    if(xr_retired_camera_requested()){logf("xr: depth camera retired; use vr/archive-depth-camera-20261115 for historical experiments");return false;}
     if (bridge.worker.joinable() || bridge.retained_gpu_work) return false;
     bridge.preview_feed.clear(true);
     const char* readback=std::getenv("HOOKSHOT_VR_PREVIEW_READBACK_TEST");
@@ -255,6 +256,7 @@ bool xr_vulkan_device(PFN_vkGetInstanceProcAddr get, VkPhysicalDevice physical, 
 #else
 namespace mkwvk {
 bool xr_vulkan_prepare(bool requested) {
+    if(xr_retired_camera_requested()){logf("xr: depth camera retired; use vr/archive-depth-camera-20261115 for historical experiments");return false;}
     if (requested) logf("xr: renderer was built without HOOKSHOT_OPENXR_SDK; cannot enable XR negotiation");
     return !requested;
 }

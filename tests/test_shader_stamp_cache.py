@@ -42,6 +42,9 @@ class ShaderStampCacheTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.files = {
             "gpu/vk/vk_shader.cpp": "int shader;\n",
+            "gpu/vk/vk_xr_camera_frame.cpp": "int camera_adapter;\n",
+            "vr/src/vr_camera.c": "int camera;\n",
+            "vr/src/vr_camera.h": "struct Camera {};\n",
             "gpu/vk/vk_bank.cpp": "int bank;\n",
             "gpu/vk/vk_draw.cpp": "int draw;\n",
             "gpu/vk/vk_menu.cpp": "int menu;\n",
@@ -134,6 +137,19 @@ class ShaderStampCacheTests(unittest.TestCase):
                 self.assertEqual(self.changed(before, after),
                                  {"gpu/vk/eden/translate.cpp", "gpu/vk/vk_shader.cpp"})
 
+    def test_camera_header_invalidates_c_module_and_adapter_only(self):
+        path = self.root / "vr/src/vr_camera.h"
+        for linux in (False, True):
+            with self.subTest(linux=linux):
+                path.write_bytes(b"struct Camera {};\n")
+                before = self.jobs(linux)
+                path.write_bytes(b"struct Camera { int changed; };\n")
+                self.assertEqual(self.changed(before, self.jobs(linux)),
+                                 {"vr/src/vr_camera.c", "gpu/vk/vk_xr_camera_frame.cpp"})
+                flags = before["vr/src/vr_camera.c"]["flags"]
+                self.assertIn("-std=c99", flags)
+                self.assertFalse(any(flag.startswith("-std=c++") for flag in flags))
+
     def test_own_renderer_source_still_invalidates_its_object(self):
         path = self.root / "gpu/vk/vk_draw.cpp"
         for linux in (False, True):
@@ -161,7 +177,7 @@ class ShaderStampCacheTests(unittest.TestCase):
                 before = self.jobs(linux)
                 path.write_bytes(b"struct IR { int changed; };\n")
                 # (Dear ImGui's objects and zstd's see only their own headers; the fonts' file none)
-                expected = {name for name in before if not name.startswith(("host/posix/", "third_party/imgui/", "third_party/zstd/", "gen/"))}
+                expected = {name for name in before if not name.startswith(("host/posix/", "third_party/imgui/", "third_party/zstd/", "gen/", "vr/src/"))}
                 self.assertEqual(self.changed(before, self.jobs(linux)), expected)
 
     def test_stamp_line_ending_normalization_is_unchanged(self):
@@ -182,7 +198,7 @@ class ShaderStampCacheTests(unittest.TestCase):
                     version = [f for f in job["flags"] if f.startswith("-DHOOKSHOT_VERSION=")]
                     self.assertEqual(len(shader), int(name == "gpu/vk/vk_shader.cpp"))
                     self.assertEqual(len(version), int(name == "gpu/vk/vk_menu.cpp"))
-                    if not name.startswith(("host/posix/", "third_party/zstd/", "gen/")):   # (plain C libraries, the fonts' bytes)
+                    if not name.startswith(("host/posix/", "third_party/zstd/", "gen/", "vr/src/")):   # (plain C libraries, the fonts' bytes)
                         self.assertIn("-DHOOKSHOT_RELEASE", job["flags"])
                 self.assertEqual(self.changed(before, self.jobs(linux, version="new", release=True)),
                                  {"gpu/vk/vk_menu.cpp"})

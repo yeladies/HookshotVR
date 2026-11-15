@@ -62,6 +62,9 @@ param(
     [string]$OpenXRLoader
 )
 $ErrorActionPreference = 'Stop'
+if($ImmersivePreview -or $WideFov -or $TemporalStereo -or $ImmersiveReadbackTest -or $GpuWorldPreview -or $GpuXrReproject -or $CoherentView -or $GpuEyeStreamProbe -or $GpuDepthPairProbe -or $GpuSceneSourceProbe -or $GpuSquareSource -or $FovMarginPercent -or $GpuGuardBandPercent -or $GpuEyeSize -or $CullingFovDegrees -or $GpuFramesAhead){
+    throw 'Depth camera retired on this branch; preserved in vr/archive-depth-camera-20261115. Native stereo integration is not ready for a headset test.'
+}
 if($GpuFramesAhead -and !($GpuXrReproject -or $GpuEyeStreamProbe)){throw 'GPU queue pacing requires XR-owned mode or its non-XR eye probe.'}
 if($CoherentView -and !($GpuXrReproject -or $GpuEyeStreamProbe -or $ImmersiveReadbackTest)){throw 'Coherent view requires an isolated immersive camera run.'}
 if($TestHeadSweep -ne 'Small' -and ($TemporalStereo -or !($ImmersiveReadbackTest -or $GpuEyeStreamProbe) -or $XrPreview -or $XrSessionProbe -or $XrNegotiation -or $ImmersivePreview -or $GpuWorldPreview)){throw 'Wide head sweep requires a non-XR synthetic camera test.'}

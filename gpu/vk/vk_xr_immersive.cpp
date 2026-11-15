@@ -9,7 +9,13 @@
 namespace mkwvk {
 void logf(const char*,...);
 namespace {
-bool enabled(){static const bool v=[] {const auto* s=std::getenv("RX_VK_XR_IMMERSIVE");return s&&std::strcmp(s,"1")==0;}();return v;}
+bool enabled(){
+#ifdef HOOKSHOT_VR_LEGACY_FIXTURES
+    static const bool v=[] {const auto* s=std::getenv("RX_VK_XR_IMMERSIVE");return s&&std::strcmp(s,"1")==0;}();return v;
+#else
+    return false; // Historical math/fixtures only; no production camera override.
+#endif
+}
 bool temporal(){static const bool v=[] {const auto* s=std::getenv("RX_VK_XR_TEMPORAL_STEREO");return s&&std::strcmp(s,"1")==0;}();return v;}
 bool synthetic(){static const bool v=[] {const auto* s=std::getenv("HOOKSHOT_VR_IMMERSIVE_TEST");return s&&std::strcmp(s,"1")==0;}();return v;}
 int64_t now_ns(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}

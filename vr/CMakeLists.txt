@@ -400,7 +400,7 @@ endif()
 add_test(NAME vr_temporal_stereo COMMAND hookshot_vr_temporal_stereo_tests)
 if(Python3_Interpreter_FOUND)
     add_test(NAME vr_visibility_fields COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_visibility_fields.py")
-    add_test(NAME vr_game_lens_hook COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_lens_patch.py" --cxx "${CMAKE_CXX_COMPILER}")
+    # Retired perspective injection: replaced by camera-route retirement checks.
 endif()
 
 add_executable(hookshot_vr_preview_capture_tests tests/preview_capture_test.cpp)
@@ -609,7 +609,7 @@ foreach(mode success missing stale synthetic wrong_device wrong_origin wrong_siz
 endforeach()
 
 if(Python3_Interpreter_FOUND)
- add_test(NAME vr_square_source_host COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_square_source.py" --compiler "${CMAKE_CXX_COMPILER}")
+ # Retired square-source admission: replaced by camera-route retirement checks.
 endif()
 
 add_executable(hookshot_vr_xr_owned_gpu_smoke src/xr_owned_gpu_smoke.cpp)
@@ -630,5 +630,55 @@ add_test(NAME vr_view_parameters COMMAND hookshot_vr_view_parameters_tests)
 add_test(NAME vr_gpu_frame_diagnostics COMMAND hookshot_vr_gpu_frame_diagnostics_tests)
 
 if(Python3_Interpreter_FOUND)
- add_test(NAME vr_actual_view_hook COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_view_hook.py" --compiler "${CMAKE_CXX_COMPILER}")
+ # Retired host view writer: replaced by camera-route retirement checks.
 endif()
+
+# Replacement camera: C99 contract, independent of game memory and the XR loader.
+add_library(hookshot_vr_camera STATIC src/vr_camera.c)
+set_target_properties(hookshot_vr_camera PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON)
+target_include_directories(hookshot_vr_camera PUBLIC src)
+if(NOT MSVC)
+    target_compile_options(hookshot_vr_camera PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    target_link_libraries(hookshot_vr_camera PUBLIC m)
+endif()
+add_executable(hookshot_vr_camera_c_tests tests/vr_camera_test.c)
+target_link_libraries(hookshot_vr_camera_c_tests PRIVATE hookshot_vr_camera)
+if(MINGW)
+    target_link_options(hookshot_vr_camera_c_tests PRIVATE -static)
+endif()
+add_test(NAME vr_camera_decoupled_c COMMAND hookshot_vr_camera_c_tests)
+
+# Keep legacy synthetic/GPU ownership fixtures as references while the production
+# route is retired. This definition is never passed by nx2/build.py to the game.
+get_property(vr_fixture_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+foreach(vr_fixture IN LISTS vr_fixture_targets)
+    get_target_property(vr_fixture_sources ${vr_fixture} SOURCES)
+    if("${vr_fixture_sources}" MATCHES "vk_xr[.]cpp")
+        target_compile_definitions(${vr_fixture} PRIVATE HOOKSHOT_VR_LEGACY_FIXTURES)
+    endif()
+endforeach()
+
+add_executable(hookshot_vr_camera_frame_tests tests/camera_frame_test.cpp ../gpu/vk/vk_xr_camera_frame.cpp)
+target_include_directories(hookshot_vr_camera_frame_tests PRIVATE ../gpu/vk "${vr_vulkan_include}")
+target_link_libraries(hookshot_vr_camera_frame_tests PRIVATE hookshot_vr_camera)
+if(MINGW)
+    target_link_options(hookshot_vr_camera_frame_tests PRIVATE -static)
+endif()
+add_test(NAME vr_camera_located_frame COMMAND hookshot_vr_camera_frame_tests)
+
+# These targets use the production policy: no legacy-fixture definition.
+add_executable(hookshot_vr_camera_route_tests tests/camera_route_test.cpp ../gpu/vk/vk_xr.cpp ../gpu/vk/vk_xr_immersive.cpp)
+target_include_directories(hookshot_vr_camera_route_tests PRIVATE ../gpu/vk "${vr_vulkan_include}")
+add_executable(hookshot_vr_early_pose_tests tests/renderer_early_pose_test.cpp ../gpu/vk/vk_xr.cpp ../gpu/vk/vk_xr_immersive.cpp ../gpu/vk/vk_xr_camera_frame.cpp)
+target_compile_definitions(hookshot_vr_early_pose_tests PRIVATE HOOKSHOT_OPENXR VK_NO_PROTOTYPES)
+target_include_directories(hookshot_vr_early_pose_tests PRIVATE ../gpu/vk "${vr_vulkan_include}")
+target_link_libraries(hookshot_vr_early_pose_tests PRIVATE hookshot_vr_camera OpenXR::headers ${CMAKE_DL_LIBS} Threads::Threads)
+if(MINGW)
+    target_link_options(hookshot_vr_camera_route_tests PRIVATE -static)
+    target_link_options(hookshot_vr_early_pose_tests PRIVATE -static)
+endif()
+add_test(NAME vr_camera_retired_production COMMAND hookshot_vr_camera_route_tests)
+add_test(NAME vr_camera_pose_before_end COMMAND hookshot_vr_early_pose_tests "$<TARGET_FILE:hookshot_vr_fake_loader>")
+set_tests_properties(vr_camera_pose_before_end PROPERTIES TIMEOUT 15)
+
+target_sources(hookshot_vr_early_pose_tests PRIVATE tests/gpu_eye_feed_empty.cpp)
