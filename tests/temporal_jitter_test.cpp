@@ -37,6 +37,8 @@ void AcquireSRWLockExclusive(SRWLOCK* lock) {
     lock->lock();
 }
 void ReleaseSRWLockExclusive(SRWLOCK* lock) { lock->unlock(); }
+void AcquireSRWLockShared(SRWLOCK* lock) { lock->lock(); }
+void ReleaseSRWLockShared(SRWLOCK* lock) { lock->unlock(); }
 static_assert(MKWVK_API_VERSION >= 14);
 static_assert(offsetof(MkwVkRenderer, jitter_sample) > offsetof(MkwVkRenderer, option_set));
 std::atomic<uint64_t> clock_frame{100};
@@ -102,6 +104,7 @@ int rx_option(int id, int) {
     return value;
 }
 LONG presents = 100;
+LONG InterlockedCompareExchange(volatile LONG* value,LONG,LONG) { return *value; }
 volatile float hos_wide_ratio = 16.0f / 9.0f;
 float projection_matrix[16]{};
 #define GP(p) ((void*)(uintptr_t)(p))
@@ -118,9 +121,12 @@ int dlss_jitter_clip(const float*, float, unsigned, int phases, float width, flo
 bool camera_capture_on=false;
 int camera_observation_calls=0;
 MkwVkCameraObservation camera_observation{};
-int env_on(const char*) { return camera_capture_on; }
-static void camera_observe(MkwVkCameraObservation* sample) {
+int env_on(const char* name) { return !std::strcmp(name,"HOOKSHOT_VR_CAMERA_CAPTURE") && camera_capture_on; }
+[[maybe_unused]] static void camera_observe(MkwVkCameraObservation* sample) {
     ++camera_observation_calls;camera_observation=*sample;
+}
+[[maybe_unused]] static void camera_observe_at(MkwVkCameraObservation* sample,int64_t present) {
+    sample->game_present=present;camera_observe(sample);
 }
 #endif
 /* HOST_CAMERA_CACHE_FLAG */

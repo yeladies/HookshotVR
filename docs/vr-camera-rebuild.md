@@ -42,7 +42,7 @@ The module supports finite/infinite far planes, both clip-depth conventions, for
 
 The VR additions in `host/hos_main.c`, `host/nn_applet.c` and `nx2/oot_wide.py` were restored to the supported Hookshot base. The host's `rx_xr_head_camera` and shared `hos_vr_*` lens/culling globals were removed. The native renderer's ABI 20 head/lens slots remain present and null, preserving structure layout. A future ABI extension must advance the version.
 
-The original guarded free camera, ultrawide, HUD and movie behavior remain. Original view injection site `f_804e48c0` / `L_804e5068` is Hookshot's debug hook, not proof of an early controller/visibility boundary. No new primary-camera writer has been enabled there.
+The original guarded free camera, ultrawide, HUD and movie behavior remain. Original view injection site `f_804e48c0` / `L_804e5068` is Hookshot's debug hook, not proof of an early controller/visibility boundary. The later opt-in first-person milestone uses this guarded view bridge; exclusive authority before CPU visibility remains unproven. See the current first-person results linked above.
 
 Production rejects the withdrawn immersive, temporal, wide-lens and reconstructed-world environment modes. Their launchers fail before accessing an installation. Legacy math/ownership fixtures remain available only as reference tests; `HOOKSHOT_VR_LEGACY_FIXTURES` is passed by their CMake targets, never by the native game builder. Three tests requiring removed game writers/admission were replaced by retirement checks, rather than representing those features as implemented.
 
@@ -51,7 +51,7 @@ The OpenXR worker now publishes the located head/eye snapshot before preview wor
 ### Remaining integration gates
 
 1. Identify all selected gameplay-camera controller writers and a boundary before CPU visibility. Give VR exclusive authority there over interpolation, recentering, shake and dynamic FOV, while preserving other cameras and UI behavior.
-2. Read Link's guarded root position independently of animation bob and the old camera; define explicit locomotion yaw and a reproducible world-scale calibration. Do not infer physical scale from projection near/far alone.
+2. Link root/eye anchoring now passes isolated game checks. Finish locomotion yaw and reproducible physical-scale calibration; do not infer scale from projection near/far.
 3. Read authoritative native near/far and build coherent center/union visibility for the two eye frusta. The C union helper is available; the game's actual culling consumers are not yet wired to it.
 4. Render the complete eye-dependent scene twice from one simulation state. Audit hidden-pointer camera copies, compute/mesh visibility, indirect arguments, aliases, shadows, transparent effects and per-eye histories. Replaying one isolated draw does not establish complete scene replay.
 5. Submit native eye images with the corresponding located poses/FOVs and a coordinated render deadline. The old stale mono-source reconstruction is not a fallback for this route.
@@ -86,7 +86,7 @@ No hay evidencia de un fallo de mano derecha/izquierda ni de un intercambio Y/Z:
 ### Trabajo pendiente antes de otra prueba en Quest
 
 1. Auditar los escritores del controlador y tomar autoridad sobre la cámara principal antes de calcular visibilidad: sin suavizado, autocentrado, vibración o FOV dinámico del juego.
-2. Anclar el rig a la raíz comprobada de Link, definir yaw de locomoción y calibrar escala sin usar la cámara corporal ni el movimiento de los huesos.
+2. El anclaje del rig a la raíz y ojos de Link ya funciona en las pruebas aisladas. Faltan yaw de locomoción y calibración física de escala.
 3. Conectar near/far originales y todos los descartes CPU/GPU a la vista y al volumen que cubre ambos ojos.
 4. Renderizar la escena completa por ojo desde una sola simulación, con alias, trabajo compute/mesh, indirectos y historiales correctamente separados. La antigua copia de un dibujo aislado no resuelve esta fase.
 5. Presentar las imágenes nativas con sus poses, completar HUD/menús y validar transiciones; después preparar una prueba útil en visor.

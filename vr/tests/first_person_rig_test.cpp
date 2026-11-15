@@ -17,7 +17,7 @@ static bool same_tracking(const mkwvk::XrFrameSnapshot& a,const mkwvk::XrFrameSn
     return true;
 }
 static bool same_projection(const mkwvk::FirstPersonProjectionPacket& a,const mkwvk::FirstPersonProjectionPacket& b){
-    return a.game_present==b.game_present&&a.observed_ns==b.observed_ns&&a.synthetic==b.synthetic&&same_tracking(a.tracking,b.tracking)&&
+    return a.game_present==b.game_present&&a.observed_ns==b.observed_ns&&a.synthetic==b.synthetic&&a.native_depth_preserved==b.native_depth_preserved&&same_tracking(a.tracking,b.tracking)&&
            !std::memcmp(&a.camera,&b.camera,sizeof a.camera);
 }
 static MkwVkFirstPersonInput input(){MkwVkFirstPersonInput i{};i.size=sizeof i;i.actor_id=123;i.game_present=1;
@@ -100,6 +100,34 @@ static void immutable_packet(){
     s.origin_generation++;check(owner.build(i,s,false,o)&&(o.flags&MKWVK_FP_RIG_RESET),"recenter invalidates same-present cache");
     s.eyes[1].pose.flags=0;const auto saved=o;check(!owner.build(i,s,false,o)&&!std::memcmp(&saved,&o,sizeof o),"invalid tracking cannot reuse cache as a new valid observation");
 }
+static void native_projection(){
+    mkwvk::FirstPersonFrameOwner owner;auto i=input();auto s=sample();auto o=output();
+    i.world_units_per_metre=10;check(owner.build(i,s,false,o),"native depth owner");
+    mkwvk::FirstPersonProjectionPacket original{},out{};
+    check(owner.project(i.game_present,.13,9876,original),"reference only");
+    double native[16];float source[16];
+    for(unsigned k=0;k<16;++k)native[k]=source[k]=float(original.camera.eyes[0].projection[k]);
+    native[0]=source[0]=.4f;native[5]=source[5]=.7f; // Discard game FOV, preserve depth.
+    check(owner.project(i.game_present,0,0,out,native)&&out.native_depth_preserved,"native coefficients replace guessed clip arguments");
+    check(same_tracking(out.tracking,s),"native projection keeps original layer poses in metres");
+    const auto evidence=mkwvk::first_person_projection_evidence(out,o.head_view,source);
+    check(evidence.available&&evidence.center_matches&&evidence.depth_exact&&evidence.fov_matches,"native projection matches frozen center and XR FOV");
+    check(near(evidence.eye_separation_world,.64),"native eye separation uses units once");
+    auto bad=out;bad.camera.eyes[1].projection[11]+=.001;
+    check(!mkwvk::first_person_projection_evidence(bad,o.head_view,source).depth_exact,"detect altered depth");
+    bad=out;bad.camera.eyes[0].projection[0]+=.001;
+    check(!mkwvk::first_person_projection_evidence(bad,o.head_view,source).fov_matches,"detect game FOV leakage");
+    auto changed=o;changed.head_view[3]+=1;
+    check(!mkwvk::first_person_projection_evidence(out,changed.head_view,source).center_matches,"wrong camera cannot pass observation audit");
+    bad=out;bad.tracking.sequence++;
+    check(!mkwvk::first_person_projection_evidence(bad,o.head_view,source).available,"cannot relabel tracking identity");
+    mkwvk::FirstPersonProjectionLookup lookup{};
+    const auto saved=out;
+    check(!owner.project(100,0,0,out,native,&lookup)&&lookup.status==1&&lookup.oldest_present==i.game_present&&lookup.newest_present==i.game_present,"missing present diagnosed without a nearest-pose fallback");
+    native[8]=1;
+    check(!owner.project(i.game_present,0,0,out,native,&lookup)&&same_projection(out,saved),"invalid native projection is atomic");
+    check(lookup.status==2&&lookup.camera_status==VR_CAMERA_BAD_PROJECTION,"projection failure distinct from missing frame");
+}
 static void render_history(){
     mkwvk::FirstPersonFrameOwner owner;auto i=input();auto s=sample();auto o=output();
     check(owner.build(i,s,false,o),"history first frame");mkwvk::FirstPersonProjectionPacket first{},out{};
@@ -112,5 +140,5 @@ static void render_history(){
     s.origin_generation++;check(owner.build(i,s,false,o),"history recenter");
     check(!owner.project(i.game_present-1,.125,1234,out)&&owner.project(i.game_present,.125,1234,out)&&out.camera.origin_generation==s.origin_generation,"recenter invalidates old-origin history");
 }
-int main(){try{render_history();immutable_packet();anchor();pitch_roll_and_alignment();reset_and_failure();std::printf("First-person rig: %u checks passed\n",checks);return 0;}
+int main(){try{native_projection();render_history();immutable_packet();anchor();pitch_roll_and_alignment();reset_and_failure();std::printf("First-person rig: %u checks passed\n",checks);return 0;}
 catch(const std::exception& e){std::fprintf(stderr,"%s\n",e.what());return 1;}}

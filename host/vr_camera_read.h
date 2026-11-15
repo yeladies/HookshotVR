@@ -28,11 +28,28 @@ static inline int host_vr_primary(HostVrRead read,void* context,HostVrPrimary* o
        memcmp(first.rows,second.rows,sizeof first.rows)||memcmp(first.eye,second.eye,sizeof first.eye))return 0;
     *out=second;return 1; /* Still observational: two matching reads are not a transaction across guest writers. */
 }
-typedef struct HostVrCameraCache {uint64_t primary,uniform;float rows[12];} HostVrCameraCache;
+typedef struct HostVrCameraCache {
+    uint64_t primary,uniform;float rows[12];
+    int owner_valid;int64_t owner_present;
+} HostVrCameraCache;
 static inline void host_vr_cache_primary(HostVrCameraCache* cache,uint64_t camera,const float* rows,int debug) {
     if(!camera||!rows||debug){memset(cache,0,sizeof *cache);return;}
     if(cache->primary!=camera)cache->uniform=0;
+    /* A refresh may retain an existing writer tag, never invent a new one.
+       Even a numerically close changed matrix invalidates ownership. */
+    if(cache->primary!=camera||memcmp(cache->rows,rows,sizeof cache->rows))cache->owner_valid=0;
     cache->primary=camera;memcpy(cache->rows,rows,sizeof cache->rows);
+}
+static inline void host_vr_cache_owned_primary(HostVrCameraCache* cache,uint64_t camera,const float rows[12],int64_t present) {
+    host_vr_cache_primary(cache,camera,rows,0);
+    cache->owner_valid=0;
+    if(!camera||!rows||present<0)return;
+    for(int i=0;i<12;++i)if(!isfinite(rows[i]))return;
+    cache->owner_present=present;cache->owner_valid=1;
+}
+static inline int host_vr_cache_owned_present(const HostVrCameraCache* cache,uint64_t camera,const float rows[12],int64_t* out) {
+    if(!cache||!out||!rows||!cache->owner_valid||!camera||camera!=cache->primary||memcmp(cache->rows,rows,sizeof cache->rows))return 0;
+    *out=cache->owner_present;return 1;
 }
 static inline void host_vr_cache_uniform(HostVrCameraCache* cache,uint64_t object,const float* rows) {
     if(!cache->primary||!object||!rows)return;

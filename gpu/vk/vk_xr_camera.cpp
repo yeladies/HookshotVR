@@ -3,6 +3,7 @@
 #include "xr_image_lineage.h"
 #include "xr_camera_block_capture.h"
 #include "xr_camera_history_capture.h"
+#include "xr_first_person_projection_audit.h"
 #include <filesystem>
 #include <cstring>
 #include <iomanip>
@@ -92,7 +93,10 @@ void xr_camera_history_capture(const SceneCameraEvidence& draw,uint64_t recordin
         std::ofstream output(destination,std::ios::binary);
         output.write(static_cast<const char*>(data),std::streamsize(bytes));output.close();
         if(!output){payload_history_failed=true;return;}
+        const auto projected=pinned.observation_present_ambiguous?FirstPersonProjectionEvidence{}:
+            xr_first_person_native_projection_evidence(pinned.observation_game_present,prefix.data(),prefix.data()+0x70/4);
         std::ofstream index(root/"index.jsonl",std::ios::app);
+        index<<std::setprecision(17);
         index<<"{\"schema\":1,\"frame\":"<<sample.frame<<",\"program\":"<<sample.program
              <<",\"recording\":"<<sample.recording<<",\"source_nvn_submit\":"<<active_submission_source_value
              <<",\"observation_game_present\":"<<pinned.observation_game_present
@@ -100,7 +104,17 @@ void xr_camera_history_capture(const SceneCameraEvidence& draw,uint64_t recordin
              <<",\"primary_sequence\":"<<pinned.primary_sequence<<",\"producer_present_verified\":false,\"camera_revision\":"<<sample.revision
              <<",\"source\":"<<sample.source<<",\"width\":"<<sample.width<<",\"height\":"<<sample.height
              <<",\"bytes\":"<<sample.bytes<<",\"file\":\""<<filename
-             <<"\",\"scene_camera_match\":true,\"submission_overlay_copy\":true,\"gpu_completed_readback\":false}\n";
+             <<"\",\"scene_camera_match\":true,\"submission_overlay_copy\":true,\"gpu_completed_readback\":false"
+             <<",\"first_person_projection\":{\"available\":"<<(projected.available?"true":"false")
+             <<",\"center_matches\":"<<(projected.center_matches?"true":"false")<<",\"depth_exact\":"<<(projected.depth_exact?"true":"false")
+             <<",\"fov_matches\":"<<(projected.fov_matches?"true":"false")<<",\"synthetic\":"<<(projected.synthetic?"true":"false")
+             <<",\"sequence\":"<<projected.sequence<<",\"origin\":"<<projected.origin<<",\"predicted_time\":"<<projected.predicted_time
+             <<",\"observed_ns\":"<<projected.observed_ns<<",\"effective_near\":"<<projected.effective_near<<",\"effective_far\":";
+        if(std::isinf(projected.effective_far))index<<"null";else index<<projected.effective_far;
+        index<<",\"eye_separation_world\":"<<projected.eye_separation_world
+             <<",\"lookup_status\":"<<projected.lookup.status<<",\"camera_status\":"<<projected.lookup.camera_status
+             <<",\"oldest_present\":"<<projected.lookup.oldest_present<<",\"newest_present\":"<<projected.lookup.newest_present
+             <<",\"retained_packets\":"<<projected.lookup.retained<<"}}\n";
         index.close();if(!index){payload_history_failed=true;return;}
         if(payload_history.count()==CameraPayloadHistoryPolicy::maximum_samples)
             logf("vr-camera-history: completed %zu submission-overlay samples; GPU readback not claimed",payload_history.count());

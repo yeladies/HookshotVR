@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include "xr_first_person_projection_audit.h"
 #include "vk_api.h"
 #include "vk_xr.h"
 #include "../../vr/src/vr_camera.h"
@@ -72,14 +73,14 @@ public:
         }
         next.world_rig_=rig;*this=next;out=result;return true;
     }
-    VrCameraStatus project(const XrFrameSnapshot& frame,double near_z,double far_z,VrCameraFrame& out)const{
+    VrCameraStatus project(const XrFrameSnapshot& frame,double near_z,double far_z,VrCameraFrame& out,const double* native_projection=nullptr)const{
         if(!actor_||frame.origin_generation!=origin_)return VR_CAMERA_BAD_IDENTITY;
         VrCameraSample sample{};sample.sequence=frame.sequence;sample.origin_generation=frame.origin_generation;
         sample.predicted_display_time=frame.predicted_display_time;sample.head=pose(frame.head);
         sample.near_z=near_z;sample.far_z=far_z;sample.clip=VR_CAMERA_NVN_MINUS_ONE_TO_ONE;sample.depth=VR_CAMERA_DEPTH_FORWARD;
         for(unsigned eye=0;eye<2;++eye){sample.eyes[eye].pose=pose(frame.eyes[eye].pose);
             for(unsigned k=0;k<4;++k)sample.eyes[eye].fov[k]=frame.eyes[eye].fov[k];}
-        return vr_camera_build(&world_rig_,&sample,&out);
+        return native_projection?vr_camera_build_native_projection(&world_rig_,&sample,native_projection,&out):vr_camera_build(&world_rig_,&sample,&out);
     }
 };
 struct FirstPersonProjectionPacket {
@@ -88,8 +89,37 @@ struct FirstPersonProjectionPacket {
     // OpenXR tracking space/metres from this exact immutable observation.
     XrFrameSnapshot tracking{};
     int64_t game_present=0,observed_ns=0;
-    bool synthetic=false;
+    bool synthetic=false,native_depth_preserved=false;
 };
+inline FirstPersonProjectionEvidence first_person_projection_evidence(const FirstPersonProjectionPacket& packet,
+                                                                      const float view[12],const float projection[16]){
+    FirstPersonProjectionEvidence out{};
+    if(!view||!projection||!packet.native_depth_preserved)return out;
+    const auto& f=packet.camera;const auto& tracking=packet.tracking;
+    if(!f.sequence||f.sequence!=tracking.sequence||f.origin_generation!=tracking.origin_generation||
+       f.predicted_display_time!=tracking.predicted_display_time||packet.observed_ns!=tracking.observed_at_monotonic_ns)return out;
+    out.available=true;out.center_matches=out.depth_exact=out.fov_matches=true;out.synthetic=packet.synthetic;
+    out.sequence=f.sequence;out.origin=f.origin_generation;out.predicted_time=f.predicted_display_time;out.observed_ns=packet.observed_ns;
+    out.effective_near=f.near_z;out.effective_far=f.far_z;
+    const auto* world=f.world_from_head;
+    for(unsigned r=0;r<3;++r){
+        for(unsigned c=0;c<3;++c)if(!std::isfinite(view[4*r+c])||std::abs(world[4*c+r]-view[4*r+c])>.0001)out.center_matches=false;
+        double t=0;for(unsigned k=0;k<3;++k)t-=world[4*k+r]*world[4*k+3];
+        if(!std::isfinite(view[4*r+3])||std::abs(t-view[4*r+3])>.01)out.center_matches=false;
+    }
+    double separation2=0;
+    for(unsigned k=0;k<3;++k){double d=f.eyes[0].world_from_eye[4*k+3]-f.eyes[1].world_from_eye[4*k+3];separation2+=d*d;}
+    out.eye_separation_world=std::sqrt(separation2);
+    for(unsigned eye=0;eye<2;++eye){
+        const auto* p=f.eyes[eye].projection;const auto* angles=tracking.eyes[eye].fov;
+        if(p[10]!=double(projection[10])||p[11]!=double(projection[11])||p[14]!=-1||p[15]!=0)out.depth_exact=false;
+        const double l=std::tan(double(angles[0])),r=std::tan(double(angles[1])),u=std::tan(double(angles[2])),d=std::tan(double(angles[3]));
+        const double expected[]={2/(r-l),(r+l)/(r-l),2/(u-d),(u+d)/(u-d)};
+        const double actual[]={p[0],p[2],p[5],p[6]};
+        for(unsigned k=0;k<4;++k)if(!std::isfinite(expected[k])||!std::isfinite(actual[k])||std::abs(actual[k]-expected[k])>1e-10)out.fov_matches=false;
+    }
+    return out;
+}
 // One game present owns one immutable camera packet, even when the engine
 // asks for its view repeatedly or tracking advances on the XR worker.
 class FirstPersonFrameOwner {
@@ -122,14 +152,21 @@ public:
         next_=(next_+1)%capacity;if(count_<capacity)++count_;
         out=packet;return true;
     }
-    bool project(int64_t game_present,double near_z,double far_z,FirstPersonProjectionPacket& out)const{
+    bool project(int64_t game_present,double near_z,double far_z,FirstPersonProjectionPacket& out,const double* native_projection=nullptr,FirstPersonProjectionLookup* lookup=nullptr)const{
+        if(lookup){
+            *lookup={};lookup->status=1;lookup->retained=count_;
+            if(count_){lookup->newest_present=history_[(next_+capacity-1)%capacity].key.game_present;
+                lookup->oldest_present=history_[(next_+capacity-count_)%capacity].key.game_present;}
+        }
         // CPU pose retention is bounded, independent of GPU resource leases.
         // No timestamp is refreshed when the renderer consumes an older present.
         for(unsigned k=0;k<count_;++k){const auto& entry=history_[(next_+capacity-1-k)%capacity];
             if(entry.key.game_present!=game_present)continue;
             FirstPersonProjectionPacket next{};
-            if(entry.rig.project(entry.frame,near_z,far_z,next.camera)!=VR_CAMERA_OK)return false;
-            next.tracking=entry.frame;
+            const auto status=entry.rig.project(entry.frame,near_z,far_z,next.camera,native_projection);
+            if(lookup){lookup->status=status==VR_CAMERA_OK?3:2;lookup->camera_status=int(status);}
+            if(status!=VR_CAMERA_OK)return false;
+            next.tracking=entry.frame;next.native_depth_preserved=native_projection!=nullptr;
             next.game_present=game_present;next.observed_ns=entry.packet.observed_ns;
             next.synthetic=(entry.packet.flags&MKWVK_FP_SYNTHETIC_OUTPUT)!=0;
             out=next;return true;
@@ -140,5 +177,7 @@ public:
 // Consumer supplies authoritative native near/far. This retrieves a frozen
 // packet; it cannot advance tracking or relabel the observation timestamp.
 bool xr_first_person_projection(int64_t game_present,double near_z,double far_z,FirstPersonProjectionPacket* out);
+// Native depth coefficients are retained exactly; runtime FOVs own XY.
+bool xr_first_person_native_projection(int64_t game_present,const float native_projection[16],FirstPersonProjectionPacket* out,FirstPersonProjectionLookup* lookup=nullptr);
 int xr_first_person_frame(const MkwVkFirstPersonInput*,MkwVkFirstPersonFrame*);
 }

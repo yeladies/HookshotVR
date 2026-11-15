@@ -16,6 +16,32 @@ def close(a,b):
     return len(a)==len(b) and all(math.isfinite(x) and math.isfinite(y) and abs(x-y)<=.0002+.000002*max(abs(x),abs(y)) for x,y in zip(a,b))
 
 
+def projection_evidence(rows):
+    evidence=[row['first_person_projection'] for row in rows if 'first_person_projection' in row]
+    if evidence and len(evidence)!=len(rows):raise ValueError('mixed native projection audit coverage')
+    available=[]
+    for item in evidence:
+        if not isinstance(item,dict) or any(type(item.get(k)) is not bool for k in ('available','center_matches','depth_exact','fov_matches','synthetic')):
+            raise ValueError('invalid native projection evidence flags')
+        if not item['available']:
+            if any(item[k] for k in ('center_matches','depth_exact','fov_matches')):raise ValueError('unavailable projection cannot claim a match')
+            continue
+        if any(type(item.get(k)) is not int or item[k]<=0 for k in ('sequence','origin','predicted_time','observed_ns')):
+            raise ValueError('invalid native projection identity')
+        for k in ('effective_near','eye_separation_world'):
+            if type(item.get(k)) not in (float,int) or not math.isfinite(item[k]) or item[k]<=0:raise ValueError('invalid native projection dimensions')
+        far=item.get('effective_far')
+        if far is not None and (type(far) not in (float,int) or not math.isfinite(far) or far<=item['effective_near']):raise ValueError('invalid native effective far')
+        available.append(item)
+    complete=len(available)==len(rows) and all(item['center_matches'] and item['depth_exact'] and item['fov_matches'] for item in available)
+    return {'native_projection_samples':len(available),'native_projection_audit_coverage_complete':complete,
+            'native_projection_center_matches':sum(item['center_matches'] for item in available),
+            'native_projection_depth_exact_samples':sum(item['depth_exact'] for item in available),
+            'native_projection_fov_matches_samples':sum(item['fov_matches'] for item in available),
+            'native_projection_synthetic_samples':sum(item['synthetic'] for item in available),
+            'native_projection_eye_separation_range':[min(item['eye_separation_world'] for item in available),max(item['eye_separation_world'] for item in available)] if available else []}
+
+
 def analyze(directory):
     root=Path(directory).resolve();index=root/'index.jsonl'
     if index.is_symlink() or index.stat().st_size>256*1024:
@@ -82,7 +108,7 @@ def analyze(directory):
                     records.setdefault(at*4,[]).append(lag)
         candidates[name]=[{'offset_bytes':offset,'matching_sample_lags':lags,'unique_sample_lag':lags[0] if len(lags)==1 else None}
                           for offset,lags in sorted(records.items())]
-    return {'schema':1,'samples':len(rows),'distinct_views':len(distinct),'payload_bytes':rows[0]['bytes'],
+    return {**projection_evidence(rows),'schema':1,'samples':len(rows),'distinct_views':len(distinct),'payload_bytes':rows[0]['bytes'],
             'frame_interval_values':sorted(set(b-a for a,b in zip(frames,frames[1:]))),
             'observation_tagged_samples':sum('observation_game_present' in row for row in rows),'ambiguous_observation_samples':sum(row.get('observation_present_ambiguous') is True for row in rows),'producer_present_verified':False,'source_nvn_submit_count':len({row['source_nvn_submit'] for row in rows if 'source_nvn_submit' in row}),'recording_differs_from_source_samples':sum(row['recording']!=row['source_nvn_submit'] for row in rows if 'source_nvn_submit' in row),'numeric_matrix_candidates':candidates,'submission_overlay_copy':True,'gpu_completed_readback':False,
             'shader_consumption_verified':False,'producer_history_semantics_verified':False,'safe_to_patch':False,
@@ -91,7 +117,9 @@ def analyze(directory):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('directory',type=Path);parser.add_argument('--out',required=True,type=Path)
-    args=parser.parse_args();result=analyze(args.directory)
+    args=parser.parse_args()
+    try:result=analyze(args.directory)
+    except (OSError,ValueError,IndexError,TypeError,KeyError) as error:parser.exit(2,str(error)+'\n')
     args.out.write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
     print('Temporal numeric evidence saved; shader/producer semantics and patch safety remain unverified.')
 

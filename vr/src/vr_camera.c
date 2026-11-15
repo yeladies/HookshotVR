@@ -105,8 +105,29 @@ VrCameraStatus vr_camera_build_pose(const VrCameraRig* rig,const VrCameraPose* p
     if(!world_pose(rig,local,next.world_from_eye)||!inverse_rigid(next.world_from_eye,next.view))return VR_CAMERA_BAD_RIG;
     *out=next;return VR_CAMERA_OK;
 }
-VrCameraStatus vr_camera_build(const VrCameraRig* rig,const VrCameraSample* s,VrCameraFrame* out) {
+/* Decode effective clip distances only for metadata/plane validation. The depth
+   coefficients themselves are copied unchanged below, never reconstructed. */
+static int native_distances(const VrCameraSample* s,const double p[16],double* near_z,double* far_z) {
+    if(!finite_array(p,16)||p[0]<=0||p[5]==0||p[14]!=-1||
+       (s->clip!=VR_CAMERA_NVN_MINUS_ONE_TO_ONE&&s->clip!=VR_CAMERA_VULKAN_ZERO_TO_ONE)||
+       (s->depth!=VR_CAMERA_DEPTH_FORWARD&&s->depth!=VR_CAMERA_DEPTH_REVERSED))return 0;
+    const unsigned zero[]={1,3,4,7,8,9,12,13,15};
+    for(unsigned i=0;i<sizeof zero/sizeof *zero;++i)if(p[zero[i]]!=0)return 0;
+    const double n=s->depth==VR_CAMERA_DEPTH_REVERSED?1:(s->clip==VR_CAMERA_NVN_MINUS_ONE_TO_ONE?-1:0);
+    const double f=s->depth==VR_CAMERA_DEPTH_FORWARD?1:(s->clip==VR_CAMERA_NVN_MINUS_ONE_TO_ONE?-1:0);
+    if(p[10]+n==0)return 0;
+    *near_z=p[11]/(p[10]+n);
+    *far_z=p[10]+f==0?INFINITY:p[11]/(p[10]+f);
+    return isfinite(*near_z)&&*near_z>0&&!isnan(*far_z)&&*far_z>*near_z;
+}
+static VrCameraStatus build_frame(const VrCameraRig* rig,const VrCameraSample* s,const double* native,VrCameraFrame* out) {
     if(!rig||!s||!out)return VR_CAMERA_BAD_ARGUMENT;
+    VrCameraSample effective;
+    if(native){
+        effective=*s;
+        if(!native_distances(s,native,&effective.near_z,&effective.far_z))return VR_CAMERA_BAD_PROJECTION;
+        s=&effective;
+    }
     if(!s->sequence||!s->origin_generation||s->origin_generation!=rig->origin_generation||s->predicted_display_time<=0)return VR_CAMERA_BAD_IDENTITY;
     if(!finite_array(rig->position_world,3)||!finite_array(rig->tracking_reference_m,3)||!isfinite(rig->yaw_radians)||
        !isfinite(rig->world_units_per_metre)||rig->world_units_per_metre<=0)return VR_CAMERA_BAD_RIG;
@@ -124,10 +145,20 @@ VrCameraStatus vr_camera_build(const VrCameraRig* rig,const VrCameraSample* s,Vr
         if(!pose_matrix(&s->eyes[i].pose,located))return VR_CAMERA_BAD_POSE;
         if(!world_pose(rig,located,e->world_from_eye)||!inverse_rigid(e->world_from_eye,e->view)||
            !multiply(from_head,located,e->head_from_eye))return VR_CAMERA_BAD_RIG;
-        if(!projection(s,s->eyes[i].fov,e->projection)||!multiply(e->projection,e->view,e->world_to_clip)||!planes(s,e))return VR_CAMERA_BAD_PROJECTION;
+        if(!projection(s,s->eyes[i].fov,e->projection))return VR_CAMERA_BAD_PROJECTION;
+        if(native){e->projection[10]=native[10];e->projection[11]=native[11];}
+        if(!multiply(e->projection,e->view,e->world_to_clip)||!planes(s,e))return VR_CAMERA_BAD_PROJECTION;
         memcpy(e->fov,s->eyes[i].fov,sizeof e->fov);
     }
     *out=next;return VR_CAMERA_OK;
+}
+VrCameraStatus vr_camera_build(const VrCameraRig* rig,const VrCameraSample* s,VrCameraFrame* out) {
+    return build_frame(rig,s,NULL,out);
+}
+VrCameraStatus vr_camera_build_native_projection(const VrCameraRig* rig,const VrCameraSample* s,
+                                                const double native[16],VrCameraFrame* out) {
+    if(!native)return VR_CAMERA_BAD_ARGUMENT;
+    return build_frame(rig,s,native,out);
 }
 int vr_camera_bounds_visible(const VrCameraFrame* frame,const double lo[3],const double hi[3]) {
     if(!frame||!lo||!hi||!frame->sequence||!finite_array(lo,3)||!finite_array(hi,3))return 1;

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "xr_camera_submission.h"
+#include "xr_first_person_projection_audit.h"
 #include <algorithm>
 #include <stdexcept>
 #include <iostream>
@@ -8,7 +9,7 @@
 #include <string>
 #include <limits>
 using namespace mkwvk;
-namespace mkwvk {void logf(const char*,...){} void xr_immersive_note_camera(uint64_t,const float*,size_t){} void xr_immersive_note_scene_candidate(uint64_t,uint32_t,uint32_t){}}
+namespace mkwvk { FirstPersonProjectionEvidence xr_first_person_native_projection_evidence(int64_t,const float*,const float*){return {};} void logf(const char*,...){} void xr_immersive_note_camera(uint64_t,const float*,size_t){} void xr_immersive_note_scene_candidate(uint64_t,uint32_t,uint32_t){}}
 void check(bool x,const char* why){if(!x)throw std::runtime_error(why);}
 CameraCapturePair pair(uint64_t seq,uint64_t id=7){CameraCapturePair p{};p.revision=seq;p.primary.sequence=seq;p.primary.camera_id=id;
     p.primary.view[0]=p.primary.view[5]=p.primary.view[10]=1;p.uniforms=p.primary;p.uniforms.camera_id=9;

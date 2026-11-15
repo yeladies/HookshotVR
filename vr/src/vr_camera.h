@@ -49,6 +49,13 @@ typedef struct VrCameraTransform { double world_from_eye[16],view[16]; } VrCamer
 VrCameraStatus vr_camera_build_pose(const VrCameraRig* rig,const VrCameraPose* pose,VrCameraTransform* out);
 /* Atomic output: failure leaves *out untouched. Rebuild from absolute poses each call. */
 VrCameraStatus vr_camera_build(const VrCameraRig* rig,const VrCameraSample* sample,VrCameraFrame* out);
+/* Use runtime eye FOVs while retaining a validated native perspective's exact
+   Z/W coefficients. sample.near_z/far_z are ignored; frame reports effective
+   distances decoded from those coefficients, not original producer parameters.
+   sample.clip/depth must name the source convention; flip_y still owns Y once.
+   Orthographic, oblique and noncanonical W projections are rejected atomically. */
+VrCameraStatus vr_camera_build_native_projection(const VrCameraRig* rig,const VrCameraSample* sample,
+                                                const double native_projection[16],VrCameraFrame* out);
 /* Conservative stereo-union culling. Invalid bounds/frame remain visible. */
 int vr_camera_bounds_visible(const VrCameraFrame* frame,const double minimum[3],const double maximum[3]);
 #ifdef __cplusplus

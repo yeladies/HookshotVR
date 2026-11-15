@@ -92,6 +92,42 @@ static void visibility(void){
     }
     double lo[3]={NAN,0,0},hi[3]={1,1,1};CHECK(vr_camera_bounds_visible(&f,lo,hi));
 }
+static void native_depth(void){
+    VrCameraRig r=rig();VrCameraSample s=sample();VrCameraFrame source,out,saved;
+    for(unsigned clip=0;clip<2;++clip)for(unsigned reverse=0;reverse<2;++reverse)for(unsigned infinite=0;infinite<2;++infinite){
+        s=sample();s.clip=(VrCameraClip)clip;s.depth=(VrCameraDepth)reverse;s.far_z=infinite?INFINITY:23456.7;
+        CHECK(vr_camera_build(&r,&s,&source)==VR_CAMERA_OK);
+        double native[16];for(unsigned i=0;i<16;++i)native[i]=(double)(float)source.eyes[0].projection[i];
+        /* Native XY/FOV and jitter must not leak into either XR eye. Depth is
+           copied bit-exact as a double representation of the source float. */
+        native[0]=.75;native[5]=-.9;native[2]=.001;native[6]=-.002;
+        s.near_z=NAN;s.far_z=NAN;s.flip_y=0;
+        CHECK(vr_camera_build_native_projection(&r,&s,native,&out)==VR_CAMERA_OK);
+        CHECK(out.eyes[0].projection[0]!=native[0]&&out.eyes[0].projection[5]>0);
+        for(unsigned eye=0;eye<2;++eye){
+            CHECK(!memcmp(out.eyes[eye].projection+10,native+10,2*sizeof(double)));
+            CHECK(out.eyes[eye].projection[14]==-1&&out.eyes[eye].projection[15]==0);
+            double at_near[4]={0,0,-out.near_z,1},result[4];transform(out.eyes[eye].projection,at_near,result);
+            const double expected=reverse?1:(clip?0:-1);CHECK(close_to(result[2]/result[3],expected));
+            CHECK(infinite?!out.eyes[eye].plane_enabled[5]:out.eyes[eye].plane_enabled[5]);
+        }
+        saved=out;
+        for(unsigned bad=0;bad<7;++bad){
+            double malformed[16];memcpy(malformed,native,sizeof malformed);
+            if(bad==0)malformed[8]=.1; /* oblique depth is not supported */
+            if(bad==1)malformed[14]=0;
+            if(bad==2)malformed[11]=0;
+            if(bad==3)malformed[10]=NAN;
+            if(bad==4)malformed[0]=0;
+            if(bad==5)malformed[11]=-malformed[11];
+            if(bad==6)malformed[15]=1;
+            CHECK(vr_camera_build_native_projection(&r,&s,malformed,&out)==VR_CAMERA_BAD_PROJECTION);
+            CHECK(!memcmp(&out,&saved,sizeof out));
+        }
+        CHECK(vr_camera_build_native_projection(&r,&s,NULL,&out)==VR_CAMERA_BAD_ARGUMENT);
+        CHECK(!memcmp(&out,&saved,sizeof out));
+    }
+}
 static void failures_are_atomic(void){
     VrCameraRig r=rig();VrCameraSample s=sample();VrCameraFrame f,saved;
     CHECK(vr_camera_build(&r,&s,&f)==VR_CAMERA_OK);saved=f;
@@ -112,4 +148,4 @@ static void failures_are_atomic(void){
     CHECK(vr_camera_build(NULL,&s,&f)==VR_CAMERA_BAD_ARGUMENT);CHECK(!memcmp(&f,&saved,sizeof f));
 #undef REJECT
 }
-int main(void){coordinates();projection_edges();visibility();failures_are_atomic();printf("Decoupled C camera: %u checks passed\n",checks);return 0;}
+int main(void){coordinates();projection_edges();visibility();native_depth();failures_are_atomic();printf("Decoupled C camera: %u checks passed\n",checks);return 0;}

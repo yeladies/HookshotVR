@@ -353,6 +353,16 @@ static void camera_cache_primary(uint64_t camera,const float* rows,int debug) {
     if(!camera||debug)camera_uniform_candidates_count=0;
     ReleaseSRWLockExclusive(&camera_cache_lock);
 }
+static int64_t camera_cached_present(uint64_t camera,const float rows[12]) {
+    int64_t owner=-1;
+    AcquireSRWLockShared(&camera_cache_lock);
+    host_vr_cache_owned_present(&camera_cache,camera?camera:camera_cache.primary,rows,&owner);
+    ReleaseSRWLockShared(&camera_cache_lock);
+    /* A first-person view without its original writer tag cannot borrow the
+       current present. Ordinary non-VR observations keep their old behavior. */
+    if(owner<0&&!env_on("HOS_VR_FIRST_PERSON"))owner=InterlockedCompareExchange(&presents,0,0);
+    return owner;
+}
 static void camera_cache_uniform(uint64_t address,const float* rows) {
     AcquireSRWLockExclusive(&camera_cache_lock);host_vr_cache_uniform(&camera_cache,address,rows);
     int found=0;for(size_t i=0;i<camera_uniform_candidates_count;++i)if(camera_uniform_candidates[i]==address)found=1;
@@ -365,19 +375,23 @@ int rx_vr_first_person_frame(MkwVkFirstPersonInput* input,MkwVkFirstPersonFrame*
     input->game_present=(int64_t)InterlockedCompareExchange(&presents,0,0);
     return vk->first_person_frame(input,out);
 }
-void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3], int debug) {
-    MkwVkCameraObservation sample = {0};
-    if(env_on("HOOKSHOT_VR_CAMERA_CAPTURE"))camera_cache_primary(camera,rows,debug);
-    sample.flags = MKWVK_CAMERA_PRIMARY | (debug ? MKWVK_CAMERA_DEBUG : 0);
-    sample.camera_id = camera;
-    memcpy(sample.view, rows, sizeof sample.view);
-    memcpy(sample.eye, eye, sizeof sample.eye);
-    camera_observe(&sample);
+static int64_t camera_publish_primary(uint64_t camera,const float rows[12],const double eye[3],int debug) {
+    if(!env_on("HOOKSHOT_VR_CAMERA_CAPTURE"))return -1;
+    camera_cache_primary(camera,rows,debug);
+    const int64_t owned_present=camera_cached_present(camera,rows);
+    MkwVkCameraObservation sample={0};sample.flags=MKWVK_CAMERA_PRIMARY|(debug?MKWVK_CAMERA_DEBUG:0);
+    sample.camera_id=camera;memcpy(sample.view,rows,sizeof sample.view);memcpy(sample.eye,eye,sizeof sample.eye);
+    camera_observe_at(&sample,owned_present);return owned_present;
+}
+void rx_xr_camera_view(uint64_t camera,const float rows[12],const double eye[3],int debug) {
+    camera_publish_primary(camera,rows,eye,debug);
 }
 void rx_vr_first_person_camera_observation(uint64_t camera, const float rows[12], const double eye[3], int64_t game_present) {
     if (!env_on("HOOKSHOT_VR_CAMERA_CAPTURE")) return;
     MkwVkCameraObservation sample = {0};
-    camera_cache_primary(camera,rows,0);
+    AcquireSRWLockExclusive(&camera_cache_lock);
+    host_vr_cache_owned_primary(&camera_cache,camera,rows,game_present);
+    ReleaseSRWLockExclusive(&camera_cache_lock);
     sample.flags=MKWVK_CAMERA_PRIMARY;sample.camera_id=camera;
     memcpy(sample.view,rows,sizeof sample.view);memcpy(sample.eye,eye,sizeof sample.eye);
     // Preserve the frame that built these rows, even if another thread presents
@@ -393,7 +407,7 @@ static void camera_observe_uniform(uint64_t projection, const float matrix[16]) 
     memcpy(sample.view, GP(sample.camera_id), sizeof sample.view);
     camera_cache_uniform(sample.camera_id,sample.view);
     memcpy(sample.projection, matrix, sizeof sample.projection);
-    camera_observe(&sample);
+    camera_observe_at(&sample,camera_cached_present(0,sample.view));
 }
 void rx_nvn_present(const nvn_tex *t, const int crop[4]) {
     InterlockedIncrement(&presents);
@@ -461,7 +475,7 @@ static void camera_observe_submit(void) {
         MkwVkCameraObservation invalid={0};invalid.flags=MKWVK_CAMERA_PRIMARY;camera_observe(&invalid);
         ReleaseSRWLockExclusive(&refresh_lock);return;
     }
-    rx_xr_camera_view(current.camera,current.rows,current.eye,0);
+    const int64_t observed_present=camera_publish_primary(current.camera,current.rows,current.eye,0);
     uint64_t candidates[17];size_t candidate_count=0;
     AcquireSRWLockExclusive(&camera_cache_lock);
     if(camera_cache.uniform)candidates[candidate_count++]=camera_cache.uniform;
@@ -472,7 +486,8 @@ static void camera_observe_submit(void) {
         if(!camera_read_guest(object,sample.view,sizeof sample.view,NULL)||object>UINT64_MAX-0x1a8||
            !camera_read_guest(object+0x1a8,sample.projection,sizeof sample.projection,NULL))continue;
         HostVrCameraCache check={0};host_vr_cache_primary(&check,current.camera,current.rows,0);host_vr_cache_uniform(&check,object,sample.view);
-        if(check.uniform==object)camera_observe(&sample);
+        if(check.uniform==object&&(!env_on("HOS_VR_FIRST_PERSON")||!memcmp(sample.view,current.rows,sizeof sample.view)))
+            camera_observe_at(&sample,observed_present);
     }
     ReleaseSRWLockExclusive(&refresh_lock);
 }

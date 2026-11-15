@@ -35,6 +35,18 @@ int main(){try{
     check(cache.uniform==9000,"main-view uniform cached");auto other=out;other.rows[3]+=5;host_vr_cache_uniform(&cache,10000,other.rows);
     check(cache.uniform==9000,"auxiliary view does not replace main-view provenance");host_vr_cache_primary(&cache,6000,out.rows,0);
     check(cache.uniform==0,"camera identity change clears prior uniform");host_vr_cache_primary(&cache,6000,out.rows,1);check(cache.primary==0,"debug camera excluded");
+    int64_t owner=-7;host_vr_cache_owned_primary(&cache,out.camera,out.rows,41);
+    check(host_vr_cache_owned_present(&cache,out.camera,out.rows,&owner)&&owner==41,"writer owns the actual view tag");
+    host_vr_cache_primary(&cache,out.camera,out.rows,0);
+    check(host_vr_cache_owned_present(&cache,out.camera,out.rows,&owner)&&owner==41,"later submit refresh retains original tag");
+    auto close=out;close.rows[3]+=.00001f;host_vr_cache_primary(&cache,out.camera,close.rows,0);owner=-7;
+    check(!host_vr_cache_owned_present(&cache,out.camera,close.rows,&owner)&&owner==-7,"changed but numerically close view cannot borrow a tag");
+    host_vr_cache_owned_primary(&cache,out.camera,out.rows,42);host_vr_cache_primary(&cache,out.camera+1,out.rows,0);
+    check(!host_vr_cache_owned_present(&cache,out.camera+1,out.rows,&owner),"different camera invalidates writer tag");
+    host_vr_cache_owned_primary(&cache,out.camera,out.rows,43);host_vr_cache_primary(&cache,out.camera,out.rows,1);
+    check(!host_vr_cache_owned_present(&cache,out.camera,out.rows,&owner),"debug view invalidates tag");
+    host_vr_cache_owned_primary(&cache,out.camera,out.rows,-1);
+    check(!host_vr_cache_owned_present(&cache,out.camera,out.rows,&owner),"invalid writer tag rejected");
     float visibility=0;check(host_vr_visibility_tangent(2.28f,.96375f,160,&visibility)&&visibility>5.8f,"wide visibility extent independent of raster lens");
     check(2*std::atan(visibility)*180/3.141592653589793>=159.99&&2*std::atan(visibility*.96375)*180/3.141592653589793>=159.99,"both visibility axes cover requested angle");
     const auto saved_visibility=visibility;check(!host_vr_visibility_tangent(2.28f,.96375f,161,&visibility)&&visibility==saved_visibility,"out-of-bound visibility rejected atomically");

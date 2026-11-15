@@ -724,3 +724,11 @@ add_test(NAME vr_camera_payload_history_policy COMMAND hookshot_vr_camera_histor
 if(Python3_Interpreter_FOUND)
     add_test(NAME vr_camera_payload_history_audit COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_camera_history_audit.py")
 endif()
+
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_camera_temporal_consumers COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_camera_consumers.py")
+endif()
+
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_camera_writer_owned_tag COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_camera_owner_tag.py" --compiler "${CMAKE_CXX_COMPILER}")
+endif()

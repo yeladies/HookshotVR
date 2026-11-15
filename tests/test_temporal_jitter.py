@@ -55,8 +55,13 @@ def main():
     cache = 'static void camera_cache_uniform(' in host
     fixture = fixture.replace('/* HOST_CAMERA_CACHE_FLAG */', '#define HOST_CAMERA_CACHE_AVAILABLE ' + str(int(cache)))
     cache_helper = ('#include "host/vr_camera_read.h"\nstatic HostVrCameraCache camera_cache;\nstatic uint64_t camera_uniform_candidates[16];static size_t camera_uniform_candidates_count;\nstatic SRWLOCK camera_cache_lock=SRWLOCK_INIT;\n' + block(host, 'static void camera_cache_primary(') + '\n' + block(host, 'static void camera_cache_uniform(') + '\n') if cache else ''
+    transport_helpers = ''
+    if 'static int64_t camera_cached_present(' in host:
+        transport_helpers += block(host, 'static int64_t camera_cached_present(') + '\n'
+    if 'static int64_t camera_publish_primary(' in host:
+        transport_helpers += block(host, 'static int64_t camera_publish_primary(') + '\n'
     fixture = fixture.replace("/* HOST_CAMERA_OBSERVER */",
-        cache_helper + block(host, "void rx_xr_camera_view(") + "\n" + block(host, "static void camera_observe_uniform(") if observer else "")
+        cache_helper + transport_helpers + block(host, "void rx_xr_camera_view(") + "\n" + block(host, "static void camera_observe_uniform(") if observer else "")
     with tempfile.TemporaryDirectory(prefix="temporal-jitter-") as folder:
         root = Path(folder)
         cpp, exe = root / "fixture.cpp", root / "fixture.exe"

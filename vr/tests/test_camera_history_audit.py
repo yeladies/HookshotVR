@@ -63,6 +63,17 @@ class History(unittest.TestCase):
                 if change=='bool_submit':rows[0]['source_nvn_submit']=True
                 (root/'index.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in rows))
                 with self.assertRaises(ValueError):audit.analyze(root)
+    def test_native_projection_coverage_and_unavailable_claims(self):
+        rows=[{'first_person_projection':dict(available=True,center_matches=True,depth_exact=True,fov_matches=True,synthetic=True,
+            sequence=k+1,origin=1,predicted_time=100+k,observed_ns=50+k,effective_near=.1,effective_far=1000,eye_separation_world=.064)} for k in range(32)]
+        result=audit.projection_evidence(rows)
+        self.assertTrue(result['native_projection_audit_coverage_complete']);self.assertEqual(result['native_projection_synthetic_samples'],32)
+        rows[0]['first_person_projection']['depth_exact']=False
+        self.assertFalse(audit.projection_evidence(rows)['native_projection_audit_coverage_complete'])
+        rows[0]['first_person_projection']['available']=False
+        with self.assertRaises(ValueError):audit.projection_evidence(rows)
+        with self.assertRaises(ValueError):audit.projection_evidence(rows+[{}])
+        self.assertFalse(audit.projection_evidence([{}])['native_projection_audit_coverage_complete'])
     def test_stationary_capture_is_not_temporal_proof(self):
         with tempfile.TemporaryDirectory() as d:
             fixture(Path(d),False)

@@ -13,6 +13,18 @@ bool xr_first_person_projection(int64_t game_present,double near_z,double far_z,
     auto& context=first_person_context();std::lock_guard lock(context.mutex);
     return context.rig.project(game_present,near_z,far_z,*out);
 }
+bool xr_first_person_native_projection(int64_t game_present,const float projection[16],FirstPersonProjectionPacket* out,FirstPersonProjectionLookup* lookup){
+    if(!projection||!out)return false;
+    double native[16];for(unsigned i=0;i<16;++i)native[i]=projection[i];
+    auto& context=first_person_context();std::lock_guard lock(context.mutex);
+    return context.rig.project(game_present,0,0,*out,native,lookup);
+}
+FirstPersonProjectionEvidence xr_first_person_native_projection_evidence(int64_t game_present,const float view[12],const float projection[16]){
+    FirstPersonProjectionPacket packet{};FirstPersonProjectionLookup lookup{};
+    const bool available=xr_first_person_native_projection(game_present,projection,&packet,&lookup);
+    auto evidence=available?first_person_projection_evidence(packet,view,projection):FirstPersonProjectionEvidence{};
+    evidence.lookup=lookup;return evidence;
+}
 int xr_first_person_frame(const MkwVkFirstPersonInput* input,MkwVkFirstPersonFrame* out){
     if(!input||!out||input->size!=sizeof *input||out->size!=sizeof *out)return 0;
     auto& context=first_person_context();auto& mutex=context.mutex;auto& rig=context.rig;auto& epoch=context.epoch;
