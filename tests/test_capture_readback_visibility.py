@@ -42,7 +42,7 @@ def main():
     helper_end = source.index("void do_present(", helper_start)
     helper = source[helper_start:helper_end]
     start = source.index("        if (shot && made_src && made_map) {")
-    end = source.index("        } else if (shot)", start)
+    end = source.index("        } else if (shot&&!preview_taken)", start)
     made = source[start:end] + "\n}\n"
     start = source.index("void framelog_collect(int slot) {")
     end = source.index("    {   // (a picture blown out", start)

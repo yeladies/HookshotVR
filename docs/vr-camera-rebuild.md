@@ -1,5 +1,7 @@
 # Camera rebuild / Reconstrucción de cámara
 
+**First-person milestone / Hito de primera persona:** root/eye anchoring and private head masking now run in the isolated real game; wide horizontal/vertical scene-camera audits pass. Complete native stereo remains pending. [Implementation, results and limitations / Implementación, resultados y límites](vr-first-person.md).
+
 ## English — 2026-11-15
 
 Status: replacement camera foundation, **not a playable native-stereo build**. The user approved this rewrite after reviewing the mathematical diagnosis and retirement inventory. Do not launch the withdrawn headset profiles from this branch.

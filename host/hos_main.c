@@ -1344,6 +1344,103 @@ void hos_oot_flight_pose(Ctx *c, uint64_t actor, uint64_t matrix) {
 #endif
 }
 
+#if defined(_WIN32) || defined(__linux__)
+/* Opt-in first-person root observation. No bone animation, game camera, shake,
+   target interpolation or collision-corrected third-person eye enters the rig. */
+typedef struct OotFirstPersonRoot {
+    uint64_t actor;
+    int64_t seen;
+    double position[3], yaw;
+    int child;
+} OotFirstPersonRoot;
+static OotFirstPersonRoot first_person_root;
+static SRWLOCK first_person_root_lock = SRWLOCK_INIT;
+static void oot_first_person_observe(Ctx *c, uint64_t actor) {
+    if (!env_on("HOS_VR_FIRST_PERSON")) return;
+    OotFirstPersonRoot next = {0};
+    int child;
+    if (!oot_gamedata_bool(c, 0xcea220d3u, &child)) return;
+    next.actor = actor;
+    next.child = !!child;
+    next.seen = hos_now_ns();
+    for (unsigned k = 0; k < 3; ++k) {
+        next.position[k] = oot_load_float(c, actor + 796 + k * 4);
+        if (!isfinite(next.position[k])) return;
+    }
+    const double x = oot_load_float(c, actor + 816), z = oot_load_float(c, actor + 840);
+    if (!isfinite(x) || !isfinite(z) || hypot(x, z) < .5) return;
+    next.yaw = atan2(x, z);
+    AcquireSRWLockExclusive(&first_person_root_lock);
+    first_person_root = next;
+    ReleaseSRWLockExclusive(&first_person_root_lock);
+}
+static int oot_first_person_number(const char *name, double lo, double hi, double *out) {
+    const char *text = getenv(name);
+    if (!text || !*text) return 0;
+    char *end;
+    const double value = strtod(text, &end);
+    if (*end || !isfinite(value) || value < lo || value > hi) return 0;
+    *out = value;
+    return 1;
+}
+static int oot_build_first_person_view(Ctx *c, uint64_t view) {
+    if (!env_on("HOS_VR_FIRST_PERSON")) return 0;
+    OotFirstPersonRoot root;
+    AcquireSRWLockShared(&first_person_root_lock);
+    root = first_person_root;
+    ReleaseSRWLockShared(&first_person_root_lock);
+    const int64_t now = hos_now_ns();
+    if (!root.actor || now < root.seen || now - root.seen > 250000000) return 0;
+    MkwVkFirstPersonInput in;
+    MkwVkFirstPersonFrame frame;
+    memset(&in, 0, sizeof in);
+    memset(&frame, 0, sizeof frame);
+    in.size = sizeof in; frame.size = sizeof frame;
+    in.actor_id = root.actor;
+    in.body_yaw = root.yaw;
+    memcpy(in.root_position, root.position, sizeof in.root_position);
+    if (env_on("HOOKSHOT_VR_FIRST_PERSON_SYNTHETIC")) in.flags = MKWVK_FP_SYNTHETIC_INPUT;
+    if (!oot_first_person_number(root.child ? "HOOKSHOT_VR_EYE_CHILD" : "HOOKSHOT_VR_EYE_ADULT", .05, 10, &in.eye_height) ||
+        !oot_first_person_number(root.child ? "HOOKSHOT_VR_FORWARD_CHILD" : "HOOKSHOT_VR_FORWARD_ADULT", -5, 5, &in.forward_offset) ||
+        !oot_first_person_number("HOOKSHOT_VR_UNITS_PER_METRE", .001, 1000, &in.world_units_per_metre)) return 0;
+    int rx_vr_first_person_frame(MkwVkFirstPersonInput *, MkwVkFirstPersonFrame *);
+    if (!rx_vr_first_person_frame(&in, &frame)) return 0;
+    /* Commit the rows and all known eye/target/up caches from the same sample.
+       The original view is not an input. Other cameras and bytes are untouched. */
+    for (unsigned k = 0; k < 12; ++k) {
+        uint32_t bits; memcpy(&bits, frame.head_view + k, sizeof bits);
+        recomp_store32(c, view + 8 + k * 4, bits);
+    }
+    for (unsigned k = 0; k < 9; ++k) {
+        uint32_t bits; memcpy(&bits, frame.eye_target_up + k, sizeof bits);
+        recomp_store32(c, view + 56 + k * 4, bits);
+    }
+    for (unsigned k = 0; k < 3; ++k) {
+        uint64_t bits; memcpy(&bits, frame.eye_position + k, sizeof bits);
+        recomp_store64(c, view + 96 + k * 8, bits);
+        memcpy(&bits, frame.look_target + k, sizeof bits);
+        recomp_store64(c, view + 120 + k * 8, bits);
+    }
+    if (env_on("HOOKSHOT_VR_CAMERA_CAPTURE")) {
+        void rx_xr_camera_view(uint64_t, const float *, const double *, int);
+        rx_xr_camera_view(view, frame.head_view, frame.eye_position, 0);
+    }
+    static int64_t logged;
+    if (!logged || now - logged >= 500000000) {
+        logged = now;
+        hos_log("vr-first-person: %s actor=%#llx age=%s seq=%llu origin=%llu root=%.4f,%.4f,%.4f eye=%.4f,%.4f,%.4f height=%.4f forward=%.4f units=%.4f flags=%u direction=%.5f,%.5f,%.5f",
+            in.flags ? "synthetic" : "tracked", (unsigned long long)root.actor, root.child ? "child" : "adult",
+            (unsigned long long)frame.tracking_sequence, (unsigned long long)frame.origin_generation,
+            root.position[0], root.position[1], root.position[2], frame.eye_position[0], frame.eye_position[1], frame.eye_position[2],
+            in.eye_height, in.forward_offset, in.world_units_per_metre, frame.flags,
+            (frame.look_target[0]-frame.eye_position[0])/in.world_units_per_metre,
+            (frame.look_target[1]-frame.eye_position[1])/in.world_units_per_metre,
+            (frame.look_target[2]-frame.eye_position[2])/in.world_units_per_metre);
+    }
+    return 1;
+}
+#endif
+
 void hos_oot_lift_player(Ctx *c, uint64_t actor) {
 #if defined(_WIN32) || defined(__linux__)   /* (the debug tools: host/posix has what they call) */
     flight_pose_actor = 0;
@@ -1352,6 +1449,8 @@ void hos_oot_lift_player(Ctx *c, uint64_t actor) {
     const uint64_t movement = components ? recomp_load64(c, components + 800) : 0;
     if (movement < HOS_HEAP_BASE + 0x1d50 || recomp_load64(c, movement + 24) != actor ||
         !hos_oot_is_player(c, movement - 0x1d50)) return;
+
+    oot_first_person_observe(c, actor);
 
     // Link can be updated by different guest workers on successive frames.
     static SRWLOCK cheats_lock = SRWLOCK_INIT;
@@ -1436,6 +1535,7 @@ void hos_oot_free_view(Ctx *c, uint64_t view) {
     AcquireSRWLockExclusive(&lock);
     const int enabled = rx_option(HOS_OPT_CHEAT_CAMERA, 0);
     oot_build_free_view(c, enabled ? view : 0, view + 8);
+    if (!enabled) oot_build_first_person_view(c, view);
     ReleaseSRWLockExclusive(&lock);
 #else
     (void)c;

@@ -1,7 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "vk_api.h"
 #include <stddef.h>
-_Static_assert(MKWVK_API_VERSION == 20, "head camera callback requires ABI 20");
+_Static_assert(MKWVK_API_VERSION == 21, "first-person rig callback requires ABI 21");
+_Static_assert(sizeof(MkwVkFirstPersonInput) == 88, "first-person input wire layout");
+_Static_assert(sizeof(MkwVkFirstPersonFrame) == 304, "first-person frame wire layout");
+_Static_assert(offsetof(MkwVkFirstPersonFrame,head_view) == 88, "first-person matrix offset");
 _Static_assert(sizeof(MkwVkCameraObservation) == 176, "camera observation wire layout");
 void vr_camera_c_fixture(void (*receive)(const MkwVkCameraObservation *), size_t sizes[3]) {
     sizes[0]=sizeof(MkwVkCameraObservation);sizes[1]=offsetof(MkwVkCameraObservation,view);sizes[2]=offsetof(MkwVkCameraObservation,projection);

@@ -203,10 +203,16 @@ bool xr_baseline_recorder_prepare(XrBaselineRecorder* p){
     if(!memory_xr_uniform_copy_source(in.camera.buffer,in.recording,source)||!xr_uniform_copy_source_valid(source,in.camera.buffer,in.camera.offset,in.camera.range,p->source_stamp)||vk_timeline_completed()>=in.recording)return false;
     if(!p->attempt.prepare(in.serial,in.recording,in.program,identity(p->device),identity(in.command)))return false;
     end_pass(in.command);p->prepared=true; // Every allocation is now protected by the actual queue value.
+    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);
     const bool color=p->color.record_initial_copy(in.command,in.recording),depth=p->depth.record_initial_copy(in.command,in.recording);
     note_work(); // The image factory uses raw function pointers rather than vk_work wrappers.
     if(!color||!depth){p->attempt.abandon();return false;}
-    if(in.shifted_draw_probe&&(!p->shift_color.record_initial_copy(in.command,in.recording)||!p->shift_depth.record_initial_copy(in.command,in.recording))){p->attempt.abandon();return false;}
+    if(in.shifted_draw_probe){
+        ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);
+        const bool shift_color=p->shift_color.record_initial_copy(in.command,in.recording),shift_depth=p->shift_depth.record_initial_copy(in.command,in.recording);
+        note_work();
+        if(!shift_color||!shift_depth){p->attempt.abandon();return false;}
+    }
     order(in.command,VK_PIPELINE_STAGE_2_COPY_BIT,VK_ACCESS_2_TRANSFER_READ_BIT|VK_ACCESS_2_TRANSFER_WRITE_BIT);
     for(auto buffer:p->uniforms){VkBufferCopy copy{in.camera.offset,0,in.camera.range};vkCmdCopyBuffer(in.command,in.camera.buffer,buffer,1,&copy);}
     color_readback(*p,in.depth_reference?in.depth.image:in.color.image,0);

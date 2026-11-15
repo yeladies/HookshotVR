@@ -1,5 +1,7 @@
 # Status, evidence and roadmap
 
+**First-person work:** the local game now has an opt-in root/eye anchor, coherent view caches, an immutable camera packet and private head-geometry masking. Native complete-scene stereo remains pending. [Implementation and isolated tests](../../vr-first-person.md).
+
 **Camera rebuild branch — 2026-11-15.** The depth camera and its launchers are retired; the prototype is archived. A new C module separates rig/poses and builds asymmetric projections, but complete per-eye scene rendering is still pending. [Current status, diagnosis and remaining gates](../../vr-camera-rebuild.md). Entries below describe historical experiments.
 
 Quest check on 2026-11-15: the user accepts Tuned geometry/FOV and reports good fluency, decent detail and a minor Link halo. Blackouts persist, though reduced. New counters attribute recorded missing layers to aged source poses, with no tracking/API errors. A same-binary 3200-source/2304-eye Performance comparison is being tested; Tuned 3584 remains available. [Results and interpretation](../../vr-coherent-view-and-gaps.md).

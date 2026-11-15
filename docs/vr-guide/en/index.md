@@ -1,5 +1,7 @@
 # HookshotVR — project guide
 
+**First-person work:** the local game now has an opt-in root/eye anchor, coherent view caches, an immutable camera packet and private head-geometry masking. Native complete-scene stereo remains pending. [Implementation and isolated tests](../../vr-first-person.md).
+
 **Camera rebuild branch:** headset depth-camera profiles are retired. [Read the current rebuild status](../../vr-camera-rebuild.md) before using the historical commands below. No new native-stereo headset test is ready.
 
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/index.md)

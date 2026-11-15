@@ -357,6 +357,11 @@ static void camera_cache_uniform(uint64_t address,const float* rows) {
         camera_uniform_candidates[camera_uniform_candidates_count++]=address;}
     ReleaseSRWLockExclusive(&camera_cache_lock);
 }
+int rx_vr_first_person_frame(MkwVkFirstPersonInput* input,MkwVkFirstPersonFrame* out) {
+    if(!env_on("HOS_VR_FIRST_PERSON")||!vk||!vk->first_person_frame||!input||!out)return 0;
+    input->game_present=(int64_t)InterlockedCompareExchange(&presents,0,0);
+    return vk->first_person_frame(input,out);
+}
 void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3], int debug) {
     MkwVkCameraObservation sample = {0};
     if(env_on("HOOKSHOT_VR_CAMERA_CAPTURE"))camera_cache_primary(camera,rows,debug);

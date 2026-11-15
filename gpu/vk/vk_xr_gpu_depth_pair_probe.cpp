@@ -125,7 +125,7 @@ void xr_gpu_depth_pair_probe_network(VkCommandBuffer command,uint64_t recording,
     // descriptors are rebound and both eyes use the same retained source lease.
     p.last_parameters=cameras;p.source=std::move(source);p.recording=recording;p.last_state=p.source->state;
     depth_probe_order(command,VK_PIPELINE_STAGE_2_TRANSFER_BIT,VK_ACCESS_2_TRANSFER_WRITE_BIT);
-    note_work();vkCmdUpdateBuffer(command,p.parameters.buffer,0,sizeof cameras,cameras.data());note_work();vkCmdFillBuffer(command,p.counters.buffer,0,32,0);
+    vkCmdUpdateBuffer(command,p.parameters.buffer,0,sizeof cameras,cameras.data());vkCmdFillBuffer(command,p.counters.buffer,0,32,0);
     depth_probe_order(command,VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,VK_ACCESS_2_SHADER_READ_BIT|VK_ACCESS_2_SHADER_WRITE_BIT);
     vkCmdBindPipeline(command,VK_PIPELINE_BIND_POINT_COMPUTE,p.pipeline);
     for(const auto& dispatch:dispatches){vkCmdPushConstants(command,p.layout,VK_SHADER_STAGE_COMPUTE_BIT,0,sizeof dispatch,&dispatch);vkCmdDispatch(command,(p.width+7)/8,(p.height+7)/8,1);}

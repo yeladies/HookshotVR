@@ -1,5 +1,7 @@
 # Cómo compilar y probar
 
+**Primera persona:** el juego local ya dispone de anclaje a raíz/ojos, cachés coherentes, un paquete de cámara inmutable y máscara privada de geometría de cabeza. Sigue pendiente el estéreo nativo de la escena completa. [Implementación y pruebas aisladas](../../vr-first-person.md).
+
 **Rama de reconstrucción:** los perfiles de cámara por profundidad están retirados. [Consulta el estado actual](../../vr-camera-rebuild.md) antes de usar los comandos históricos de esta página. Todavía no hay una nueva prueba de estéreo nativo para el visor.
 
 Comparación combinada actual: [fuente 4096, ojos 2560 y visibilidad separada](../../vr-combined-visibility-quality.md). Usa `-Profile Combined` para probar ambos cambios juntos; el flujo del juego está comprobado, pero siguen faltando geometría y continuidad en el visor.

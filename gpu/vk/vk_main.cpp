@@ -22,6 +22,7 @@
 #include "vk_menu.h"
 #include "vk_dlss.h"
 #include "vk_xr.h"
+#include "xr_first_person_rig.h"
 #include "xr_gpu_scene_source.h"
 #include "xr_gpu_depth_pair_probe.h"
 #include "xr_gpu_eye_stream.h"
@@ -1392,6 +1393,7 @@ const MkwVkRenderer* mkwvk_init(const MkwVkHost* h) {
     // The depth-camera callbacks are retired. ABI 20 slots remain null.
     table.head_camera = nullptr;
     table.head_lens = nullptr;
+    table.first_person_frame = xr_first_person_frame;
     return &table;
 }
 

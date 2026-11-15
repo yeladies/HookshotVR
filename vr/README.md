@@ -1,5 +1,9 @@
 # HookshotVR development
 
+**Camera rebuild:** old immersive/depth launchers are retired. Root-anchored first person is being checked in isolated desktop runs; complete native stereo is still pending. [Current implementation and results](../docs/vr-first-person.md).
+
+**Reconstrucción de cámara:** los lanzadores inmersivos/depth antiguos están retirados. La primera persona se verifica en ejecuciones aisladas de escritorio; sigue pendiente el estéreo nativo completo. [Implementación y resultados](../docs/vr-first-person.md).
+
 Latest combined candidate: [4096 source, 2560 eyes and separated 160-degree visibility fields](../docs/vr-combined-visibility-quality.md). The user confirms much better detail and perceived smooth motion in Combined, but missing geometry and intermittent blackouts remain. Overall headset acceptance is pending.
 
 Experimental PCVR adaptation for Quest 3 on Windows, initially through Virtual Desktop / VDXR.

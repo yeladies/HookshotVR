@@ -1,8 +1,7 @@
-> **HookshotVR development:** this branch starts an experimental Quest 3 / OpenXR adaptation.
-> Experimental live-camera, wide-FOV and temporal-stereo tests are available; native same-frame stereo remains in development.
-> See [VR setup](vr/README.md), [optics test](docs/vr-temporal-stereo-preview.md) and [roadmap](docs/vr-roadmap.md).
-> **Project pages / Páginas del proyecto:** [English](docs/vr-guide/en/index.md) · [Castellano](docs/vr-guide/es/index.md).
-> Moving depth previews are implemented; native full-game VR remains in development.
+> **HookshotVR — camera rebuild in progress.** The old depth/temporal camera and its launchers are retired and preserved on `vr/archive-depth-camera-20261115`.
+> Root-anchored first person and private head masking now pass isolated real-game checks. Complete native scene stereo and headset acceptance remain pending.
+> **Estado:** la primera persona y la máscara de cabeza funcionan en pruebas aisladas del juego real. El estéreo nativo completo y la prueba en visor siguen pendientes; los lanzadores antiguos están retirados.
+> [First-person implementation / Implementación de primera persona](docs/vr-first-person.md) · [English guide](docs/vr-guide/en/index.md) · [Guía en castellano](docs/vr-guide/es/index.md).
 > The upstream Hookshot documentation follows below.
 
 <h1 align="center">

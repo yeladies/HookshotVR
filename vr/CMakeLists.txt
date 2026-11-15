@@ -682,3 +682,34 @@ add_test(NAME vr_camera_pose_before_end COMMAND hookshot_vr_early_pose_tests "$<
 set_tests_properties(vr_camera_pose_before_end PROPERTIES TIMEOUT 15)
 
 target_sources(hookshot_vr_early_pose_tests PRIVATE tests/gpu_eye_feed_empty.cpp)
+
+add_executable(hookshot_vr_first_person_rig_tests tests/first_person_rig_test.cpp)
+target_include_directories(hookshot_vr_first_person_rig_tests PRIVATE ../gpu/vk "${vr_vulkan_include}")
+target_link_libraries(hookshot_vr_first_person_rig_tests PRIVATE hookshot_vr_camera)
+if(NOT MSVC)
+    target_compile_options(hookshot_vr_first_person_rig_tests PRIVATE -Wall -Wextra -Werror)
+endif()
+if(MINGW)
+    target_link_options(hookshot_vr_first_person_rig_tests PRIVATE -static)
+endif()
+add_test(NAME vr_first_person_rig COMMAND hookshot_vr_first_person_rig_tests)
+
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_first_person_assets COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_first_person_assets.py")
+endif()
+
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_first_person_host_writer COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_first_person_hook.py" --compiler "${CMAKE_CXX_COMPILER}")
+endif()
+
+if(Python3_Interpreter_FOUND)
+    add_test(NAME vr_first_person_head_mask COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_first_person_head_mask.py")
+endif()
+
+add_executable(hookshot_vr_first_person_callback_tests tests/first_person_callback_test.cpp ../gpu/vk/vk_xr_first_person.cpp)
+target_include_directories(hookshot_vr_first_person_callback_tests PRIVATE ../gpu/vk "${vr_vulkan_include}")
+target_link_libraries(hookshot_vr_first_person_callback_tests PRIVATE hookshot_vr_camera Threads::Threads)
+if(MINGW)
+    target_link_options(hookshot_vr_first_person_callback_tests PRIVATE -static)
+endif()
+add_test(NAME vr_first_person_callback COMMAND hookshot_vr_first_person_callback_tests)

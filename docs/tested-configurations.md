@@ -79,3 +79,10 @@ otherwise.
 - Real mouse aiming with Mouse camera = Native after #1462 (the camera states were traced, but not tested with a real mouse).
 - Frame generation at 120 Hz or above (the displays here top out at 75 Hz).
 - HDR output on an HDR monitor (the surface is offered, the picture was not judged on one).
+
+
+## HookshotVR first-person milestone — 2026-11-15
+
+Windows, RTX 2060 SUPER, 16 GB RAM; native SDK source `3f307691`, ABI 21. Six bounded private-save game checks cover the root/eye anchor, head geometry mask, synthetic rotation/translation and real player movement. Wide yaw/pitch also match the new view to native scene/submission camera data. The isolated GPU root-alias diagnostic passes after recorder ordering fixes; default-off opens no XR session. All 19 stable-installation manifest hashes are unchanged. Captures, generated models, profiles, payloads and binaries remain private. [Evidence and limits](vr-first-person.md).
+
+**Castellano:** primera persona y máscara de cabeza comprobadas en seis ejecuciones privadas del juego; los barridos amplios relacionan la cámara nueva con los draws reales. Pasan el diagnóstico GPU de aliases y el arranque con VR desactivado. Los 19 hashes de la instalación estable siguen intactos. No se abre el visor: siguen pendientes el renderizado nativo completo por ojo, proyección/descartes, historiales y HUD.

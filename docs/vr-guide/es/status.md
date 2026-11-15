@@ -1,5 +1,7 @@
 # Estado, resultados y hoja de ruta
 
+**Primera persona:** el juego local ya dispone de anclaje a raíz/ojos, cachés coherentes, un paquete de cámara inmutable y máscara privada de geometría de cabeza. Sigue pendiente el estéreo nativo de la escena completa. [Implementación y pruebas aisladas](../../vr-first-person.md).
+
 **Rama de reconstrucción de cámara — 15-11-2026.** La cámara por profundidad y sus lanzadores están retirados; el prototipo queda archivado. Existe un módulo C nuevo con rig/poses separados y proyección asimétrica, todavía sin renderizado completo por ojo. [Estado actual, diagnóstico y pasos pendientes](../../vr-camera-rebuild.md). Las entradas siguientes documentan pruebas históricas.
 
 Prueba Quest del 15-11-2026: el usuario acepta geometría/FOV de Tuned, fluidez buena y detalle decente; queda un halo menor alrededor de Link. Los apagones persisten, aunque reducidos. Los nuevos contadores relacionan las capas omitidas con poses fuente antiguas, sin fallos de seguimiento/API. Se prueba Performance 3200/2304 con el mismo binario y se conserva Tuned 3584. [Resultados e interpretación](../../vr-coherent-view-and-gaps.md).

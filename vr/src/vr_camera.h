@@ -44,6 +44,9 @@ typedef struct VrCameraFrame {
     double world_units_per_metre,near_z,far_z,world_from_head[16];
     VrCameraEye eyes[2];
 } VrCameraFrame;
+typedef struct VrCameraTransform { double world_from_eye[16],view[16]; } VrCameraTransform;
+/* Pose-only conversion for the independent head/eye rig. No invented clipping planes. */
+VrCameraStatus vr_camera_build_pose(const VrCameraRig* rig,const VrCameraPose* pose,VrCameraTransform* out);
 /* Atomic output: failure leaves *out untouched. Rebuild from absolute poses each call. */
 VrCameraStatus vr_camera_build(const VrCameraRig* rig,const VrCameraSample* sample,VrCameraFrame* out);
 /* Conservative stereo-union culling. Invalid bounds/frame remain visible. */

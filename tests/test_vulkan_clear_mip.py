@@ -52,7 +52,12 @@ union Color { float f[4]; uint32_t u[4]; };
 struct nvn_p_clear_tex { const nvn_tex* tex; nvn_view view{}; bool has_view=true; NVNcopyRegion r{}; uint32_t mask=15; Color c{}; };
 struct TextureAttachment { VkImageView view; VkFormat format; VkImage blocks; };
 unsigned selected_mip, expected_mip, first_layer, clear_count, whole_count, touched[4][4];
-unsigned block_copies;
+unsigned block_copies, lineage_count;
+enum class ImageWorkKind { Clear };
+struct Texture;
+void transfer_lineage(ImageWorkKind kind,const Texture* source,const Texture* target) {
+    CHECK(kind==ImageWorkKind::Clear && !source && target); ++lineage_count;
+}
 void warn(int, const char*) {}
 template<typename... T> void logf(const char*,T...) {}
 Texture* texture_get(const nvn_tex*,bool) { return &tex; }
@@ -109,7 +114,7 @@ void vkCmdClearColorImage(VkCommandBuffer,VkImage,VkImageLayout,const VkClearCol
 void vkCmdClearDepthStencilImage(VkCommandBuffer,VkImage,VkImageLayout,const VkClearDepthStencilValue*,uint32_t,const VkImageSubresourceRange*) { CHECK(false); }
 ''' + block(texture, "void copy_block_attachment(") + "\n" + block(source, "struct Sub {") + ";\n" + block(source, "bool resolve(") + "\n" + block(source, "void clear_tex(") + r'''
 void run(uint32_t skip,uint32_t logical,uint32_t layer,bool whole) {
-    tex=Texture{}; tex.skip=skip; std::memset(touched,0,sizeof touched); clear_count=whole_count=0;
+    tex=Texture{}; tex.skip=skip; std::memset(touched,0,sizeof touched); clear_count=whole_count=lineage_count=0;
     expected_mip=logical-skip;
     nvn_tex input; nvn_p_clear_tex p{&input}; p.view.set_levels=true; p.view.base_level=(uint8_t)logical; p.view.nlevels=1;
     p.view.set_layers=true; p.view.min_layer=(uint16_t)layer; p.view.nlayers=2;
@@ -117,7 +122,7 @@ void run(uint32_t skip,uint32_t logical,uint32_t layer,bool whole) {
     p.r.width=whole ? (int32_t)(tex.width>>expected_mip) : 2;
     p.r.height=whole ? (int32_t)(tex.height>>expected_mip) : 2; p.r.depth=2;
     NvnState state; clear_tex(VK_NULL_HANDLE,state,p);
-    CHECK(tex.gpu_written);
+    CHECK(tex.gpu_written && lineage_count==(whole?1u:2u));
     CHECK(whole ? whole_count==1 && clear_count==0 : whole_count==0 && clear_count==2);
     if (!whole) for (unsigned mip=0;mip<4;++mip) for(unsigned l=0;l<4;++l)
         CHECK(touched[mip][l]==unsigned(mip==expected_mip && l>=layer && l<layer+2));
@@ -129,7 +134,7 @@ int main() {
     tex.type=VK_IMAGE_TYPE_3D; tex.format=VK_FORMAT_BC4_UNORM_BLOCK;
     tex.width=126; tex.height=62; tex.depth=8; tex.layers=1;
     expected_mip=1;
-    clear_count=whole_count=block_copies=0;
+    clear_count=whole_count=block_copies=lineage_count=0;
     std::memset(touched,0,sizeof touched);
     nvn_tex input;
     nvn_p_clear_tex clear{&input};
@@ -137,7 +142,7 @@ int main() {
     clear.r={4,4,2,3,3,2};
     NvnState state;
     clear_tex(VK_NULL_HANDLE,state,clear);
-    CHECK(tex.gpu_written && clear_count==2 && whole_count==0 && block_copies==4);
+    CHECK(tex.gpu_written && lineage_count==2 && clear_count==2 && whole_count==0 && block_copies==4);
     CHECK(touched[1][0]==0 && touched[1][1]==0 && touched[1][2]==1 && touched[1][3]==1);
     std::puts("PASS: array clears and BC volume clears preserve mip and slice addressing");
 }

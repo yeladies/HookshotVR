@@ -41,6 +41,7 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateImageView(VkDevice,const VkImageViewCreat
 void destroy_image(VkImage,VmaAllocation) {}
 void destroy_buffer(VkBuffer,VmaAllocation) {}
 VKAPI_ATTR void VKAPI_CALL vkDestroyImageView(VkDevice,VkImageView,const VkAllocationCallbacks*) {}
+bool xr_preview_wants_frame() { return false; }
 /* SETUP */
 void present_image(VkImage,uint32_t,uint32_t,const int*,VkImageView) { presented++; }
 void tick() {

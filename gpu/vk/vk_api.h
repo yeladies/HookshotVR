@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define MKWVK_API_VERSION 20
+#define MKWVK_API_VERSION 21
 enum { HOS_OPT_CHEAT_HEARTS = 32, HOS_OPT_CHEAT_FLIGHT, HOS_OPT_CHEAT_ACTION, HOS_OPT_CHEAT_CAMERA, HOS_OPT_CHEAT_SPEED };
 /* (hookshot) the Gameplay tab's Text size (host/oot_text_size.c): 0 the game's, 1 110%, 2 125%, 3 150%, 4 175% */
 enum { HOS_OPT_TEXT_SIZE = 10 };
@@ -94,6 +94,23 @@ typedef struct MkwVkCameraObservation {
     float view[12];                /* row-major world-to-eye 3x4 */
     float projection[16];          /* uniform source only, before temporal jitter */
 } MkwVkCameraObservation;
+/* ABI21: absolute first-person rig input. Dimensions are game units; tracking is metres.
+   No old game view, interpolated camera or implicit physical scale is supplied. */
+enum { MKWVK_FP_SYNTHETIC_INPUT=1, MKWVK_FP_POSE_VALID=1, MKWVK_FP_SYNTHETIC_OUTPUT=2, MKWVK_FP_RIG_RESET=4 };
+typedef struct MkwVkFirstPersonInput {
+    uint32_t size,flags;
+    uint64_t actor_id;
+    int64_t game_present;
+    double root_position[3],body_yaw,eye_height,forward_offset,world_units_per_metre;
+    double turn_radians;
+} MkwVkFirstPersonInput;
+typedef struct MkwVkFirstPersonFrame {
+    uint32_t size,flags;
+    uint64_t tracking_sequence,origin_generation;
+    int64_t predicted_display_time,observed_ns;
+    double eye_position[3],look_target[3];
+    float head_view[12],eye_target_up[9],eye_views[2][12],eye_fov[2][4];
+} MkwVkFirstPersonFrame;
 /* what the executable gives the back end */
 typedef struct MkwVkHost {
     uint32_t version;   /* MKWVK_API_VERSION */
@@ -260,6 +277,8 @@ typedef struct MkwVkRenderer {
     int (*head_camera)(uint64_t camera, float rows[12], int64_t game_present);
     /* version 20 retired lens slot; kept for layout compatibility, always null. */
     int (*head_lens)(float *vertical_fov, float *aspect);
+    /* ABI21: absolute first-person head and located eye views; no game stereo submission. */
+    int (*first_person_frame)(const MkwVkFirstPersonInput *input,MkwVkFirstPersonFrame *out);
 } MkwVkRenderer;
 
 /* the DLL's one export: null when Vulkan is not usable (the executable then falls back to WebGPU) */

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <mutex>
+#include "vk_work.h"
 namespace mkwvk {
 namespace {
 struct Probe {

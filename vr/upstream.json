@@ -2,7 +2,7 @@
   "schema": 1,
   "upstream_url": "https://github.com/NotRexed/Hookshot.git",
   "base_commit": "940eb9ef34134913d2bc2a7b3ed5cb3caea58ef3",
-  "mod_host_renderer_abi": 20,
+  "mod_host_renderer_abi": 21,
   "supported_game_builds": [
     "e0f3ccfaf50065ae4ea01eb5aeb13b1a45da3348"
   ],
@@ -33,7 +33,9 @@
     "vr/src/vr_camera.h",
     "gpu/vk/vk_xr_camera_frame.cpp",
     "gpu/vk/xr_camera_frame.h",
-    "gpu/vk/vk_xr_session.h"
+    "gpu/vk/vk_xr_session.h",
+    "gpu/vk/xr_first_person_rig.h",
+    "gpu/vk/vk_xr_first_person.cpp"
   ],
   "release_policy": "unverified_until_source_review_build_tests_and_headset_validation"
 }

@@ -96,6 +96,15 @@ static int planes(const VrCameraSample* s,VrCameraEye* eye) {
     }
     return 1;
 }
+VrCameraStatus vr_camera_build_pose(const VrCameraRig* rig,const VrCameraPose* pose,VrCameraTransform* out) {
+    if(!rig||!pose||!out)return VR_CAMERA_BAD_ARGUMENT;
+    if(!finite_array(rig->position_world,3)||!finite_array(rig->tracking_reference_m,3)||!isfinite(rig->yaw_radians)||
+       !isfinite(rig->world_units_per_metre)||rig->world_units_per_metre<=0)return VR_CAMERA_BAD_RIG;
+    double local[16];VrCameraTransform next;
+    if(!pose_matrix(pose,local))return VR_CAMERA_BAD_POSE;
+    if(!world_pose(rig,local,next.world_from_eye)||!inverse_rigid(next.world_from_eye,next.view))return VR_CAMERA_BAD_RIG;
+    *out=next;return VR_CAMERA_OK;
+}
 VrCameraStatus vr_camera_build(const VrCameraRig* rig,const VrCameraSample* s,VrCameraFrame* out) {
     if(!rig||!s||!out)return VR_CAMERA_BAD_ARGUMENT;
     if(!s->sequence||!s->origin_generation||s->origin_generation!=rig->origin_generation||s->predicted_display_time<=0)return VR_CAMERA_BAD_IDENTITY;
