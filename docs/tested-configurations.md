@@ -98,3 +98,9 @@ SDK source `411f9102`, same Windows/RTX 2060 SUPER system: two 150-second isolat
 SDK source `d82b0666`, same local Windows/RTX 2060 SUPER system: two completed 150-second non-XR runs verify yaw and translation. Each records 134 first-person samples and 32 native projection packets matching center view, tracking FOV and exact source depth. Peak working sets: 6674 / 6641 MiB. The translation run also captures representative compute bindings; unresolved and dynamic shader semantics remain pending. Full VR fixtures: 171 passed, including actual host writer/uniform/submit observers. No headset or full-scene stereo test was opened. [Implementation and limits](vr-first-person.md#native-depth-and-writer-owned-view-tags--english).
 
 **Castellano:** dos pruebas de 150 segundos, con giro y desplazamiento, conservan los 32 paquetes de ojos correctos. La marca original de la vista sobrevive a los refrescos del host y la proyección conserva la profundidad nativa. Pasan 171 pruebas VR; quedan pendientes la escena completa por ojo y la validación con las Quest.
+
+### Frozen first-person GPU payloads
+
+SDK source `a2806329`, same local Windows/RTX 2060 SUPER system: the 150-second non-XR translation diagnostic passes private GPU upload/readback/release for both 13,568-byte eye payloads and all 32 frozen projection checks. It records 126 first-person samples, peak working set 6633 MiB. Full fresh VR suite: 179 passed, including seven actual-probe lifetime/error fixtures. No eye draw or headset presentation is performed by this data probe. [Scope and command](vr-first-person.md#frozen-first-person-matrices-on-the-gpu--english).
+
+**Castellano:** se verifican las dos copias privadas de cámara en la GPU, su lectura completa y liberación, junto con los 32 paquetes de proyección. Pasan 179 pruebas VR. Esta fase comprueba datos; todavía no dibuja la escena por ojo ni abre el visor.

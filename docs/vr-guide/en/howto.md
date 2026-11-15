@@ -2,6 +2,8 @@
 
 **First-person work:** the local game now has an opt-in root/eye anchor, coherent view caches, an immutable camera packet and private head-geometry masking. Native complete-scene stereo remains pending. [Implementation and isolated tests](../../vr-first-person.md).
 
+**Offline GPU camera check:** `-FirstPersonEyeUniformProbe` verifies frozen eye payload upload, readback and release. [Command and limits](../../vr-first-person.md#frozen-first-person-matrices-on-the-gpu--english). It does not draw stereo or open the headset.
+
 **Camera rebuild branch:** headset depth-camera profiles are retired. [Read the current rebuild status](../../vr-camera-rebuild.md) before using the historical commands below. No new native-stereo headset test is ready.
 
 Archived depth-camera comparison (withdrawn on this branch): [4096 source, 2560 eyes and separated visibility fields](../../vr-combined-visibility-quality.md). Its historical `-Profile Combined` tested both changes together; live-game data flow passes, but the headset test still shows missing geometry and blackouts.

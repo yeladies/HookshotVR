@@ -131,3 +131,37 @@ La segunda ejecución, con desplazamiento sintético y auditoría compute, tambi
 Final validation for this milestone: all 171 VR tests pass after rebuilding the fixtures; the complete inherited suite passes 387 with five known environment failures and 30 skipped (230 seconds). The inherited jitter fixture now extracts the added host helpers and retains its concurrent-publication, frame-latch and observer checks. No headset session or native full-scene stereo acceptance is claimed.
 
 Validación final de este hito: pasan las 171 pruebas VR recompiladas; la batería heredada queda en 387 correctas, cinco fallos conocidos del entorno y 30 omitidas (230 segundos). El fixture de jitter extrae ahora los helpers nuevos y conserva sus comprobaciones de concurrencia, fotograma y observación. No se acredita una sesión de visor ni estéreo nativo completo.
+
+## Frozen first-person matrices on the GPU — English
+
+The explicit `-FirstPersonEyeUniformProbe` diagnostic now takes both eye transforms from the frozen first-person packet. It does not add the older probe's artificial view displacement. The CPU helper validates the center view, original tracking identity/FOV and exact native depth, then builds two private copies of the complete descriptor payload. Only the audited primary prefix changes; all remaining bytes, including unreviewed current/previous aliases, stay identical. This is not a complete camera-block or scene patch.
+
+A native SDK build, source `a2806329`, compiles without errors (84 seconds plus an 8-second host link). Its completed 150-second translation run records 126 first-person samples and passes the 32-packet projection gate. Two private 13,568-byte payloads are uploaded, copied back and compared in full after GPU timeline completion. Both destination payloads validate, and their allocations are released. Peak game working set is 6633 MiB. The original descriptors and source objects are not replaced. No draw or XR layer is submitted by this probe. Input bytes are submission-overlay copies; only the private destination readback is GPU-completed evidence.
+
+The probe arms after verified first-person gameplay. Missing, ambiguous or expired pose ownership cannot borrow another frame; a missing packet may retry before any allocation. The recorder boundary completes earlier rendering work before the probe's transfer work. Retained raw LOCAL-space tracking poses and original times remain separate from world-space matrices.
+
+Seven tests compile the actual probe body against controlled Vulkan stubs: legacy compatibility, frozen first-person admission, retry after a missing packet, partial allocation failure, memory-budget rejection, readback mismatch and device changes. They check upload/copy barriers, no host read or release before the fence, complete readback comparison, and release on the correct device. A separate CPU test checks exact native depth, distinct located eye views, untouched unknown bytes and atomic rejection. All 179 VR cases pass after rebuilding.
+
+Local non-XR command:
+
+```powershell
+powershell -File vr/run-game.ps1 -FirstPersonReadbackTest -FirstPersonEyeUniformProbe -FirstPersonSweep Lean -SnapshotStableSaves -LoadTestSave -Seconds 150
+```
+
+The switch also enables the bounded projection-history check. Its private report must show `first_person_eye_uniform_completed` and `first_person_native_projection_audited` as true. Full camera aliases, shader coverage, scene replay, HUD composition and headset presentation remain explicitly false or pending. This validates camera data on the GPU; native eye drawing is the next gate.
+
+## Matrices congeladas de primera persona en la GPU — Castellano
+
+La prueba explícita `-FirstPersonEyeUniformProbe` obtiene las transformaciones de ambos ojos del paquete congelado de primera persona. No añade el desplazamiento artificial de la prueba antigua. El helper valida la vista central, la identidad/FOV originales y la profundidad nativa, y crea dos copias privadas del payload completo. Solo cambia el prefijo principal auditado; los demás bytes y aliases actuales/anteriores quedan idénticos. No es un parche completo del bloque de cámara ni de la escena.
+
+La build SDK `a2806329` compila sin fallos: 84 segundos y 8 para enlazar el host. Una prueba completa de desplazamiento de 150 segundos registra 126 muestras y supera la comprobación de 32 paquetes. Se suben dos payloads privados de 13.568 bytes, se leen de vuelta tras completar la GPU y se comparan enteros. Las dos copias coinciden y sus asignaciones se liberan. El máximo del proceso es 6633 MiB. No se sustituyen descriptores ni objetos originales, y esta prueba no dibuja ni envía capas XR. La entrada procede del overlay de envío; la lectura GPU completada corresponde a los destinos privados.
+
+Se activa después de detectar primera persona en juego. Una pose ausente, ambigua o caducada no puede usar otro fotograma; puede reintentarse antes de asignar recursos. La frontera del recorder completa el trabajo de render anterior antes de las transferencias. Las poses LOCAL originales y sus tiempos permanecen separadas de las matrices del mundo.
+
+Siete pruebas compilan el cuerpo real con stubs Vulkan controlados: compatibilidad anterior, admisión de primera persona, reintento sin paquete, fallo parcial de asignación, límite de memoria, lectura incorrecta y cambio de dispositivo. Comprueban barreras, ausencia de lectura/liberación antes del fence y liberación en el dispositivo correcto. Otra prueba CPU verifica profundidad exacta, vistas distintas, bytes desconocidos intactos y errores sin salida parcial. Pasan los 179 casos VR recompilados.
+
+El comando anterior realiza la prueba local sin visor. Activa también el historial acotado y exige ambos indicadores privados de aceptación. Siguen pendientes aliases completos, cobertura de shaders, replay de escena, HUD y presentación en las Quest. El próximo paso es comprobar un dibujo nativo por ojo.
+
+The final inherited run for the GPU payload milestone passes 387 tests with the same five known environment failures and 30 skipped (239 seconds), including recorder synchronization coverage. No new headset session has been opened.
+
+La batería heredada final de este hito repite 387 correctas, los cinco fallos conocidos del entorno y 30 omitidas (239 segundos), incluida la cobertura de sincronización del recorder. No se ha abierto otra sesión de visor.

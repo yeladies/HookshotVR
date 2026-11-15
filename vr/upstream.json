@@ -40,7 +40,9 @@
     "gpu/vk/xr_camera_history_capture.h",
     "gpu/vk/vk_xr_camera.cpp",
     "gpu/vk/xr_camera_submission.h",
-    "gpu/vk/xr_first_person_projection_audit.h"
+    "gpu/vk/xr_first_person_projection_audit.h",
+    "gpu/vk/xr_first_person_uniform_copy.h",
+    "gpu/vk/vk_xr_eye_uniforms.cpp"
   ],
   "release_policy": "unverified_until_source_review_build_tests_and_headset_validation"
 }

@@ -6360,6 +6360,7 @@ void eye_image_probe_note(VkCommandBuffer command,const Targets& targets,const N
     const bool images=xr_eye_image_probe_wants(texture_frame_no()),uniforms=xr_eye_uniform_probe_wants(texture_frame_no());
     if(!images&&!uniforms)return;
     end_pass(command); // Probes touch only private destinations outside rendering.
+    rec::boundary(rec::B_DIRECT); // Finish deferred EndRendering before direct probe transfers.
     if(images)xr_eye_image_probe_record(command,targets.color[0],targets.depth,rec_value,
         {targets.color_level[0],targets.color_layer[0],targets.color_format[0]},
         {targets.depth_level,targets.depth_layer,targets.depth_format});
