@@ -50,7 +50,7 @@ Native SDK source `3f307691` compiles without errors (82 seconds plus a 6-second
 
 The root-motion diagnostic moved Link by 1.125 game units horizontally. The independent synthetic HMD displacement spans approximately 0.4 / 0.2 / 0.3 game units on X/Y/Z at the explicit working scale. These are game-space measurements, not a physical headset calibration.
 
-The complete VR fixture suite passes 167 cases. The complete staged inherited suite passes 387, with five known environment failures and 30 skipped (228 seconds). A repeated native root-alias test verifies the isolated GPU diagnostic and exports its private camera payload after the recorder-order fixes (peak working set 6781 MiB). A separate 20-second default-off run opens no XR session or immersive camera (3086 MiB). All 19 stable-installation manifest hashes remain unchanged.
+After correcting a stale recorder fixture and rebuilding every fixture executable, the complete VR suite passes 169 cases. The earlier 167-case run did not establish fresh recorder-fixture coverage; the actual game diagnostics used newly built native binaries. The complete staged inherited suite passes 387, with five known environment failures and 30 skipped (228 seconds). A repeated native root-alias test verifies the isolated GPU diagnostic and exports its private camera payload after the recorder-order fixes (peak working set 6781 MiB). A separate 20-second default-off run opens no XR session or immersive camera (3086 MiB). All 19 stable-installation manifest hashes remain unchanged.
 
 The current game screenshots are center-head desktop renders. Complete native per-eye scene rendering, original projection/culling ownership, temporal resources, HUD composition and headset acceptance remain pending. No headset test was opened during these checks and no correction of the old XR blackouts is claimed.
 
@@ -60,6 +60,38 @@ La build SDK `3f307691` compila sin errores: 82 segundos y otros 6 para enlazar 
 
 Link se desplazó 1,125 unidades del juego en horizontal. El movimiento independiente simulado del visor abarca aproximadamente 0,4 / 0,2 / 0,3 unidades en X/Y/Z con la escala provisional explícita. Estas cifras no son una calibración física en metros.
 
-Pasan las 167 pruebas VR. La batería heredada completa, con los archivos nuevos preparados para publicar, da 387 correctas, cinco fallos conocidos del entorno y 30 omitidas (228 segundos). Se repite con éxito el diagnóstico GPU de aliases de raíz tras corregir su ordenación: exporta el payload privado y alcanza 6781 MiB. El arranque normal de 20 segundos mantiene XR y la cámara inmersiva desactivados, con 3086 MiB. Los 19 hashes de la instalación estable siguen intactos.
+Tras corregir un fixture del recorder que había quedado sin recompilar y reconstruir todos los ejecutables, pasan las 169 pruebas VR. La ejecución anterior de 167 casos no acreditaba la comprobación fresca de ese fixture; las pruebas del juego real sí usaron binarios nativos nuevos. La batería heredada completa, con los archivos nuevos preparados para publicar, da 387 correctas, cinco fallos conocidos del entorno y 30 omitidas (228 segundos). Se repite con éxito el diagnóstico GPU de aliases de raíz tras corregir su ordenación: exporta el payload privado y alcanza 6781 MiB. El arranque normal de 20 segundos mantiene XR y la cámara inmersiva desactivados, con 3086 MiB. Los 19 hashes de la instalación estable siguen intactos.
 
 Las capturas actuales son renders de escritorio de la vista central de la cabeza. Siguen pendientes la escena completa por ojo, la autoridad sobre proyección y descartes, los recursos temporales, la composición del HUD y la aceptación en visor. Estas pruebas no abrieron las Quest ni acreditan corregidos los apagones de la ruta XR antigua.
+
+## Submission and temporal-camera audit — English
+
+The follow-up native SDK build `411f9102` compiles with zero failures. A new 150-second, non-XR first-person yaw diagnostic records 136 first-person samples and 32 consecutive private camera payloads with 32 distinct views. All 32 have a source NVN submit identifier and consistent matching observation tags; none has an ambiguous observation present. Peak working set is 6661 MiB. This is an observer-consistency result, not proof that a present counter is the producer's simulation tick.
+
+`-FirstPersonHistoryAudit` enables `-FirstPersonSceneAudit` and saves at most 32 immutable submission-overlay copies of one fixed program, descriptor size and viewport. Its marker is armed only after first-person gameplay is observed. Copies and reports remain private under ignored `work/`. The analyzer rejects stationary evidence, incoherent VP matrices, changed capture identity, partial provenance and malformed paths. Run it locally:
+
+```powershell
+python -I -B vr/audit_camera_history.py <private-camera-history-directory> --out <private-report.json>
+```
+
+Movement distinguishes current view/VP/inverse-view data from one-sample-old aliases. Projection remains unchanged in this yaw experiment, so its temporal role cannot be inferred from equal values. The tool reports numerical candidates only: no shader-consumer, producer-history or patch-safety claim. Submission-overlay bytes are not GPU-completed readback.
+
+The source NVN submit serial is retained separately from a merged Vulkan recording's timeline value. Matching observations that disagree about a present report ambiguity rather than selecting a convenient tag. The host's first-person observation also retains the exact present supplied to its rig query. Neither change creates a producer-owned frame identifier; that integration remains a gate before full-scene stereo.
+
+The frozen renderer packet retains the original OpenXR LOCAL-space head/eye poses in metres separately from the game-world matrices. Future XR projection-layer submission must use those original poses from the rendered packet, not game-world positions or newly located poses. Each eye also needs its own previous-render history and fenced writable resources. This audit does not enable a headset launcher or modify guest camera buffers.
+
+## Auditoría temporal y de envíos — Castellano
+
+La siguiente build SDK, `411f9102`, compila sin fallos. Una prueba nueva de giro de 150 segundos, sin XR, registra 136 muestras de primera persona y 32 payloads privados consecutivos con 32 vistas distintas. Los 32 conservan el identificador de envío NVN y marcas coherentes entre las observaciones coincidentes; ninguno presenta ambigüedad. El máximo de memoria de trabajo es 6661 MiB. Esto comprueba coherencia entre observadores, pero no demuestra que el contador de presentaciones identifique el paso de simulación del productor.
+
+`-FirstPersonHistoryAudit` activa también `-FirstPersonSceneAudit` y guarda hasta 32 copias inmutables del overlay de envío para un programa, tamaño y viewport fijos. Se arma después de detectar primera persona en juego. Los payloads y sus informes quedan privados en `work/`. El analizador rechaza capturas sin movimiento, VP incoherentes, cambios de identidad, metadatos incompletos y rutas incorrectas. El comando anterior permite ejecutarlo localmente.
+
+El movimiento permite distinguir vistas, VP e inversas actuales de aliases de la muestra anterior. La proyección permanece constante durante este giro y sus valores iguales no permiten establecer su papel temporal. El informe contiene candidatos numéricos: no acredita consumidores de shaders, semántica del productor ni permiso para parchear. Las copias del overlay tampoco son lecturas GPU completadas.
+
+El número de envío NVN se conserva separado del valor temporal de una grabación Vulkan que puede agrupar varios envíos. Si las observaciones coincidentes discrepan en la presentación, se informa de la ambigüedad. La observación de primera persona conserva el contador exacto entregado a la consulta del rig. Aún falta un identificador de fotograma propiedad del productor para habilitar estéreo de escena completa.
+
+El paquete congelado del renderer conserva las poses originales de OpenXR en espacio LOCAL y metros, separadas de las matrices del mundo del juego. La futura capa de proyección XR debe usar esas poses del paquete renderizado. Cada ojo necesitará también su historial de render y recursos de escritura protegidos por fences. Esta auditoría no activa un lanzador para el visor ni modifica buffers de cámara del juego.
+
+The independent translation sweep also passes: 133 first-person samples, 32 distinct camera payloads, and 6661 MiB peak working set. Its bounded graphics shader audit observes 64 programs and 104 primary-camera bindings, with all observed modules available. Of 84 static module/binding queries, 82 resolve their static subset and two remain unresolved. Static reads establish consumption of current camera regions in several stages, but do not establish the meaning of every previous-frame alias, dynamic reads or complete scene coverage. Raw modules and reports remain private.
+
+El barrido independiente de desplazamiento también pasa: 133 muestras de primera persona, 32 payloads distintos y 6661 MiB de memoria máxima. La auditoría gráfica acotada observa 64 programas y 104 bindings de cámara principal, sin módulos ausentes. De 84 consultas estáticas, 82 resuelven su subconjunto y dos siguen incompletas. Hay lecturas de regiones actuales de cámara en varias etapas, pero faltan la semántica de cada alias anterior, los accesos dinámicos y la cobertura de escena completa. Los módulos e informes quedan privados.

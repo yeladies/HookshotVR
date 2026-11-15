@@ -6564,6 +6564,11 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                                                 s.ubo[0][0].addr, at.width, at.height};
             vr_camera_seed=xr_scene_camera_observation(evidence, camera_block, sizeof camera_block / sizeof(float));
             if(vr_camera_seed)xr_depth_capture_note(at.color[0],at.depth,camera_block,sizeof camera_block/sizeof(float));
+            if(vr_camera_seed&&xr_camera_history_wants(evidence.replay_frame,evidence.program,s.ubo[0][0].size)){
+                std::vector<std::byte> payload(s.ubo[0][0].size);
+                if(ub_read(s.ubo[0][0].addr,payload.data(),payload.size()))
+                    xr_camera_history_capture(evidence,rec_value,payload.data(),payload.size());
+            }
         }
     }
     // (ultrawide's menu sides: the world's lighting composite was asked for, even if a skip or a pipeline not yet made leaves this

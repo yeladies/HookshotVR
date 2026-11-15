@@ -86,3 +86,9 @@ otherwise.
 Windows, RTX 2060 SUPER, 16 GB RAM; native SDK source `3f307691`, ABI 21. Six bounded private-save game checks cover the root/eye anchor, head geometry mask, synthetic rotation/translation and real player movement. Wide yaw/pitch also match the new view to native scene/submission camera data. The isolated GPU root-alias diagnostic passes after recorder ordering fixes; default-off opens no XR session. All 19 stable-installation manifest hashes are unchanged. Captures, generated models, profiles, payloads and binaries remain private. [Evidence and limits](vr-first-person.md).
 
 **Castellano:** primera persona y máscara de cabeza comprobadas en seis ejecuciones privadas del juego; los barridos amplios relacionan la cámara nueva con los draws reales. Pasan el diagnóstico GPU de aliases y el arranque con VR desactivado. Los 19 hashes de la instalación estable siguen intactos. No se abre el visor: siguen pendientes el renderizado nativo completo por ojo, proyección/descartes, historiales y HUD.
+
+### Camera submission follow-up
+
+SDK source `411f9102`, same Windows/RTX 2060 SUPER system: two 150-second isolated non-XR runs pass yaw and translation diagnostics. They record 136 and 133 first-person samples respectively, each with 32 distinct consecutive private camera payloads; peak working set is 6661 MiB. Fresh complete VR fixtures: 169/169. Inherited suite repeated: 387 passed, five known environment failures, 30 skipped. No headset or full-scene stereo acceptance is implied. [Temporal and shader audit limits](vr-first-person.md#submission-and-temporal-camera-audit--english).
+
+**Castellano:** dos ejecuciones aisladas sin visor comprueban giro y desplazamiento; cada una conserva 32 payloads privados distintos. Pasan las 169 pruebas VR tras reconstruir todos los fixtures. La batería heredada repite 387 correctas, cinco fallos del entorno y 30 omitidas. El estéreo completo y la prueba en visor siguen pendientes.

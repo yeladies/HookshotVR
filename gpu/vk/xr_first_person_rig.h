@@ -84,6 +84,9 @@ public:
 };
 struct FirstPersonProjectionPacket {
     VrCameraFrame camera{};
+    // Render matrices are in game-world units; layer poses stay in the original
+    // OpenXR tracking space/metres from this exact immutable observation.
+    XrFrameSnapshot tracking{};
     int64_t game_present=0,observed_ns=0;
     bool synthetic=false;
 };
@@ -126,6 +129,7 @@ public:
             if(entry.key.game_present!=game_present)continue;
             FirstPersonProjectionPacket next{};
             if(entry.rig.project(entry.frame,near_z,far_z,next.camera)!=VR_CAMERA_OK)return false;
+            next.tracking=entry.frame;
             next.game_present=game_present;next.observed_ns=entry.packet.observed_ns;
             next.synthetic=(entry.packet.flags&MKWVK_FP_SYNTHETIC_OUTPUT)!=0;
             out=next;return true;

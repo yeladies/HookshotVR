@@ -4,7 +4,7 @@
 
 **Camera rebuild branch:** headset depth-camera profiles are retired. [Read the current rebuild status](../../vr-camera-rebuild.md) before using the historical commands below. No new native-stereo headset test is ready.
 
-Current combined comparison: [4096 source, 2560 eyes and separated visibility fields](../../vr-combined-visibility-quality.md). Select `-Profile Combined` to test both changes together; live-game data flow passes, but the headset test still shows missing geometry and blackouts.
+Archived depth-camera comparison (withdrawn on this branch): [4096 source, 2560 eyes and separated visibility fields](../../vr-combined-visibility-quality.md). Its historical `-Profile Combined` tested both changes together; live-game data flow passes, but the headset test still shows missing geometry and blackouts.
 
 [Home](index.md) · [How-to](howto.md) · [Status](status.md) · [Development](development.md) · [Help](help.md) · [English / Castellano](../es/howto.md)
 
@@ -15,7 +15,7 @@ Windows is the tested development platform. Quest 3 uses Virtual Desktop and its
 For the game-free VR tools: Git, CMake 3.24+, Ninja and a C/C++17 compiler. The build helper can read an existing Hookshot Builder llvm-mingw toolchain or accept `-ToolchainRoot`. It downloads the pinned official OpenXR SDK into ignored `work/`.
 
 ```powershell
-git clone --branch vr/bootstrap https://github.com/yeladies/HookshotVR.git
+git clone --branch vr/camera-rebuild https://github.com/yeladies/HookshotVR.git
 cd HookshotVR
 powershell -NoProfile -ExecutionPolicy Bypass -File vr/build.ps1
 ctest --test-dir work/vr-build --output-on-failure

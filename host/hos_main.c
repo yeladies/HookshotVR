@@ -1422,8 +1422,8 @@ static int oot_build_first_person_view(Ctx *c, uint64_t view) {
         recomp_store64(c, view + 120 + k * 8, bits);
     }
     if (env_on("HOOKSHOT_VR_CAMERA_CAPTURE")) {
-        void rx_xr_camera_view(uint64_t, const float *, const double *, int);
-        rx_xr_camera_view(view, frame.head_view, frame.eye_position, 0);
+        void rx_vr_first_person_camera_observation(uint64_t, const float *, const double *, int64_t);
+        rx_vr_first_person_camera_observation(view, frame.head_view, frame.eye_position, in.game_present);
     }
     static int64_t logged;
     if (!logged || now - logged >= 500000000) {

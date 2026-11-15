@@ -332,15 +332,18 @@ void rx_nvn_finish(void) { vk ? vk->nvn_finish() : wgr_nvn_finish(); }
 static volatile LONG presents;   /* (the frames shown, for the camera jitter below) */
 static SRWLOCK camera_observation_lock = SRWLOCK_INIT;
 static uint64_t camera_observation_sequence;
-static void camera_observe(MkwVkCameraObservation *sample) {
+static void camera_observe_at(MkwVkCameraObservation *sample, int64_t game_present) {
     if (!env_on("HOOKSHOT_VR_CAMERA_CAPTURE") || !vk || !vk->camera_observation) return;
     sample->size = sizeof *sample;
-    sample->game_present = InterlockedCompareExchange(&presents, 0, 0);
+    sample->game_present = game_present;
     sample->captured_ns = hos_now_ns();
     AcquireSRWLockExclusive(&camera_observation_lock);
     sample->sequence = ++camera_observation_sequence;
     vk->camera_observation(sample); /* immutable copy, never a guest pointer */
     ReleaseSRWLockExclusive(&camera_observation_lock);
+}
+static void camera_observe(MkwVkCameraObservation *sample) {
+    camera_observe_at(sample, InterlockedCompareExchange(&presents, 0, 0));
 }
 static HostVrCameraCache camera_cache;
 static uint64_t camera_uniform_candidates[16];static size_t camera_uniform_candidates_count;
@@ -370,6 +373,16 @@ void rx_xr_camera_view(uint64_t camera, const float rows[12], const double eye[3
     memcpy(sample.view, rows, sizeof sample.view);
     memcpy(sample.eye, eye, sizeof sample.eye);
     camera_observe(&sample);
+}
+void rx_vr_first_person_camera_observation(uint64_t camera, const float rows[12], const double eye[3], int64_t game_present) {
+    if (!env_on("HOOKSHOT_VR_CAMERA_CAPTURE")) return;
+    MkwVkCameraObservation sample = {0};
+    camera_cache_primary(camera,rows,0);
+    sample.flags=MKWVK_CAMERA_PRIMARY;sample.camera_id=camera;
+    memcpy(sample.view,rows,sizeof sample.view);memcpy(sample.eye,eye,sizeof sample.eye);
+    // Preserve the frame that built these rows, even if another thread presents
+    // before this observation is published. This is not a simulation tick ID.
+    camera_observe_at(&sample,game_present);
 }
 static void camera_observe_uniform(uint64_t projection, const float matrix[16]) {
     if (!env_on("HOOKSHOT_VR_CAMERA_CAPTURE") || projection < 0x1a8) return;

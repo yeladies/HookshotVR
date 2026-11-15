@@ -2,6 +2,7 @@
 #pragma once
 #include "xr_scene_camera.h"
 #include <array>
+#include <algorithm>
 #include <memory>
 #include <map>
 namespace mkwvk {
@@ -38,7 +39,14 @@ public:
         return out;
     }
 };
-struct SubmittedCameraMatch {bool matched=false,ambiguous=false;uint32_t equivalent=0;uint64_t revision=0,camera_id=0;};
+struct SubmittedCameraMatch {
+    bool matched=false,ambiguous=false;
+    uint32_t equivalent=0;
+    uint64_t revision=0,camera_id=0,primary_sequence=0;
+    // Consistency among matching observations, not a producer-owned tick ID.
+    int64_t observation_game_present=-1;
+    bool observation_present_ambiguous=false;
+};
 inline SubmittedCameraMatch match_submitted_uniform(const SceneSubmissionSnapshot* snapshot,int64_t now,
                                                     uint32_t width,uint32_t height,const float* block,size_t count) {
     SubmittedCameraMatch out{};
@@ -51,6 +59,13 @@ inline SubmittedCameraMatch match_submitted_uniform(const SceneSubmissionSnapsho
         if(c.received_ns<=0||c.received_ns>snapshot->captured_ns||snapshot->captured_ns-c.received_ns>250000000)continue;
         if(match_validated_camera_pair(block,&c.pair)!=SceneCameraMatch::Match)continue;
         if(out.camera_id&&out.camera_id!=c.pair.primary.camera_id){out.ambiguous=true;out.matched=false;return out;}
+        const int64_t present=c.pair.primary.game_present;
+        if(present<0||present!=c.pair.uniforms.game_present||
+           (out.equivalent&&!out.observation_present_ambiguous&&out.observation_game_present!=present))
+            out.observation_present_ambiguous=true;
+        if(out.observation_present_ambiguous)out.observation_game_present=-1;
+        else out.observation_game_present=present;
+        out.primary_sequence=std::max(out.primary_sequence,c.pair.primary.sequence);
         out.camera_id=c.pair.primary.camera_id;out.revision=c.pair.revision;++out.equivalent;out.matched=true;
     }
     return out;
@@ -73,10 +88,12 @@ public:
 };
 SceneSubmissionPtr xr_scene_submission_capture();
 SceneSubmissionPtr xr_scene_submission_current();
+uint64_t xr_scene_submission_source_value();
 void xr_scene_submission_bind(uint64_t,SceneSubmissionPtr);
 // Thread-local scope names the source NVN submit, never a merged Vulkan recording's timeline tag.
 class SceneSubmissionScope {
     SceneSubmissionPtr previous_;
+    uint64_t previous_source_value_=0;
 public:
     explicit SceneSubmissionScope(uint64_t value);
     ~SceneSubmissionScope();

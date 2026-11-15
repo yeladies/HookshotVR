@@ -4,7 +4,7 @@
 
 **Rama de reconstrucción:** los perfiles de cámara por profundidad están retirados. [Consulta el estado actual](../../vr-camera-rebuild.md) antes de usar los comandos históricos de esta página. Todavía no hay una nueva prueba de estéreo nativo para el visor.
 
-Comparación combinada actual: [fuente 4096, ojos 2560 y visibilidad separada](../../vr-combined-visibility-quality.md). Usa `-Profile Combined` para probar ambos cambios juntos; el flujo del juego está comprobado, pero siguen faltando geometría y continuidad en el visor.
+Comparación histórica de cámara por profundidad (retirada en esta rama): [fuente 4096, ojos 2560 y visibilidad separada](../../vr-combined-visibility-quality.md). Su antiguo `-Profile Combined` probaba ambos cambios juntos; el flujo del juego está comprobado, pero siguen faltando geometría y continuidad en el visor.
 
 [Inicio](index.md) · [Cómo empezar](howto.md) · [Estado](status.md) · [Desarrollo](development.md) · [Ayuda](help.md) · [English / Castellano](../en/howto.md)
 
@@ -15,7 +15,7 @@ Windows es la plataforma de desarrollo probada. Quest 3 utiliza Virtual Desktop 
 Para las herramientas VR sin juego: Git, CMake 3.24+, Ninja y compilador C/C++17. El script puede leer llvm-mingw de Hookshot Builder o aceptar `-ToolchainRoot`. Descarga el SDK oficial OpenXR fijado en `work/`, excluido de Git.
 
 ```powershell
-git clone --branch vr/bootstrap https://github.com/yeladies/HookshotVR.git
+git clone --branch vr/camera-rebuild https://github.com/yeladies/HookshotVR.git
 cd HookshotVR
 powershell -NoProfile -ExecutionPolicy Bypass -File vr/build.ps1
 ctest --test-dir work/vr-build --output-on-failure

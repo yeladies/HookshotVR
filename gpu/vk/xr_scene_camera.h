@@ -43,4 +43,8 @@ inline SceneCameraMatch match_scene_camera(const float* c,size_t count,const Sce
 void xr_immersive_note_world_target(uint64_t frame,uint32_t width,uint32_t height);
 bool xr_scene_capture_enabled();
 bool xr_scene_camera_observation(const SceneCameraEvidence&,const float*,size_t);
+// Private read-only full uniform captures after an accepted scene-camera match.
+bool xr_camera_history_wants(uint64_t frame,uint64_t program,size_t bytes);
+void xr_camera_history_capture(const SceneCameraEvidence&,uint64_t recording,const void*,size_t bytes);
+
 }

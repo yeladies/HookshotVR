@@ -34,6 +34,19 @@ int main(){try {
     check(!match_submitted_camera(&first,t-1,draw,block,0x230/4).matched,"clock reversal fails closed");
     history.observe(pair(3),t+3);auto equivalent=history.snapshot(t+4);
     check(match_submitted_camera(&equivalent,t+5,draw,block,0x230/4).equivalent==2,"stationary duplicate observations remain explicit");
+    auto same_present=equivalent;
+    auto tagged=match_submitted_camera(&same_present,t+5,draw,block,0x230/4);
+    check(tagged.matched&&!tagged.observation_present_ambiguous&&tagged.observation_game_present==0,"equivalent observations with one present remain explicit");
+    same_present.cameras[1].pair.primary.game_present=8;same_present.cameras[1].pair.uniforms.game_present=8;
+    tagged=match_submitted_camera(&same_present,t+5,draw,block,0x230/4);
+    check(tagged.matched&&!tagged.observation_present_ambiguous,"unmatched camera data cannot create present ambiguity");
+    same_present.cameras[same_present.count-1].pair.primary.game_present=8;
+    same_present.cameras[same_present.count-1].pair.uniforms.game_present=8;
+    tagged=match_submitted_camera(&same_present,t+5,draw,block,0x230/4);
+    check(tagged.matched&&tagged.observation_present_ambiguous&&tagged.observation_game_present==-1,"identical matrices from different presents do not prove a simulation tick");
+    auto crossed=first;crossed.cameras[0].pair.uniforms.game_present=4;
+    tagged=match_submitted_camera(&crossed,t+5,draw,block,0x230/4);
+    check(tagged.matched&&tagged.observation_present_ambiguous,"mixed primary/uniform observation tags cannot name a present");
     history.observe(pair(4,88),t+5);auto ambiguous=history.snapshot(t+6);
     auto m=match_submitted_camera(&ambiguous,t+7,draw,block,0x230/4);check(m.ambiguous&&!m.matched,"different camera identities cannot establish ownership");
     check(!match_submitted_uniform(&ambiguous,t+7,1280,720,block,0x230/4).matched,"compute rejects ambiguous identities");
@@ -62,16 +75,16 @@ int main(){try {
     xr_camera_observation(&a.primary);xr_camera_observation(&a.uniforms);
     auto live=xr_scene_submission_capture();check(live&&live->count==1,"actual callback feeds snapshot");
     xr_scene_submission_bind(10,live);check(!xr_scene_submission_current(),"no context outside replay scope");
-    {SceneSubmissionScope scope(10);check(xr_scene_submission_current()==live,"source submission scope");
-     {SceneSubmissionScope missing(11);check(!xr_scene_submission_current(),"unknown submit does not borrow another context");}
-     check(xr_scene_submission_current()==live,"nested scope restored");
+    {SceneSubmissionScope scope(10);check(xr_scene_submission_current()==live&&xr_scene_submission_source_value()==10,"source submission scope and serial");
+     {SceneSubmissionScope missing(11);check(!xr_scene_submission_current()&&xr_scene_submission_source_value()==11,"unknown submit keeps its own serial without borrowing camera context");}
+     check(xr_scene_submission_current()==live&&xr_scene_submission_source_value()==10,"nested scope and source serial restored");
      auto resumed=std::make_shared<const SceneSubmissionSnapshot>(history.snapshot(t+101));
      xr_scene_submission_bind(10,resumed);
      check(xr_scene_submission_current()==live,"refresh never mutates an already active scope");
      bool refreshed=false;
      std::thread resume([&]{SceneSubmissionScope scope(10);refreshed=xr_scene_submission_current()==resumed;});resume.join();
      check(refreshed,"resumed work selects refreshed context on its own thread");
-     std::thread other([]{check(!xr_scene_submission_current(),"parallel worker has no accidental context");});other.join();}
-    check(!xr_scene_submission_current(),"scope ends deterministically");
+     std::thread other([]{check(!xr_scene_submission_current()&&!xr_scene_submission_source_value(),"parallel worker has no accidental context or source serial");});other.join();}
+    check(!xr_scene_submission_current()&&!xr_scene_submission_source_value(),"scope and source serial end deterministically");
     std::cout<<"Bounded submit-time camera snapshots and scope isolation checked\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

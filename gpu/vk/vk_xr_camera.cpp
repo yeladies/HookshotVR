@@ -2,6 +2,9 @@
 #include "xr_camera_submission.h"
 #include "xr_image_lineage.h"
 #include "xr_camera_block_capture.h"
+#include "xr_camera_history_capture.h"
+#include <filesystem>
+#include <cstring>
 #include <iomanip>
 #include <string>
 #include <fstream>
@@ -17,6 +20,7 @@ std::mutex capture_mutex;
 CameraCapture capture;
 SceneCameraHistory history;SceneSubmissionStore submissions;
 thread_local SceneSubmissionPtr active_submission;
+thread_local uint64_t active_submission_source_value=0;
 int64_t now_ns(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 }
 void xr_camera_observation(const MkwVkCameraObservation* sample) {
@@ -46,10 +50,62 @@ void xr_scene_submission_bind(uint64_t value,SceneSubmissionPtr snapshot) {
     std::lock_guard lock(capture_mutex);submissions.bind(value,std::move(snapshot));
 }
 SceneSubmissionPtr xr_scene_submission_current(){return active_submission;}
-SceneSubmissionScope::SceneSubmissionScope(uint64_t value):previous_(std::move(active_submission)) {
+uint64_t xr_scene_submission_source_value(){return active_submission_source_value;}
+SceneSubmissionScope::SceneSubmissionScope(uint64_t value):previous_(std::move(active_submission)),previous_source_value_(active_submission_source_value) {
+    active_submission_source_value=value;
     if(xr_scene_capture_enabled()){std::lock_guard lock(capture_mutex);active_submission=submissions.get(value);}
 }
-SceneSubmissionScope::~SceneSubmissionScope(){active_submission=std::move(previous_);}
+SceneSubmissionScope::~SceneSubmissionScope(){active_submission=std::move(previous_);active_submission_source_value=previous_source_value_;}
+namespace {
+CameraPayloadHistoryPolicy payload_history;
+bool payload_history_armed=false,payload_history_failed=false;
+uint64_t payload_history_checked=UINT64_MAX;
+const char* payload_history_directory(){
+    static const std::string path=[] {const char* p=std::getenv("HOOKSHOT_VR_CAMERA_HISTORY_DIR");return p?std::string(p):std::string();}();
+    return path.empty()?nullptr:path.c_str();
+}
+}
+bool xr_camera_history_wants(uint64_t frame,uint64_t program,size_t bytes){
+    const char* directory=payload_history_directory();if(!directory)return false;
+    std::lock_guard lock(capture_mutex);
+    if(payload_history_failed)return false;
+    if(!payload_history_armed&&payload_history_checked!=frame){
+        payload_history_checked=frame;
+        std::ifstream marker(std::filesystem::u8path(directory)/"armed");payload_history_armed=bool(marker);
+    }
+    return payload_history_armed&&payload_history.wants(frame,program,bytes);
+}
+void xr_camera_history_capture(const SceneCameraEvidence& draw,uint64_t recording,const void* data,size_t bytes){
+    const char* directory=payload_history_directory();if(!directory||!data)return;
+    std::lock_guard lock(capture_mutex);
+    if(!payload_history_armed||payload_history_failed||!payload_history.wants(draw.replay_frame,draw.program,bytes))return;
+    std::array<float,0x230/4> prefix{};std::memcpy(prefix.data(),data,sizeof prefix);
+    const auto pinned=match_submitted_camera(active_submission.get(),now_ns(),draw,prefix.data(),prefix.size());
+    if(!pinned.matched)return;
+    CameraPayloadHistorySample sample{draw.replay_frame,draw.program,recording,pinned.revision,draw.uniform_address,draw.width,draw.height,bytes};
+    if(!payload_history.accept(sample))return;
+    try{
+        const auto root=std::filesystem::u8path(directory);
+        const std::string filename="frame-"+std::to_string(sample.frame)+".bin";
+        const auto destination=root/filename;
+        if(std::filesystem::exists(destination)){payload_history_failed=true;return;}
+        std::ofstream output(destination,std::ios::binary);
+        output.write(static_cast<const char*>(data),std::streamsize(bytes));output.close();
+        if(!output){payload_history_failed=true;return;}
+        std::ofstream index(root/"index.jsonl",std::ios::app);
+        index<<"{\"schema\":1,\"frame\":"<<sample.frame<<",\"program\":"<<sample.program
+             <<",\"recording\":"<<sample.recording<<",\"source_nvn_submit\":"<<active_submission_source_value
+             <<",\"observation_game_present\":"<<pinned.observation_game_present
+             <<",\"observation_present_ambiguous\":"<<(pinned.observation_present_ambiguous?"true":"false")
+             <<",\"primary_sequence\":"<<pinned.primary_sequence<<",\"producer_present_verified\":false,\"camera_revision\":"<<sample.revision
+             <<",\"source\":"<<sample.source<<",\"width\":"<<sample.width<<",\"height\":"<<sample.height
+             <<",\"bytes\":"<<sample.bytes<<",\"file\":\""<<filename
+             <<"\",\"scene_camera_match\":true,\"submission_overlay_copy\":true,\"gpu_completed_readback\":false}\n";
+        index.close();if(!index){payload_history_failed=true;return;}
+        if(payload_history.count()==CameraPayloadHistoryPolicy::maximum_samples)
+            logf("vr-camera-history: completed %zu submission-overlay samples; GPU readback not claimed",payload_history.count());
+    }catch(...){payload_history_failed=true;logf("vr-camera-history: private payload capture failed");}
+}
 bool xr_scene_capture_enabled() {
     static const bool enabled=[] {const char* e=std::getenv("HOOKSHOT_VR_SCENE_CAPTURE");return e&&e[0]=='1';}();
     return enabled;

@@ -5,6 +5,21 @@
 static unsigned checks;
 static void check(bool ok,const char* why){++checks;if(!ok)throw std::runtime_error(why);}
 static bool near(double a,double b){return std::abs(a-b)<2e-6;}
+// XrFrameSnapshot is an internal C++ type with padding between its bools and
+// poses. Compare its defined fields rather than reading uninitialized padding.
+static bool same_tracking(const mkwvk::XrFrameSnapshot& a,const mkwvk::XrFrameSnapshot& b){
+    if(a.sequence!=b.sequence||a.origin_generation!=b.origin_generation||a.predicted_display_time!=b.predicted_display_time||
+       a.observed_at_monotonic_ns!=b.observed_at_monotonic_ns||a.running!=b.running||a.focused!=b.focused||a.should_render!=b.should_render)return false;
+    auto pose=[](const mkwvk::XrTrackedPose& x,const mkwvk::XrTrackedPose& y){
+        return x.flags==y.flags&&!std::memcmp(x.orientation,y.orientation,sizeof x.orientation)&&!std::memcmp(x.position,y.position,sizeof x.position);};
+    if(!pose(a.head,b.head))return false;
+    for(unsigned k=0;k<2;++k)if(!pose(a.eyes[k].pose,b.eyes[k].pose)||std::memcmp(a.eyes[k].fov,b.eyes[k].fov,sizeof a.eyes[k].fov))return false;
+    return true;
+}
+static bool same_projection(const mkwvk::FirstPersonProjectionPacket& a,const mkwvk::FirstPersonProjectionPacket& b){
+    return a.game_present==b.game_present&&a.observed_ns==b.observed_ns&&a.synthetic==b.synthetic&&same_tracking(a.tracking,b.tracking)&&
+           !std::memcmp(&a.camera,&b.camera,sizeof a.camera);
+}
 static MkwVkFirstPersonInput input(){MkwVkFirstPersonInput i{};i.size=sizeof i;i.actor_id=123;i.game_present=1;
     i.root_position[0]=10;i.root_position[1]=20;i.root_position[2]=30;i.eye_height=1.5;i.forward_offset=.06;i.world_units_per_metre=1;return i;}
 static mkwvk::XrFrameSnapshot sample(){mkwvk::XrFrameSnapshot s;s.sequence=1;s.origin_generation=1;s.predicted_display_time=200;s.observed_at_monotonic_ns=100;
@@ -70,15 +85,17 @@ static void immutable_packet(){
     mkwvk::FirstPersonProjectionPacket projected{};
     check(owner.project(i.game_present,.125,1234,projected),"native projection packet");
     check(projected.camera.sequence==o.tracking_sequence&&projected.observed_ns==o.observed_ns&&!projected.synthetic,"projection provenance");
+    check(projected.tracking.sequence==projected.camera.sequence&&projected.tracking.predicted_display_time==projected.camera.predicted_display_time,"layer poses retain exact render observation identity");
+    check(near(projected.tracking.eyes[0].pose.position[0],-.032)&&near(projected.tracking.head.position[1],1.8),"tracking poses remain metres in LOCAL, separate from game-world root/scale");
     for(unsigned eye=0;eye<2;++eye)for(unsigned k=0;k<12;++k)check(near(projected.camera.eyes[eye].view[k],o.eye_views[eye][k]),"same frozen pose for host view and per-eye projection");
     check(projected.camera.near_z==.125&&projected.camera.far_z==1234,"authoritative native clipping retained");
     const auto projection_saved=projected;
     check(!owner.project(i.game_present+1,.125,1234,projected),"wrong present cannot borrow camera");
     check(!owner.project(i.game_present,0,1234,projected),"invalid native clip rejected");
-    check(!std::memcmp(&projected,&projection_saved,sizeof projected),"failed projection is atomic");
+    check(same_projection(projected,projection_saved),"failed projection is atomic");
     s.sequence++;s.observed_at_monotonic_ns++;s.predicted_display_time++;s.head.position[0]+=.5f;i.root_position[0]+=3;
     check(owner.build(i,s,false,o)&&!std::memcmp(&first,&o,sizeof o),"same game present cannot acquire a different pose, root or timestamp");
-    check(owner.project(i.game_present,.125,1234,projected)&&!std::memcmp(&projected,&projection_saved,sizeof projected),"late tracking cannot replace frozen eye projections");
+    check(owner.project(i.game_present,.125,1234,projected)&&same_projection(projected,projection_saved),"late tracking cannot replace frozen eye projections");
     i.game_present++;check(owner.build(i,s,false,o),"next game present camera packet");check(o.tracking_sequence==s.sequence&&!near(o.eye_position[0],first.eye_position[0]),"next present uses new tracking and root");
     s.origin_generation++;check(owner.build(i,s,false,o)&&(o.flags&MKWVK_FP_RIG_RESET),"recenter invalidates same-present cache");
     s.eyes[1].pose.flags=0;const auto saved=o;check(!owner.build(i,s,false,o)&&!std::memcmp(&saved,&o,sizeof o),"invalid tracking cannot reuse cache as a new valid observation");
@@ -88,7 +105,7 @@ static void render_history(){
     check(owner.build(i,s,false,o),"history first frame");mkwvk::FirstPersonProjectionPacket first{},out{};
     check(owner.project(1,.125,1234,first),"history initial projection");
     for(unsigned k=0;k<63;++k){i.game_present++;s.sequence++;s.observed_at_monotonic_ns++;s.head.position[0]+=.01f;check(owner.build(i,s,false,o),"advance retained frames");}
-    check(owner.project(1,.125,1234,out)&&!std::memcmp(&out,&first,sizeof out),"GPU can consume old frame with its original pose and timestamp");
+    check(owner.project(1,.125,1234,out)&&same_projection(out,first),"GPU can consume old frame with its original pose and timestamp");
     i.game_present++;s.sequence++;check(owner.build(i,s,false,o),"history overflow");
     check(!owner.project(1,.125,1234,out)&&owner.project(i.game_present,.125,1234,out),"oldest expires and newest remains");
     const auto saved_input=i;i.game_present--;check(!owner.build(i,s,false,o),"late host query cannot replace newer game present");i=saved_input;

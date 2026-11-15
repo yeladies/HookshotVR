@@ -21,6 +21,7 @@ struct {VkDevice device=handle<VkDevice>(1);} dev;
 std::atomic<bool> par_active{false};
 struct Fake {
     uint64_t next=100,completed=0,generation=1;int allocations=0,fail=0,throw_at=0,draws=0,pushes=0,work=0,ends=0,corrupt_draw=0;
+    int direct_boundaries=0;
     int matrix_dispatches=0;bool matrix_corrupt=false,matrix_touch_source=false,large_scene=false,wrong_shift=false;
     struct MatrixParameters {VkDeviceAddress source=0,destination=0;uint32_t bytes=0;float shift=0;uint32_t mode=0,reserved=0;} matrix;
     std::set<VkShaderModule> shaders;std::set<VkPipelineLayout> layouts;std::set<VkPipeline> pipelines;
@@ -29,6 +30,9 @@ struct Fake {
     std::map<VkImage,std::vector<unsigned char>> images;std::map<VkImageView,VkImage> views;
     std::map<VkBuffer,std::vector<unsigned char>> buffers;std::map<VmaAllocation,uint64_t> memory;
 } fake;
+// The fixture has no queued driver packets; preserve and count the production
+// boundary instead of compiling an older copy of the extracted recorder.
+namespace rec {enum Boundary {B_DIRECT};void boundary(Boundary){++fake.direct_boundaries;}}
 uint64_t vk_timeline_completed(){return fake.completed;}
 void note_work(){++fake.work;}
 void end_pass(VkCommandBuffer){++fake.ends;}

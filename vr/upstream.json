@@ -35,7 +35,11 @@
     "gpu/vk/xr_camera_frame.h",
     "gpu/vk/vk_xr_session.h",
     "gpu/vk/xr_first_person_rig.h",
-    "gpu/vk/vk_xr_first_person.cpp"
+    "gpu/vk/vk_xr_first_person.cpp",
+    "gpu/vk/xr_scene_camera.h",
+    "gpu/vk/xr_camera_history_capture.h",
+    "gpu/vk/vk_xr_camera.cpp",
+    "gpu/vk/xr_camera_submission.h"
   ],
   "release_policy": "unverified_until_source_review_build_tests_and_headset_validation"
 }
