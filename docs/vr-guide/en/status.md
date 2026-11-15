@@ -1,5 +1,7 @@
 # Status, evidence and roadmap
 
+Quest check on 2026-11-15: the user accepts Tuned geometry/FOV and reports good fluency, decent detail and a minor Link halo. Blackouts persist, though reduced. New counters attribute recorded missing layers to aged source poses, with no tracking/API errors. A same-binary 3200-source/2304-eye Performance comparison is being tested; Tuned 3584 remains available. [Results and interpretation](../../vr-coherent-view-and-gaps.md).
+
 Tuned native source `33fe8ca1` is now compiled: both ±45° private-save sweeps pass with coherent view/lens data, 660/780 GPU pairs, six changing samples and zero producer failures. A default-off run passes and 19 stable hashes are unchanged. The next required step is Quest/VDXR visual validation, including the new blackout counters. No new headset acceptance is claimed.
 
 The next [Tuned coherence candidate and gap diagnostics](../../vr-coherent-view-and-gaps.md) uses source 3584 / eyes 2304 with the user's approval, synchronizes derived view parameters, restores coherent shared projection fields and adds ±45° unattended sweeps. Headset correction remains unconfirmed.

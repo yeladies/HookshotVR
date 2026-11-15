@@ -1,5 +1,7 @@
 # Estado, resultados y hoja de ruta
 
+Prueba Quest del 15-11-2026: el usuario acepta geometría/FOV de Tuned, fluidez buena y detalle decente; queda un halo menor alrededor de Link. Los apagones persisten, aunque reducidos. Los nuevos contadores relacionan las capas omitidas con poses fuente antiguas, sin fallos de seguimiento/API. Se prueba Performance 3200/2304 con el mismo binario y se conserva Tuned 3584. [Resultados e interpretación](../../vr-coherent-view-and-gaps.md).
+
 La build Tuned `33fe8ca1` ya está compilada: pasan ambos giros de ±45° con vista/lente coherentes, 660/780 pares GPU, seis muestras cambiantes y cero fallos del productor. Pasa el arranque sin VR y siguen intactos 19 hashes de la instalación estable. El siguiente paso requiere valoración visual en Quest/VDXR, incluidos los nuevos contadores de apagones. No se da por aceptada en visor.
 
 La siguiente [candidata Tuned y diagnóstico de apagones](../../vr-coherent-view-and-gaps.md) usa fuente 3584 / ojos 2304 con autorización del usuario, sincroniza datos derivados de vista, recupera campos compartidos de proyección coherentes y añade giros automáticos de ±45°. La corrección visual sigue pendiente.

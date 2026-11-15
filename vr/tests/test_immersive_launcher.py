@@ -16,18 +16,22 @@ class ImmersiveLaunchGuards(unittest.TestCase):
     def test_tuned_profile_forwards_independent_sizes_and_coherence(self):
         with tempfile.TemporaryDirectory(prefix='vr-profile-') as folder:
             root=Path(folder);shutil.copyfile(ROOT/'vr/run-xr-owned-preview.ps1',root/'run-xr-owned-preview.ps1')
-            (root/'run-immersive-preview.ps1').write_text("param([switch]$GpuWorldPreview,[switch]$GpuXrReproject,[switch]$CoherentView,[int]$GpuSquareSize,[int]$GpuEyeSize,[int]$CullingFovDegrees,[switch]$Audio,[int]$Seconds,[string]$PreviewResolution,[int]$FovMarginPercent,[int]$GpuGuardBandPercent)\n$PSBoundParameters|ConvertTo-Json -Compress\n$global:LASTEXITCODE=0\n",encoding='utf-8-sig')
-            for profile,source,eye,coherent,cull in [('Tuned',3584,2304,True,0),('Combined',4096,2560,False,160),('Balanced',1440,1440,False,0)]:
-                result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(root/'run-xr-owned-preview.ps1'),'-Profile',profile],capture_output=True,text=True,timeout=20)
+            (root/'run-immersive-preview.ps1').write_text("param([switch]$GpuWorldPreview,[switch]$GpuXrReproject,[switch]$CoherentView,[int]$GpuFramesAhead,[int]$GpuSquareSize,[int]$GpuEyeSize,[int]$CullingFovDegrees,[switch]$Audio,[int]$Seconds,[string]$PreviewResolution,[int]$FovMarginPercent,[int]$GpuGuardBandPercent)\n$PSBoundParameters|ConvertTo-Json -Compress\n$global:LASTEXITCODE=0\n",encoding='utf-8-sig')
+            for profile,source,eye,coherent,cull,ahead in [('Performance',3200,2304,True,0,0),('Performance',3200,2304,True,0,1),('Tuned',3584,2304,True,0,0),('Combined',4096,2560,False,160,0),('Balanced',1440,1440,False,0,0)]:
+                result=subprocess.run(['powershell','-NoProfile','-ExecutionPolicy','Bypass','-File',str(root/'run-xr-owned-preview.ps1'),'-Profile',profile,'-GpuFramesAhead',str(ahead)],capture_output=True,text=True,timeout=20)
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr);args=json.loads(result.stdout)
+                self.assertEqual(args['GpuFramesAhead'],ahead)
                 self.assertEqual((args['GpuSquareSize'],args['GpuEyeSize'],args['CoherentView']['IsPresent'],args['CullingFovDegrees']),(source,eye,coherent,cull))
                 self.assertTrue(args['GpuXrReproject']['IsPresent'] and args['GpuWorldPreview']['IsPresent'] and args['Audio']['IsPresent']);self.assertEqual(args['FovMarginPercent'],60);self.assertEqual(args['GpuGuardBandPercent'],8)
+    def test_queue_pacing_requires_explicit_gpu_mode(self):
+        self.reject(['-GpuFramesAhead','1'],'GPU queue pacing requires XR-owned mode or its non-XR eye probe')
     def test_wide_sweep_cannot_reach_headset(self):
         self.reject(['-TestHeadSweep','WideYaw','-ImmersivePreview'],'Wide head sweep requires a non-XR synthetic camera test')
         self.reject(['-TestHeadSweep','WidePitch'],'Wide head sweep requires a non-XR synthetic camera test')
     def test_combined_modes_require_explicit_opt_in(self):
         self.reject(['-CoherentView'],'Coherent view requires an isolated immersive camera run')
-        self.reject(['-GpuSquareSource','-GpuSquareSize','3584','-GpuEyeStreamProbe'],'3584 source requires an explicit bounded eye size')
+        for size in ('3200','3584'):
+            self.reject(['-GpuSquareSource','-GpuSquareSize',size,'-GpuEyeStreamProbe'],size+' source requires an explicit bounded eye size')
         self.reject(['-GpuEyeSize','2560'],'Independent eye size requires')
         self.reject(['-GpuSquareSource','-GpuSquareSize','4096','-GpuEyeStreamProbe'],'4096 source requires an explicit bounded eye size')
         self.reject(['-CullingFovDegrees','160'],'Visibility volume requires')

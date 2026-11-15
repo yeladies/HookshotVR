@@ -17,6 +17,26 @@ struct XrGpuSceneSourceAccess {static void pin(XrGpuSceneSource& frame,const std
 namespace {
 constexpr uint64_t gpu_scene_packet_cap=128ull*1024*1024,gpu_scene_pool_cap=512ull*1024*1024;
 int64_t gpu_scene_now(){return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
+// CPU observations: capture-to-ready includes execution and completion polling.
+struct GpuSourceTiming {
+    uint64_t samples=0,invalid=0,pose_to_capture_sum=0,pose_to_capture_max=0,capture_to_ready_sum=0,capture_to_ready_max=0,pose_to_ready_sum=0,pose_to_ready_max=0;
+    uint64_t over250_at_capture=0,over250_at_ready=0;std::array<uint64_t,6> ready_age_counts{};
+    bool note(int64_t pose,int64_t captured,int64_t ready){
+        if(pose<=0||captured<pose||ready<captured){++invalid;return false;}
+        const uint64_t before=uint64_t(captured-pose),after=uint64_t(ready-captured),total=uint64_t(ready-pose);++samples;
+        pose_to_capture_sum+=before;capture_to_ready_sum+=after;pose_to_ready_sum+=total;
+        pose_to_capture_max=std::max(pose_to_capture_max,before);capture_to_ready_max=std::max(capture_to_ready_max,after);pose_to_ready_max=std::max(pose_to_ready_max,total);
+        if(before>250000000)++over250_at_capture;if(total>250000000)++over250_at_ready;
+        unsigned bucket=0;for(uint64_t limit:{16000000ull,33000000ull,66000000ull,100000000ull,250000000ull}){if(total<=limit)break;++bucket;}++ready_age_counts[bucket];return true;
+    }
+    void json(std::ostream& f)const{
+        f<<"{\"clock\":\"CPU_steady_observations\",\"GPU_timestamp_measurement\":false,\"completion_poll_delay_included\":true,\"samples\":"<<samples<<",\"invalid_samples\":"<<invalid
+         <<",\"pose_to_capture_sum_ns\":"<<pose_to_capture_sum<<",\"pose_to_capture_max_ns\":"<<pose_to_capture_max<<",\"capture_to_ready_sum_ns\":"<<capture_to_ready_sum<<",\"capture_to_ready_max_ns\":"<<capture_to_ready_max
+         <<",\"pose_to_ready_sum_ns\":"<<pose_to_ready_sum<<",\"pose_to_ready_max_ns\":"<<pose_to_ready_max<<",\"over250ms_at_capture\":"<<over250_at_capture<<",\"over250ms_at_ready\":"<<over250_at_ready
+         <<",\"ready_age_upper_bounds_ns\":[16000000,33000000,66000000,100000000,250000000,null],\"ready_age_counts\":[";
+        for(unsigned i=0;i<ready_age_counts.size();++i){if(i)f<<',';f<<ready_age_counts[i];}f<<"]}";
+    }
+};
 struct GpuSceneBuffer {VkBuffer buffer=VK_NULL_HANDLE;VkDeviceMemory memory=VK_NULL_HANDLE;uint64_t capacity=0,allocated=0,address=0;void* mapped=nullptr;bool coherent=false;};
 struct GpuSceneCandidate {const Texture* color=nullptr;const Texture* depth=nullptr;uint64_t texture_generation=0;uint32_t format=0;std::array<float,16> projection{};std::array<float,12> view{};ImmersiveTag pose;bool synthetic=false;};
 struct GpuScenePin {};
@@ -26,12 +46,16 @@ struct GpuScenePool {
     std::mutex mutex;VkDevice device=VK_NULL_HANDLE;uint64_t generation=0,frame=UINT64_MAX,last_tick=UINT64_MAX,last_record=UINT64_MAX,sequence=0,allocated=0;
     std::vector<GpuSceneCandidate> candidates;std::array<GpuSceneSlot,3> slots;std::shared_ptr<const XrGpuSceneSource> latest;
     uint64_t reported_completed=0,consumer_completions=0,captures=0,completed=0,published=0,leased_skips=0,allocations=0,failures=0;bool armed=false,stopped=false,retained=false;int64_t arm_poll=0;
+    GpuSourceTiming timing;
     GpuSceneBuffer probe;std::shared_ptr<const XrGpuSceneSource> probe_source;uint64_t probe_recording=0;bool probe_pending=false,probe_complete=false,probe_attempted=false;
 };
 GpuScenePool& gpu_scene_pool(){static auto* p=new GpuScenePool;return *p;}
 void gpu_scene_report(const GpuScenePool& p,const char* status){
     const char* path=std::getenv("HOOKSHOT_VR_GPU_SOURCE_REPORT_FILE");if(!path||!*path)return;
-    try{std::ofstream file(std::filesystem::u8path(path),std::ios::trunc);if(file)file<<"{\"schema\":1,\"status\":\""<<status<<"\",\"captures\":"<<p.captures<<",\"completed\":"<<p.completed<<",\"consumer_polled_completions\":"<<p.consumer_completions<<",\"published\":"<<p.published<<",\"leased_skips\":"<<p.leased_skips<<",\"allocations\":"<<p.allocations<<",\"allocated_bytes\":"<<p.allocated<<",\"failures\":"<<p.failures<<",\"device_generation\":"<<p.generation<<",\"latest_state\":"<<(p.latest?p.latest->state:0)<<",\"probe_complete\":"<<(p.probe_complete?"true":"false")<<",\"source_publication_CPU_pixels\":false,\"validation_packet_readback\":"<<(p.probe_complete?"true":"false")<<",\"XR_consumer_connected\":false,\"native_stereo\":false}\n";}catch(...){}
+    try{std::ofstream file(std::filesystem::u8path(path),std::ios::trunc);if(!file)return;
+        file<<"{\"schema\":1,\"status\":\""<<status<<"\",\"captures\":"<<p.captures<<",\"completed\":"<<p.completed<<",\"consumer_polled_completions\":"<<p.consumer_completions<<",\"published\":"<<p.published<<",\"leased_skips\":"<<p.leased_skips<<",\"allocations\":"<<p.allocations<<",\"allocated_bytes\":"<<p.allocated<<",\"failures\":"<<p.failures<<",\"device_generation\":"<<p.generation<<",\"latest_state\":"<<(p.latest?p.latest->state:0)<<",\"probe_complete\":"<<(p.probe_complete?"true":"false")<<",\"source_publication_CPU_pixels\":false,\"validation_packet_readback\":"<<(p.probe_complete?"true":"false")<<",\"XR_consumer_connected\":false,\"native_stereo\":false,\"source_timing\":";
+        p.timing.json(file);file<<"}\n";
+    }catch(...){}
 }
 void gpu_scene_destroy(GpuScenePool& p,GpuSceneBuffer& b){if(b.mapped)p.unmap(p.device,b.memory);if(b.buffer)vkDestroyBuffer(p.device,b.buffer,nullptr);if(b.memory)vkFreeMemory(p.device,b.memory,nullptr);p.allocated-=b.allocated;b={};}
 bool gpu_scene_allocate(GpuScenePool& p,uint64_t bytes,bool host,GpuSceneBuffer& out){
@@ -64,7 +88,7 @@ bool gpu_scene_camera(const float* c,size_t count){
 }
 void gpu_scene_order(VkCommandBuffer command,VkPipelineStageFlags2 stage,VkAccessFlags2 access){VkMemoryBarrier2 b{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};b.srcStageMask=VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;b.srcAccessMask=VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT;b.dstStageMask=stage;b.dstAccessMask=access;VkDependencyInfo d{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};d.memoryBarrierCount=1;d.pMemoryBarriers=&b;vkCmdPipelineBarrier2(command,&d);}
 void gpu_scene_publish_completed(GpuScenePool& p,uint64_t completed,int64_t observed){
-    for(auto& slot:p.slots)if(slot.pending&&completed>=slot.frame->recording){slot.pending=false;slot.frame->ready_ns=observed;++p.completed;if(!p.latest||slot.frame->state>p.latest->state){p.latest=slot.frame;++p.published;}}
+    for(auto& slot:p.slots)if(slot.pending&&completed>=slot.frame->recording){slot.pending=false;slot.frame->ready_ns=observed;p.timing.note(slot.frame->pose.valid?slot.frame->pose.observed_ns:0,slot.frame->captured_ns,observed);++p.completed;if(!p.latest||slot.frame->state>p.latest->state){p.latest=slot.frame;++p.published;}}
 }
 bool gpu_scene_probe_write(const GpuScenePool& p){
     const char* path=std::getenv("HOOKSHOT_VR_GPU_SOURCE_PROBE_FILE");if(!path||!*path||!p.probe_source)return false;

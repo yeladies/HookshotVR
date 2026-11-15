@@ -12,6 +12,7 @@
 #include <map>
 #include <mutex>
 #include <stdexcept>
+#include <sstream>
 #include <type_traits>
 void check(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
 template<class T>T handle(uint64_t n){if constexpr(std::is_pointer_v<T>)return reinterpret_cast<T>(uintptr_t(n));else return T(n);}
@@ -57,6 +58,14 @@ void capture(uint64_t frame,uint64_t recording=0){fake.frame=frame;xr_gpu_scene_
 auto latest(){return xr_gpu_scene_source_acquire(dev.device,0,gpu_scene_now(),false);}
 void complete(uint64_t frame){fake.completed=frame*10;fake.frame=frame+1;xr_gpu_scene_source_tick(frame+1);}
 int main(){try{
+    {GpuSourceTiming timing;constexpr int64_t ms=1000000;
+     check(timing.note(100*ms,140*ms,170*ms)&&timing.note(200*ms,300*ms,450*ms),"causal source timings accepted");
+     check(timing.samples==2&&timing.pose_to_capture_sum==140*ms&&timing.capture_to_ready_sum==180*ms&&timing.pose_to_ready_sum==320*ms,"camera/recording and completion stages partition age");
+     check(timing.over250_at_capture==0&&timing.over250_at_ready==0&&timing.ready_age_counts[3]==1&&timing.ready_age_counts[4]==1,"exact250ms belongs inside deadline bucket");
+     check(timing.note(100*ms,351*ms,360*ms)&&timing.over250_at_capture==1&&timing.over250_at_ready==1,"already stale before copy distinguished from queue delay");
+     check(!timing.note(0,1,2)&&!timing.note(20,10,30)&&!timing.note(10,30,20)&&timing.samples==3&&timing.invalid==3,"invalid observations do not enter aggregates");
+     std::ostringstream report;timing.json(report);check(report.str().find("\"GPU_timestamp_measurement\":false")!=std::string::npos,"CPU observations are not GPU timestamps");}
+    {reset();fake.pose.valid=true;fake.pose.generation=7;fake.pose.observed_ns=gpu_scene_now()-5000000;capture(1);check(gpu_scene_pool().timing.samples==0,"pending copy cannot record completion age");fake.completed=10;auto source=latest();check(source&&gpu_scene_pool().timing.samples==1,"actual consumer completion records one source timing");auto again=latest();check(gpu_scene_pool().timing.samples==1,"polls cannot recount a completed packet");}
     reset();check(xr_gpu_scene_source_stop(),"empty stop");
     for(int i=1;i<=4;++i){reset();fake.fail=i;capture(1);check(!latest()&&fake.sizes.empty()&&fake.memory.empty(),"each partial source allocation unwinds without commands");}
     for(int i=1;i<=4;++i){reset();capture(1);complete(1);auto& pool=gpu_scene_pool();const auto bytes=pool.allocated;fake.fail=fake.calls+i;GpuSceneBuffer probe;check(!gpu_scene_allocate(pool,128,true,probe)&&pool.allocated==bytes&&fake.memory.size()==1&&fake.sizes.size()==1,"host readback allocation/map failures unwind separately");check(xr_gpu_scene_source_stop(),"failed readback leaves original packet releasable");}
