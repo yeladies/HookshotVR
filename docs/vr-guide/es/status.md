@@ -13,7 +13,9 @@ Siguientes pasos:
 3. Enviar ambos ojos completos a OpenXR directamente en GPU y componer HUD, textos y menús legibles.
 4. Probar en Quest escala, visibilidad, transiciones, antigüedad de frames y estabilidad; añadir mecánicas de movimiento tras estabilizar el render.
 
-Pasan 181/181 checks VR. Los heredados registran 586 correctos, 22 fallos conocidos de upstream y 40 omisiones. Siguen intactos nueve hashes de la instalación y catorce archivos de partida originales. Solo se comparten fuente, pruebas y documentación; todos los derivados del juego quedan locales.
+Pasan 182/182 checks VR. Los heredados registran 586 correctos, 22 fallos conocidos de upstream y 40 omisiones. Siguen intactos nueve hashes de la instalación y catorce archivos de partida originales. Solo se comparten fuente, pruebas y documentación; todos los derivados del juego quedan locales.
+
+La exportación separa ahora gráficos y cómputo dentro del cupo existente: están disponibles todos los módulos observados y quedan tres consultas gráficas sin resolver. El historial con identidad exacta de escritor pasó 32/32 muestras en una prueba real WideYaw. La captura Lean quedó incompleta y los intentos de color nativo permanecieron invisibles; ambas limitaciones siguen abiertas. [Pruebas y límites de captura](../../vr-camera-consumer-capture.md).
 
 ## Experimentos archivados del renderizador
 

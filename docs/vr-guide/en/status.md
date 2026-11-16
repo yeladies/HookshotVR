@@ -13,7 +13,9 @@ Next steps:
 3. Submit both completed eye images directly on GPU to OpenXR, then compose readable HUD, texts and menus.
 4. Run Quest checks for scale, visibility, transitions, frame age and stability; add motion mechanics after stable rendering.
 
-The VR suite passes 181/181. Inherited checks: 586 passed, 22 known upstream failures, 40 skips. Nine installation hashes and fourteen original save files remain unchanged. Only source, tests and documentation are shared; all game-derived artifacts stay local.
+The VR suite passes 182/182. Inherited checks: 586 passed, 22 known upstream failures, 40 skips. Nine installation hashes and fourteen original save files remain unchanged. Only source, tests and documentation are shared; all game-derived artifacts stay local.
+
+Shader export now separates graphics and compute within the existing budget; both observed module inventories are complete, with three unresolved graphics queries remaining. The new exact-writer history passed 32/32 samples during a real-game WideYaw test. A Lean capture was incomplete, and native color attempts stayed invisible; both limitations remain explicit. [Capture evidence and limits](../../vr-camera-consumer-capture.md).
 
 ## Archived renderer experiments
 

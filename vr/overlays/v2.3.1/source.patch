@@ -109,6 +109,39 @@ index 0000000000000000000000000000000000000000..5099fd05fc8f4cc3aec7805edecf2ae0
 +Next integration must cover image views/attachments, actual game descriptor bindings,
 +compute writes and hidden pointers under a single resource/submit identity. This
 +prototype does not establish that the game's scene is safe to replay.
+diff --git a/docs/vr-camera-consumer-capture.md b/docs/vr-camera-consumer-capture.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..f59f74fc77a71d6494ade9d05fad1143be1a13e0
+--- /dev/null
++++ b/docs/vr-camera-consumer-capture.md
+@@ -0,0 +1,27 @@
++# Camera consumer capture / Captura de consumidores de cámara
++
++## English
++
++The first broad graphics audit on the validated 2.3.1 camera build collected 64 programs and 309 bindings, including vertex, fragment, task and mesh stages. Its 64 MiB export budget filled with 67,107,920 bytes: 17,812,476 bytes belonged to compute modules even though graphics were being inspected. Seven primary-camera modules were unavailable, so the launcher correctly kept the audit unverified. The camera/history checks and 114 first-person samples passed independently. A separate compute audit completed; its data remains private.
++
++The optional exporter now reserves that same budget for the requested stage family. Normal shader audits retain graphics, including both NV and EXT task/mesh entry models; `-ComputeShaderUniformAudit` retains GLCompute modules. Unsupported, mixed-family, truncated and zero-length instruction streams fail closed. Filtered modules do not consume export quota. Reused module handles lose old reviewed identities before an ineligible replacement can be observed. The existing byte, program and metadata limits remain unchanged.
++
++The game-free suite passes 182 cases, including graphics/compute isolation, a rejected graphics workload larger than the full compute quota, all task/mesh models, malformed streams and stale-handle replacement. These are metadata/transport checks with authored words, not Vulkan execution of those tiny fixtures. Matched-build real-game follow-ups are recorded below.
++
++This capture work does not authorize shader replay or camera-tail patching. Non-prefix reads, global pointers, dynamic indexing, task/compute writes, visibility and temporal histories still need producer/consumer review before whole-scene stereo. The already validated isolated native-eye depth draw is documented separately.
++
++## Castellano
++
++La primera auditoría gráfica amplia sobre la cámara 2.3.1 validada recopiló 64 programas y 309 bindings, con etapas vertex, fragment, task y mesh. El cupo de 64 MiB se agotó con 67.107.920 bytes; 17.812.476 pertenecían a módulos de cómputo aunque se estaban inspeccionando gráficos. Faltaban siete módulos de cámara principal, por lo que el lanzador mantuvo correctamente la auditoría sin verificar. Pasaron por separado la cámara, el historial y 114 muestras de primera persona. Otra auditoría de cómputo terminó; sus datos permanecen privados.
++
++El exportador opcional reserva ahora el mismo cupo para la familia solicitada. La auditoría normal conserva gráficos, incluidos task/mesh NV y EXT; `-ComputeShaderUniformAudit` conserva GLCompute. Se rechazan modelos no admitidos, familias mezcladas e instrucciones truncadas o de longitud cero. Los módulos descartados no gastan el cupo. Un handle reutilizado pierde su identidad revisada anterior antes de observar un reemplazo no admisible. No cambian los límites de bytes, programas ni metadatos.
++
++La suite sin juego pasa 182 casos, incluidos aislamiento entre gráficos/cómputo, rechazo de gráficos que superan el cupo completo de cómputo, modelos task/mesh, datos malformados y sustitución de handles. Son pruebas de metadatos/transporte con palabras inventadas, no ejecuciones Vulkan de esos pequeños fixtures. Las comprobaciones reales con la pareja de módulos compilados se recogen a continuación.
++
++La captura no autoriza repetir shaders ni modificar campos opacos de cámara. Lecturas fuera del prefijo, punteros globales, índices dinámicos, escrituras task/compute, visibilidad e historiales requieren revisar escritores y consumidores antes de la escena completa en estéreo. El dibujo nativo aislado de profundidad ya validado se documenta por separado.
++
++## Scoped capture validation / Validación de captura separada
++
++The matched `c7c1ede0` build passed all three 150-second offscreen runs: native depth control (118 first-person samples), graphics audit (120 samples, 64 programs, 356 bindings) and compute audit (124 samples, 64 programs, 79 bindings). Every observed module was available in both audits. Three graphics uniform queries remain unresolved; capture completeness does not settle their semantics. The existing budget was retained. All 182 VR checks and six renderer syntax checks pass. Inherited results remain 586 passed, 22 matching upstream failures and 40 skipped. Nine installation and fourteen save hashes match a fresh baseline taken after the user's normal game session.
++
++La build `c7c1ede0` pasó las tres ejecuciones de 150 segundos sin visor: control nativo de profundidad (118 muestras), auditoría gráfica (120 muestras, 64 programas y 356 bindings) y de cómputo (124 muestras, 64 programas y 79 bindings). Están disponibles todos los módulos observados en ambas auditorías. Quedan tres consultas gráficas de uniformes sin resolver; disponer de las capturas no confirma su semántica. Se conserva el mismo cupo. Pasan 182 checks VR y seis comprobaciones de sintaxis. Los heredados mantienen 586 correctos, 22 fallos de upstream y 40 omisiones. Nueve hashes de instalación y catorce de partidas coinciden con un baseline nuevo tomado después de la sesión normal del usuario.
 diff --git a/docs/vr-camera-integration.md b/docs/vr-camera-integration.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..cc664160c95099c5c29d497c5f88b9b07d1e4ddc
@@ -3546,10 +3579,10 @@ index 0000000000000000000000000000000000000000..53a99accbdf48a04e3c881afe7df6aca
 +Batería heredada: 357 correctas, los 5 fallos conocidos de base/entorno y 59 omitidas en 374 segundos. El arranque con el diagnóstico desactivado pasó y coinciden los 19 hashes vigilados de la instalación estable. No se abrió otra sesión XR para esta prueba nativa.
 diff --git a/docs/vr-native-eye-draw.md b/docs/vr-native-eye-draw.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..3ba9caed61eec2872e3e747e8a1f3caf63bc4cdc
+index 0000000000000000000000000000000000000000..00911a91139c8c152569fd9e56ba363b46c04098
 --- /dev/null
 +++ b/docs/vr-native-eye-draw.md
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,95 @@
 +# Isolated native-eye drawing / Dibujo nativo aislado por ojo
 +
 +## English
@@ -3623,6 +3656,28 @@ index 0000000000000000000000000000000000000000..3ba9caed61eec2872e3e747e8a1f3caf
 +La ejecución con buffers parciales (fuente 26ebc525) produjo 123 muestras de primera persona y 32 candidatos válidos, sin rechazos del mirror actual. El dibujo nativo seguía bloqueado: el filtro comparaba un objeto de vista CPU con la dirección NVN del uniforme. Pertenecen a espacios de identidad distintos; la prueba sintética anterior no representaba esa diferencia.
 +
 +Un observador independiente, protegido por build e instrucciones exactas, se ejecuta ahora tras el último store del prefijo primario. Recibe el objeto CPU y su destino real desde los registros del escritor, verifica los bytes exactos de vista y el present original de primera persona, y publica el destino como observación. Está desactivado en el juego normal. La consulta Vulkan obtiene la dirección CPU del rango desde el pool actual; el filtro usa esa dirección y conserva aparte la NVN para la indirección de raíces. El grabador comprueba de nuevo ese vínculo antes de copiar. El observador no escribe memoria del juego ni sustituye el present del escritor por el contador actual.
++
++## Native color experiment / Experimento nativo de color
++
++A separate `-FirstPersonNativeEyeColorDrawProbe` mode now requires an actual color-writing source draw. It uses the native packet, source/writer identity, full GPU source clone, two unchanged controls and root/indirect lifetime checks. The existing depth probe remains separately selected. The launcher checks the returned reference attachment before accepting either mode; neither can silently accept the other's result.
++
++Native selection may use reviewed fragment reads inside the known 224-byte camera prefix because the native packet rebuilds all four primary matrices for each eye. The old artificial lens-shift selection retains its vertex-only restriction. Unresolved or preserved-tail reads are still rejected. Color uses the same six-frame bytewise control/raster comparison; pixel differences remain evidence of isolated activity rather than full-scene stereo. Real-game color validation is pending.
++
++El modo independiente `-FirstPersonNativeEyeColorDrawProbe` exige que el dibujo original escriba color. Mantiene el paquete nativo, la identidad del origen/escritor, la copia GPU completa, dos controles sin cambios y las verificaciones de raíces, comandos indirectos y duración de vida. La prueba de profundidad se selecciona por separado. El lanzador verifica el adjunto devuelto antes de aceptar cada modo.
++
++La selección nativa admite lecturas de fragmento revisadas dentro del prefijo conocido de 224 bytes, porque reconstruye las cuatro matrices primarias por ojo. La selección antigua de desplazamiento de lente conserva su restricción a vértices. Se siguen rechazando lecturas no resueltas y campos opacos restantes. Color usa la misma comparación de seis frames; las diferencias de píxeles no certifican toda la escena. Falta validar el color en el juego real.
++
++Invisible native color draws may advance to another eligible draw only after matrix, source/tail and root/indirect verification; the total attempt budget remains eight. The depth mode keeps its earlier selection behavior. / Un dibujo nativo de color invisible solo puede pasar a otro dibujo elegible tras verificar matriz, origen/cola y raíces/comandos indirectos; el presupuesto total sigue siendo ocho intentos. Profundidad conserva su selección anterior.
++
++## Native color follow-up / Seguimiento de color nativo
++
++Source `b925e785` completed native depth draws in two runs, preserving both unchanged controls and source/root guards. The broader history audit correctly refused full acceptance: one and then two samples had ambiguous unfiltered observation presents. Color remained inconclusive in three 150-second runs (Lean, WideYaw, and WideYaw with the head retained): seven, eight and four completed attempts, all with zero original color pixels. Retaining the head did not establish the mask as the sole cause. A matching 291-index head LOD is diagnostic context, not source identity proof. Do not classify empty color draws as successful stereo.
++
++Native history capture now uses the certified current range's CPU writer destination, through the same exact identity filter as native drawing. The earlier history path compared every equal-matrix observation without that domain restriction. Native samples are taken from eligible current source ranges before draw selection; rejected selection or an already completed primitive cannot silently fall back to the old unfiltered history. The ordinary history mode remains unchanged. Conflicting presents for the same exact writer remain explicitly ambiguous and their projection evidence stays unavailable. The capture still copies submission overlays and never claims GPU-completed readback or a verified simulation tick. Authored functional fixtures exercise the real capture callback, including a missing writer and missing attachments. Matched-build real-game validation of this change is pending.
++
++La fuente `b925e785` completó dibujos nativos de profundidad en dos ejecuciones, conservando controles, origen y raíces. La auditoría completa de historial rechazó correctamente su aceptación: una y después dos muestras tenían presents ambiguos en observaciones sin filtro de identidad. Color siguió inconcluyente en tres pruebas de 150 segundos (Lean, WideYaw y WideYaw conservando la cabeza): siete, ocho y cuatro intentos completados, todos sin píxeles originales de color. Conservar la cabeza no demostró que la máscara fuera la única causa. La coincidencia con un LOD de cabeza de 291 índices es una pista, no una prueba de identidad. Un dibujo vacío no certifica estéreo.
++
++El historial nativo usa ahora el destino CPU del escritor que certifica el rango actual, con el mismo filtro exacto del dibujo nativo. El historial anterior comparaba todas las observaciones con matrices iguales sin separar ese dominio. Las muestras se toman antes de seleccionar la primitiva; una selección rechazada o ya terminada no recupera el historial antiguo sin filtro. El modo normal de historial se conserva. Presents distintos del mismo escritor siguen siendo ambiguos y mantienen su evidencia de proyección como no disponible. La captura conserva copias de envío; no afirma lectura GPU completada ni un tick de simulación verificado. Las pruebas propias ejercitan la captura real y rechazan escritores ausentes o adjuntos faltantes. Falta validar esta corrección con su build correspondiente dentro del juego.
 diff --git a/docs/vr-native-stereo-gates.md b/docs/vr-native-stereo-gates.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..d07d492dbcfcb95ce273de468046498bd09f0033
@@ -5618,7 +5673,7 @@ index 8d0cfdb9e6469b1b154a4abaa783657f697cdc8e..48a5a7e8f6f7258a9c2ff1fc304ac271
  
  /* the DLL's one export: null when Vulkan is not usable (the executable then falls back to WebGPU) */
 diff --git a/gpu/vk/vk_draw.cpp b/gpu/vk/vk_draw.cpp
-index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a323483c4e4bd4 100644
+index 49f2785e2d7001968b57ca013d8216932dcc11f2..8f991af0307834163fb15673a2506016661174fd 100644
 --- a/gpu/vk/vk_draw.cpp
 +++ b/gpu/vk/vk_draw.cpp
 @@ -6,6 +6,10 @@
@@ -5723,7 +5778,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
                  if (view && tex) draw_sampled().push_back(tex);
                  if (log_img_wanted(p.key)) {
                      static std::atomic<int> told{0};
-@@ -7215,6 +7253,214 @@ void mask_stabilize(VkCommandBuffer cmd, Texture* tex, uint32_t level, uint32_t
+@@ -7215,6 +7253,228 @@ void mask_stabilize(VkCommandBuffer cmd, Texture* tex, uint32_t level, uint32_t
      if (told++ == 0) logf("vk: tree-shadow mask blend on #%u %ux%u, weight %.2f", tex->id, w, h, weight);
  }
  
@@ -5858,7 +5913,11 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
 +            for(const auto& descriptor:stage.info.image_buffer_descriptors)if(descriptor.is_written)return "texel_buffer_write";
 +        }
 +        if(mask!=17)return "unsupported_stages";
-+        if(!target_write_mask(p,s,0)){
++        const bool native_eye=env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE"),native_color=env_on("RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE");
++        const bool color_write=target_write_mask(p,s,0)!=0;
++        if(native_color&&!native_eye)return "native_eye_color_requires_native_mode";
++        if(native_eye&&color_write!=native_color)return native_color?"native_eye_color_requires_color_write":"native_eye_depth_requires_depth_only";
++        if(!color_write){
 +            if(env_on("RX_VK_XR_VIEW_COLOR_PROBE"))return "view_color_probe_requires_color_output";
 +            if(!env_on("RX_VK_XR_SHIFTED_DRAW_PROBE")&&!env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE"))return "no_primary_color_write";
 +            if(sw().no_depth||!s.ds.dt||!s.ds.dw)return "no_depth_reference_write";
@@ -5898,11 +5957,21 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
 +        note.uniform_bytes=uint32_t(camera.range);
 +        if(!memory_xr_uniform_copy_source(camera.buffer,rec_value,camera.offset,camera.range,description))return "camera_source_not_current_mirror";
 +        if(!xr_uniform_copy_source_valid(description,camera.buffer,camera.offset,camera.range,description.stamp))return "camera_source_range_or_usage";
++        if(native_eye&&!description.guest_address)return "native_eye_writer_address_missing";
 +        replay.serial=baseline_draw_serial;replay.recording=rec_value;replay.program=p.key;replay.command=command;replay.layout=p.layout;
 +        auto describe=[](const Texture& t){EyeImageSource image;image.image=t.image;image.identity=t.id;image.format=t.format;image.aspect=t.aspect;
 +            image.flags=t.create_flags;image.usage=t.usage;image.width=t.width;image.height=t.height;image.levels=t.levels;image.layers=t.layers;image.sparse=t.sparse;image.samples=t.samples;image.type=t.type;return image;};
 +        replay.color=describe(*at.color[0]);replay.depth=describe(*at.depth);replay.camera=camera;replay.writes=dw().writes;replay.camera_object_bytes=s.ubo[0][0].size;
 +        replay.guest_camera=s.ubo[0][0].addr;
++        // Native history uses the same current range identity as native drawing.
++        // An ambiguous writer present is retained as unavailable, never skipped or replaced.
++        if(native_eye&&xr_camera_history_wants(note.frame,p.key,replay.camera_object_bytes)){
++            std::vector<std::byte> payload(replay.camera_object_bytes);
++            if(ub_read(replay.guest_camera,payload.data(),payload.size())){
++                const SceneCameraEvidence evidence{note.frame,p.key,at.color[0]->id,at.depth->id,replay.guest_camera,at.width,at.height};
++                xr_camera_history_capture(evidence,rec_value,payload.data(),payload.size(),description.guest_address);
++            }
++        }
 +        replay.geometry={d.indexed,uint32_t(d.count),uint32_t(std::max(1,d.instances)),d.indexed?0u:uint32_t(d.first),uint32_t(d.base_instance),d.base_vertex};
 +        return "live_state_candidate_requires_shader_review";
 +    };
@@ -5914,7 +5983,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
 +        if(xr_baseline_draw_selected(p)){
 +            if(env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE")){
 +                const auto reject_native=[&](const char* reason){note.reason=reason;xr_baseline_preflight_note(note);};
-+                if(!replay.depth_reference){reject_native("native_eye_requires_depth_reference");return;}
++                if(replay.depth_reference==env_on("RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE")){reject_native("native_eye_attachment_mode_mismatch");return;}
 +                if(replay.camera_object_bytes<0x230||replay.camera_object_bytes>65536||replay.camera_object_bytes%4){reject_native("native_eye_camera_extent_rejected");return;}
 +                std::array<std::byte,0x230> submitted{};
 +                if(!ub_read(replay.guest_camera,submitted.data(),submitted.size())){reject_native("native_eye_cpu_prefix_unavailable");return;}
@@ -5938,7 +6007,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
  static bool writes_memory(const Program& p) {
      for (const Stage& st : p.stages) {
          const auto& info = st.info;
-@@ -7262,6 +7508,8 @@ static bool fallback_list_held(uint64_t list) {
+@@ -7262,6 +7522,8 @@ static bool fallback_list_held(uint64_t list) {
  
  void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
      Pass& ps = pass();   // (once: the accessor is a call and a thread-local read at each use. The same object for the thread's life: draw_begin_recording resets it in place)
@@ -5947,7 +6016,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
      PROF_HOT(PROF_DRAW);
      FINE_N(FC_DRAWS, 1);
      stats_tick();
-@@ -7300,9 +7548,26 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7300,9 +7562,26 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                                program_code_keys(s).c_str());
          SKIP_HERE();
      }
@@ -5961,7 +6030,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
 +                                                s.ubo[0][0].addr, at.width, at.height};
 +            vr_camera_seed=xr_scene_camera_observation(evidence, camera_block, sizeof camera_block / sizeof(float));
 +            if(vr_camera_seed)xr_depth_capture_note(at.color[0],at.depth,camera_block,sizeof camera_block/sizeof(float));
-+            if(vr_camera_seed&&xr_camera_history_wants(evidence.replay_frame,evidence.program,s.ubo[0][0].size)){
++            if(!env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE")&&vr_camera_seed&&xr_camera_history_wants(evidence.replay_frame,evidence.program,s.ubo[0][0].size)){
 +                std::vector<std::byte> payload(s.ubo[0][0].size);
 +                if(ub_read(s.ubo[0][0].addr,payload.data(),payload.size()))
 +                    xr_camera_history_capture(evidence,rec_value,payload.data(),payload.size());
@@ -5975,7 +6044,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
      if (cp->key == 0x02ff9920c2571cc2ULL) wheel_drawn_at.store(presents_now, std::memory_order_relaxed);
      if (skip_live(cp->key)) return;   // (EvilOOT, RX_VK_SKIP_FILE)
      {   // (hookshot, RX_VK_SKIP_PROG=<key prefix,...>: draws too, their native code keys logged once; =-: none)
-@@ -7604,7 +7869,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7604,7 +7883,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
      if (dump_on()) log_dump_draw(s, p, d);
      PROF_HOT(PROF_CMDS);
      texture_watch_prog(p.key);
@@ -5984,7 +6053,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
      static const bool barrier_every = env_on("RX_VK_BARRIER_EVERY_DRAW");   // (an experiment: a pass each)
      if (barrier_every) end_pass(cmd);
      reactive_scene_draw(cmd, p, s, at);
-@@ -7685,6 +7950,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7685,6 +7964,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
          SKIP_HERE();
      }
      if (fallback_role == FallbackRole::Colour) fallback_list_hold(d.indirect, false);
@@ -5992,7 +6061,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
      {
          FINE_SCOPE(FT_HAZARD);
          begin_pass(cmd, at);
-@@ -7809,6 +8075,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7809,6 +8089,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
              vkCmdDrawIndirect(cmd, fallback_draw_records, 0, 1, sizeof(VkDrawIndirectCommand));   // (its count: the records taken)
              st_mesh++;
              st_draws++, ps.draws++;
@@ -6002,7 +6071,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
              return;
          }
          {   // (amd-fix, diagnosis) RX_VK_LOG_MESH_PROGS=1: each mesh program's first draw and every 600th, with what its
-@@ -7875,6 +8144,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7875,6 +8158,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                  mesh_conv_buf = VK_NULL_HANDLE;
                  st_mesh++;
                  st_draws++, ps.draws++;
@@ -6012,7 +6081,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
                  return;
              }
              if (d.max < 0 || d.stride < 0) SKIP_HERE();   // (hookshot: the game's ints; a negative count was ~4e9 draws)
-@@ -7908,6 +8180,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7908,6 +8194,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
          }
          st_mesh++;
          st_draws++, ps.draws++;
@@ -6022,7 +6091,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
          return;
      }
      // vertex streams (from their pools, strides dynamic) and the zero stream
-@@ -8002,6 +8277,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -8002,6 +8291,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
          vkCmdDrawIndexed(cmd, quads * 6, (uint32_t)std::max(1, d.instances), 0, d.indexed ? d.base_vertex : 0,
                           (uint32_t)d.base_instance);
          st_draws++, ps.draws++;
@@ -6032,7 +6101,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
          return;
      }
      if (d.indirect) {
-@@ -8043,6 +8321,10 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -8043,6 +8335,10 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
          vkCmdDraw(cmd, (uint32_t)d.count, (uint32_t)std::max(1, d.instances), (uint32_t)d.first, (uint32_t)d.base_instance);
      }
      st_draws++, ps.draws++;
@@ -6043,7 +6112,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
  }
  
  /// A dispatch over 2 ms is logged, 60 times, and only while RX_VK_SLOW_DISPATCH is set. Off, the clock is not read.
-@@ -8207,7 +8489,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8207,7 +8503,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
      // offers the networks that did translate, and so is FSR 3.1, as fsr3_stand_in. It takes only the scene into the picture;
      // anything else goes on below
      if ((temporal_wanted() || temporal_off() || fsr3_inputs::wanted()) && temporal_rejected_network(cmd, key, src, &in, dst, &out))
@@ -6052,7 +6121,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
      VkFormatProperties fs{}, fd{};
      vkGetPhysicalDeviceFormatProperties(dev.physical, src->format, &fs);
      vkGetPhysicalDeviceFormatProperties(dev.physical, dst->format, &fd);
-@@ -8222,7 +8504,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8222,7 +8518,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
          static std::atomic<bool> logged_movie_upscale{false};
          if (!logged_movie_upscale.exchange(true, std::memory_order_relaxed))
              logf("vk: movie upscaling uses the linear compute path");
@@ -6061,7 +6130,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
      }
      // Failed upscales can receive RGB9E5 bits in a shared R11 image, including the 75% gameplay TAAU.
      // Match the observed base-level 2D case only; other fallbacks keep their existing blit.
-@@ -8252,7 +8534,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8252,7 +8548,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
                  typed_upscale(cmd, input_view, output_view, dst, 0, key, "PsychoV35 TAAU fallback", true)) {
                  full_barrier(cmd);
                  texture_written(dst);
@@ -6070,7 +6139,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
              }
          }
          return false; // Do not blit perceptually encoded PsychoV35 input into a linear output.
-@@ -8288,7 +8570,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8288,7 +8584,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
                      if (!logged_gameplay_upscale.exchange(true, std::memory_order_relaxed))
                          logf("vk: gameplay RGB9E5 upscale uses the typed fallback");
                  }
@@ -6079,7 +6148,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
              }
          }
      }
-@@ -8318,7 +8600,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8318,7 +8614,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
               "into %#llx %ux%u (vk %d)", (unsigned long long)key, (unsigned long long)in.gpu, in.d.width, in.d.height,
               (int)src->format, (unsigned long long)out.gpu, out.d.width, out.d.height, (int)dst->format);
      (void)in_h, (void)out_h;
@@ -6088,7 +6157,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
  }
  
  /// (hookshot) OoT's gameplay TAAU network (fd029a317a9a4b94) stood in for: its input upscaled into its output
-@@ -10224,9 +10506,14 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
+@@ -10224,9 +10520,14 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
              logf("%s", line);
          }
      }
@@ -6106,7 +6175,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..cff9b8ddc741395d940ce39948a32348
      if (!p.compute_pipeline) SKIP_HERE();
      dump_ssbos(cmd, p, "before");
      if (!p.dispatched.load(std::memory_order_relaxed)) compute_variant_note(p.key, p.variant);   // (which variant: this install's own)
-@@ -10319,6 +10606,8 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
+@@ -10319,6 +10620,8 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
          gprof_end(cmd, label);
      }
      st_dispatches++;
@@ -6994,10 +7063,10 @@ index 0000000000000000000000000000000000000000..d1b75e9b7ffa465a64dad634941334d3
 \ No newline at end of file
 diff --git a/gpu/vk/vk_xr_baseline_draw.cpp b/gpu/vk/vk_xr_baseline_draw.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..a86a7a53999a19b185acfe411916249eb53dba65
+index 0000000000000000000000000000000000000000..e2c099e534208df7ef2f61efbe470ccb96380dfa
 --- /dev/null
 +++ b/gpu/vk/vk_xr_baseline_draw.cpp
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,156 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "vk_internal.h"
 +#include "vk_shader.h"
@@ -7064,6 +7133,12 @@ index 0000000000000000000000000000000000000000..a86a7a53999a19b185acfe411916249e
 +    std::string text(8193,'\0');file.read(text.data(),text.size());const auto size=file.gcount();if(size<=0||size>8192)return;text.resize(size);
 +    XrBaselineSelection next;if(parse_xr_baseline_selection(text,nonce,source,next,env_on("RX_VK_XR_SHIFTED_DRAW_PROBE"),env_on("RX_VK_XR_VIEW_SHIFT_PROBE"),env_on("RX_VK_XR_VIEW_COLOR_PROBE"),env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE")))p.selection=std::move(next);
 +}
++bool retryable_invisible_color(const XrBaselineComparison& result){
++    if(result.result!=XrBaselineComparison::Result::Invisible||!result.matrix_probe_validated||!result.matrix_source_unchanged)return false;
++    if(!result.native_eye_requested)return result.view_color_requested;
++    return !result.view_color_requested&&!result.depth_reference&&result.native_eye_source_prefix_matched&&
++        result.native_eye_gpu_tails_preserved&&result.root_alias_verified&&result.root_indirect_verified;
++}
 +bool selected(const State& p,const Program& program){
 +    const auto reject=[&](const char* reason){if(env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE"))xr_baseline_preflight_note({program.key,0,0,0,0,0,0,0,reason});return false;};
 +    if(p.selection.programs.empty())return reject("native_eye_selection_unavailable");
@@ -7103,7 +7178,7 @@ index 0000000000000000000000000000000000000000..a86a7a53999a19b185acfe411916249e
 +            }
 +            else if(result.result==XrBaselineComparison::Result::Mismatch){p.stopped=true;report(p,"baseline_mismatch");}
 +            else {
-+                if(result.result==XrBaselineComparison::Result::Invisible&&result.view_color_requested&&result.matrix_probe_validated&&result.matrix_source_unchanged){
++                if(retryable_invisible_color(result)){
 +                    ++p.invisible_retries[p.current_program];p.attempted.erase(p.current_program);
 +                }
 +                report(p,"attempt_inconclusive");
@@ -7182,7 +7257,7 @@ index 0000000000000000000000000000000000000000..cb5c8a890c1b4911174d12db4523483d
 +}
 diff --git a/gpu/vk/vk_xr_baseline_recorder.cpp b/gpu/vk/vk_xr_baseline_recorder.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..152865edb0a46388e9f952598e82c71494612bb0
+index 0000000000000000000000000000000000000000..193917f13898be3f980d14c34fa22a38b5c0b391
 --- /dev/null
 +++ b/gpu/vk/vk_xr_baseline_recorder.cpp
 @@ -0,0 +1,320 @@
@@ -7290,7 +7365,7 @@ index 0000000000000000000000000000000000000000..152865edb0a46388e9f952598e82c714
 +    XrDescriptorSnapshot checked;if(!checked.capture(in.writes))return nullptr;
 +    in.writes=checked.writes();
 +    if(in.view_shift_probe&&(!in.shifted_draw_probe||in.depth_reference==in.view_color_probe||!std::isfinite(in.view_shift_units)||in.view_shift_units<=0||in.view_shift_units>8))return nullptr;
-+    if(in.native_eye_probe&&(!in.matrix_probe||!in.shifted_draw_probe||!in.root_alias_probe||!in.depth_reference||in.view_shift_probe||in.view_color_probe||
++    if(in.native_eye_probe&&(!in.matrix_probe||!in.shifted_draw_probe||!in.root_alias_probe||in.view_shift_probe||in.view_color_probe||
 +        !xr_native_eye_patch_shape(in.native_eye_patch)||in.native_eye_patch.source.recording!=in.recording||in.native_eye_patch.source.guest_camera!=in.guest_camera))return nullptr;
 +    if(in.root_alias_probe&&(!in.matrix_probe||(!in.view_shift_probe&&!in.native_eye_probe)||in.view_color_probe||!in.guest_camera))return nullptr;
 +    if(in.view_color_probe&&!in.view_shift_probe)return nullptr;
@@ -7508,10 +7583,10 @@ index 0000000000000000000000000000000000000000..152865edb0a46388e9f952598e82c714
 +}
 diff --git a/gpu/vk/vk_xr_camera.cpp b/gpu/vk/vk_xr_camera.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..96d8cc6ca0130cf5c73528b2c4b675d6938e6ede
+index 0000000000000000000000000000000000000000..1fbdd42495c3df4b5e1916e71d7cea70824d3481
 --- /dev/null
 +++ b/gpu/vk/vk_xr_camera.cpp
-@@ -0,0 +1,215 @@
+@@ -0,0 +1,217 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "xr_camera_submission.h"
 +#include "xr_image_lineage.h"
@@ -7590,12 +7665,13 @@ index 0000000000000000000000000000000000000000..96d8cc6ca0130cf5c73528b2c4b675d6
 +    }
 +    return payload_history_armed&&payload_history.wants(frame,program,bytes);
 +}
-+void xr_camera_history_capture(const SceneCameraEvidence& draw,uint64_t recording,const void* data,size_t bytes){
++void xr_camera_history_capture(const SceneCameraEvidence& draw,uint64_t recording,const void* data,size_t bytes,uint64_t observation_object){
 +    const char* directory=payload_history_directory();if(!directory||!data)return;
 +    std::lock_guard lock(capture_mutex);
 +    if(!payload_history_armed||payload_history_failed||!payload_history.wants(draw.replay_frame,draw.program,bytes))return;
 +    std::array<float,0x230/4> prefix{};std::memcpy(prefix.data(),data,sizeof prefix);
-+    const auto pinned=match_submitted_camera(active_submission.get(),now_ns(),draw,prefix.data(),prefix.size());
++    // A native source certificate names the guarded CPU writer destination, not the NVN address.
++    const auto pinned=match_submitted_camera(active_submission.get(),now_ns(),draw,prefix.data(),prefix.size(),observation_object);
 +    if(!pinned.matched)return;
 +    CameraPayloadHistorySample sample{draw.replay_frame,draw.program,recording,pinned.revision,draw.uniform_address,draw.width,draw.height,bytes};
 +    if(!payload_history.accept(sample))return;
@@ -7613,6 +7689,7 @@ index 0000000000000000000000000000000000000000..96d8cc6ca0130cf5c73528b2c4b675d6
 +        index<<std::setprecision(17);
 +        index<<"{\"schema\":1,\"frame\":"<<sample.frame<<",\"program\":"<<sample.program
 +             <<",\"recording\":"<<sample.recording<<",\"source_nvn_submit\":"<<active_submission_source_value
++             <<",\"writer_guest_camera\":"<<observation_object
 +             <<",\"observation_game_present\":"<<pinned.observation_game_present
 +             <<",\"observation_present_ambiguous\":"<<(pinned.observation_present_ambiguous?"true":"false")
 +             <<",\"primary_sequence\":"<<pinned.primary_sequence<<",\"producer_present_verified\":false,\"camera_revision\":"<<sample.revision
@@ -9519,10 +9596,10 @@ index 0000000000000000000000000000000000000000..144187de9266d6fe1b2086d08ccbf542
 \ No newline at end of file
 diff --git a/gpu/vk/vk_xr_shader_uniform_audit.cpp b/gpu/vk/vk_xr_shader_uniform_audit.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..b81698e8d300f1368802b7d906303638a0b8d448
+index 0000000000000000000000000000000000000000..92d080b20ea396b46bdaffa2ae00bbf46f530f5b
 --- /dev/null
 +++ b/gpu/vk/vk_xr_shader_uniform_audit.cpp
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,134 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "xr_shader_uniform_audit.h"
 +#include <cstdlib>
@@ -9541,15 +9618,41 @@ index 0000000000000000000000000000000000000000..b81698e8d300f1368802b7d906303638
 +State& state(){static auto* value=new State;return *value;}
 +const char* directory(){static const char* path=std::getenv("HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR");return path;}
 +std::string name(uint64_t digest){std::ostringstream s;s<<std::hex<<std::setw(16)<<std::setfill('0')<<digest;return s.str();}
++// Keep the existing byte budget for the stage family requested by this audit.
++// Entry-point models come from SPIR-V; unsupported/mixed or malformed modules fail closed.
++bool requested_scope(const uint32_t* words,size_t count,bool compute){
++    bool found=false;
++    for(size_t at=5;at<count;){
++        const uint32_t length=words[at]>>16,opcode=words[at]&65535;
++        if(!length||length>count-at)return false;
++        if(opcode==15){
++            if(length<4)return false;
++            bool is_compute=false;
++            switch(words[at+1]){
++                case 5:is_compute=true;break; // GLCompute
++                case 0:case 1:case 2:case 3:case 4: // graphics
++                case 5267:case 5268:case 5364:case 5365:break; // task/mesh NV/EXT
++                default:return false;
++            }
++            if(is_compute!=compute)return false;
++            found=true;
++        }
++        at+=length;
++    }
++    return found;
++}
 +uint64_t digest_words(const uint32_t* words,size_t count){uint64_t hash=14695981039346656037ull;
 +    for(size_t i=0;i<count;++i)for(unsigned byte=0;byte<4;++byte){hash^=(words[i]>>(byte*8))&255;hash*=1099511628211ull;}return hash;}
 +}
 +bool xr_shader_uniform_audit_enabled(){return directory()&&*directory();}
 +bool xr_shader_uniform_audit_compute_only(){static const bool value=[]{const char* p=std::getenv("HOOKSHOT_VR_SHADER_UNIFORM_COMPUTE_ONLY");return p&&p[0]=='1';}();return value;}
 +bool xr_shader_uniform_audit_module(uint64_t module,const uint32_t* words,size_t count){
-+    if(!xr_shader_uniform_audit_enabled()||!module||!words||count<5||count>2*1024*1024||words[0]!=0x07230203)return false;
++    if(!xr_shader_uniform_audit_enabled()||!module)return false;
 +    auto& s=state();std::lock_guard lock(s.mutex);
-+    if(!s.modules.count(module)&&s.modules.size()>=4096)return false;
++    // A reused handle must never retain the previous module's reviewed identity.
++    s.modules.erase(module);
++    if(!words||count<5||count>2*1024*1024||words[0]!=0x07230203||
++       !requested_scope(words,count,xr_shader_uniform_audit_compute_only())||s.modules.size()>=4096)return false;
 +    const uint64_t digest=digest_words(words,count);bool written=s.digests.count(digest)!=0;
 +    if(!written&&s.bytes+count*4<=64ull*1024*1024){
 +        s.bytes+=count*4; // Reserve even on an I/O failure; partial files count toward the cap.
@@ -10074,7 +10177,7 @@ index 0000000000000000000000000000000000000000..84cc8c195aaf77f8a9d6958ab69946a5
 +}
 diff --git a/gpu/vk/xr_camera_submission.h b/gpu/vk/xr_camera_submission.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..b26c660c6476b24f780a4d7c9ae144b635a4fb5d
+index 0000000000000000000000000000000000000000..ff495faf4efcc717fb6376d1d49c558fddb08609
 --- /dev/null
 +++ b/gpu/vk/xr_camera_submission.h
 @@ -0,0 +1,105 @@
@@ -10153,9 +10256,9 @@ index 0000000000000000000000000000000000000000..b26c660c6476b24f780a4d7c9ae144b6
 +    return out;
 +}
 +inline SubmittedCameraMatch match_submitted_camera(const SceneSubmissionSnapshot* snapshot,int64_t now,
-+                                                   const SceneCameraEvidence& draw,const float* block,size_t count) {
++                                                   const SceneCameraEvidence& draw,const float* block,size_t count,uint64_t observation_object=0) {
 +    if(!draw.color||!draw.depth||!draw.uniform_address||!draw.program)return {};
-+    return match_submitted_uniform(snapshot,now,draw.width,draw.height,block,count);
++    return match_submitted_uniform(snapshot,now,draw.width,draw.height,block,count,observation_object);
 +}
 +using SceneSubmissionPtr=std::shared_ptr<const SceneSubmissionSnapshot>;
 +class SceneSubmissionStore {
@@ -14072,7 +14175,7 @@ index 0000000000000000000000000000000000000000..9082a4bb586c907cd657ec141336b09c
 +}
 diff --git a/gpu/vk/xr_scene_camera.h b/gpu/vk/xr_scene_camera.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..5f55b2c1752466215f6a2cfe174bc3ff31dcbb65
+index 0000000000000000000000000000000000000000..31393025e5c6b97a35e67a412805d15f868b2719
 --- /dev/null
 +++ b/gpu/vk/xr_scene_camera.h
 @@ -0,0 +1,50 @@
@@ -14123,7 +14226,7 @@ index 0000000000000000000000000000000000000000..5f55b2c1752466215f6a2cfe174bc3ff
 +bool xr_scene_camera_observation(const SceneCameraEvidence&,const float*,size_t);
 +// Private read-only full uniform captures after an accepted scene-camera match.
 +bool xr_camera_history_wants(uint64_t frame,uint64_t program,size_t bytes);
-+void xr_camera_history_capture(const SceneCameraEvidence&,uint64_t recording,const void*,size_t bytes);
++void xr_camera_history_capture(const SceneCameraEvidence&,uint64_t recording,const void*,size_t bytes,uint64_t observation_object=0);
 +
 +}
 diff --git a/gpu/vk/xr_shader_uniform_audit.h b/gpu/vk/xr_shader_uniform_audit.h
@@ -15482,10 +15585,10 @@ index 627714562cd54cb9c25e37627fde68b543a396d9..b4b62626b823db7ca0787f3c5474ea23
  }
 diff --git a/vr/CMakeLists.txt b/vr/CMakeLists.txt
 new file mode 100644
-index 0000000000000000000000000000000000000000..9c716c0ca44bd351aeff5dd32a6a0cc501d9d9ad
+index 0000000000000000000000000000000000000000..c5ffdfac9a33a8bd27f98957cfe93f13c1fcae74
 --- /dev/null
 +++ b/vr/CMakeLists.txt
-@@ -0,0 +1,782 @@
+@@ -0,0 +1,784 @@
 +cmake_minimum_required(VERSION 3.24)
 +project(HookshotVRBootstrap VERSION 0.1.0 LANGUAGES C CXX)
 +
@@ -15712,7 +15815,9 @@ index 0000000000000000000000000000000000000000..9c716c0ca44bd351aeff5dd32a6a0cc5
 +add_test(NAME vr_shader_uniform_export_off COMMAND hookshot_vr_shader_uniform_export_tests off)
 +set_tests_properties(vr_shader_uniform_export_off PROPERTIES ENVIRONMENT "HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR=")
 +add_test(NAME vr_shader_uniform_export COMMAND hookshot_vr_shader_uniform_export_tests enabled)
-+set_tests_properties(vr_shader_uniform_export PROPERTIES ENVIRONMENT "HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR=${CMAKE_CURRENT_BINARY_DIR}/shader-audit-test" WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
++set_tests_properties(vr_shader_uniform_export PROPERTIES ENVIRONMENT "HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR=${CMAKE_CURRENT_BINARY_DIR}/shader-audit-test;HOOKSHOT_VR_SHADER_UNIFORM_COMPUTE_ONLY=0" WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
++add_test(NAME vr_shader_uniform_export_compute COMMAND hookshot_vr_shader_uniform_export_tests compute)
++set_tests_properties(vr_shader_uniform_export_compute PROPERTIES ENVIRONMENT "HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR=${CMAKE_CURRENT_BINARY_DIR}/shader-compute-audit-test;HOOKSHOT_VR_SHADER_UNIFORM_COMPUTE_ONLY=1" WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 +
 +if(Python3_Interpreter_FOUND)
 +    add_test(NAME vr_shader_binding_analysis COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_audit_shader_bindings.py")
@@ -16844,10 +16949,10 @@ index 0000000000000000000000000000000000000000..e7d50fa6ce68ef4069cedc5dd57c8d39
 +if __name__=='__main__':main()
 diff --git a/vr/audit_camera_history.py b/vr/audit_camera_history.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..8128fb0852d7bdd4b69a60e918cb3da839414003
+index 0000000000000000000000000000000000000000..868b42610f46fcc12a56cf7c5f4adbb1accf0d7b
 --- /dev/null
 +++ b/vr/audit_camera_history.py
-@@ -0,0 +1,127 @@
+@@ -0,0 +1,132 @@
 +"""Analyze private moving-camera copies; numerical matches are not patch permission."""
 +import argparse
 +import hashlib
@@ -16926,6 +17031,9 @@ index 0000000000000000000000000000000000000000..8128fb0852d7bdd4b69a60e918cb3da8
 +            present=row['observation_game_present']
 +            if (row['observation_present_ambiguous'] and present!=-1) or (not row['observation_present_ambiguous'] and not 0<=present<(1<<63)):
 +                raise ValueError('invalid or ambiguous observation present')
++        if 'writer_guest_camera' in row:
++            if not has_provenance or type(row['writer_guest_camera']) is not int or not 0<=row['writer_guest_camera']<(1<<40):
++                raise ValueError('invalid guarded writer identity metadata')
 +        data=path.read_bytes();digests.append(hashlib.sha256(data).hexdigest())
 +        block=list(struct.unpack('<'+'f'*(len(data)//4),data))
 +        if not all(math.isfinite(v) for v in block[:0x230//4]):
@@ -16960,6 +17068,8 @@ index 0000000000000000000000000000000000000000..8128fb0852d7bdd4b69a60e918cb3da8
 +                          for offset,lags in sorted(records.items())]
 +    return {**projection_evidence(rows),'schema':1,'samples':len(rows),'distinct_views':len(distinct),'payload_bytes':rows[0]['bytes'],
 +            'frame_interval_values':sorted(set(b-a for a,b in zip(frames,frames[1:]))),
++            'writer_identity_tagged_samples':sum(row.get('writer_guest_camera',0)>0 for row in rows),
++            'writer_identity_coverage_complete':all(row.get('writer_guest_camera',0)>0 for row in rows),
 +            'observation_tagged_samples':sum('observation_game_present' in row for row in rows),'ambiguous_observation_samples':sum(row.get('observation_present_ambiguous') is True for row in rows),'producer_present_verified':False,'source_nvn_submit_count':len({row['source_nvn_submit'] for row in rows if 'source_nvn_submit' in row}),'recording_differs_from_source_samples':sum(row['recording']!=row['source_nvn_submit'] for row in rows if 'source_nvn_submit' in row),'numeric_matrix_candidates':candidates,'submission_overlay_copy':True,'gpu_completed_readback':False,
 +            'shader_consumption_verified':False,'producer_history_semantics_verified':False,'safe_to_patch':False,
 +            'payload_sha256':digests,'remaining':['verify producer meanings and shader consumers','independent per-eye resources and temporal histories']}
@@ -17316,7 +17426,7 @@ index 0000000000000000000000000000000000000000..dfa323425b34321ce6eb2d7c8ecb3b7b
 +if __name__=="__main__":main()
 diff --git a/vr/audit_graphics_programs.py b/vr/audit_graphics_programs.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..09ce4db1ee9003658cf0d4d62c4b7af81a080361
+index 0000000000000000000000000000000000000000..9da9400aab4a25b632d17b30d7b594bca7883a7f
 --- /dev/null
 +++ b/vr/audit_graphics_programs.py
 @@ -0,0 +1,204 @@
@@ -17483,7 +17593,7 @@ index 0000000000000000000000000000000000000000..09ce4db1ee9003658cf0d4d62c4b7af8
 +                if not rows or any(any(offset not in (224,256,296,300) for offset in row.get("preserved_fields_requiring_review",[])) for row in rows):continue
 +            else:
 +                if footprint.get("status")!="matrix_footprint_only":continue
-+                if any(row.get("vk_stage")!=1 and row.get("matrix_patch_read_byte_offsets") for row in rows):continue
++                if not native_eye and any(row.get("vk_stage")!=1 and row.get("matrix_patch_read_byte_offsets") for row in rows):continue
 +        key=program.get("program");stages=program.get("stages",[])
 +        if type(key) is not int or not 0<key<(1<<64) or key in seen or len(stages)!=2:raise ValueError("Invalid baseline program identity")
 +        seen.add(key);mask=set();lines=[]
@@ -18916,10 +19026,10 @@ index 0000000000000000000000000000000000000000..e77f4ef9ef973c958d4754c67da46935
 +if($process.ExitCode -ne 0){throw "El visor devolvió $($process.ExitCode). Registro: $log.stderr.txt"}
 diff --git a/vr/run-game.ps1 b/vr/run-game.ps1
 new file mode 100644
-index 0000000000000000000000000000000000000000..8a7095e8d1bd608420fdec06fe964f353960e2ff
+index 0000000000000000000000000000000000000000..d900309acaca02f095d5c4e7ef1169e4944e644a
 --- /dev/null
 +++ b/vr/run-game.ps1
-@@ -0,0 +1,754 @@
+@@ -0,0 +1,758 @@
 +param(
 +    [string]$InstallationRoot = (Join-Path $env:USERPROFILE 'Games/Hookshot'),
 +    [ValidateRange(5, 300)][int]$Seconds = 60,
@@ -18949,6 +19059,7 @@ index 0000000000000000000000000000000000000000..8a7095e8d1bd608420fdec06fe964f35
 +    [switch]$FirstPersonHistoryAudit,
 +    [switch]$FirstPersonEyeUniformProbe,
 +    [switch]$FirstPersonNativeEyeDrawProbe,
++    [switch]$FirstPersonNativeEyeColorDrawProbe,
 +    [ValidateSet("None","Yaw","Pitch","LookDown","Lean","WideYaw","WidePitch")][string]$FirstPersonSweep="None",
 +    [ValidateRange(.001,1000)][double]$FirstPersonUnitsPerMetre=1,
 +    [switch]$SceneCapture,
@@ -18993,6 +19104,7 @@ index 0000000000000000000000000000000000000000..8a7095e8d1bd608420fdec06fe964f35
 +    [string]$OpenXRLoader
 +)
 +$ErrorActionPreference = 'Stop'
++if($FirstPersonNativeEyeColorDrawProbe){$FirstPersonNativeEyeDrawProbe=$true}
 +# This is an offscreen real-game view test. It cannot silently become a VR quad
 +# or revive the retired depth reconstruction route.
 +if($FirstPersonReadbackTest){
@@ -19256,6 +19368,7 @@ index 0000000000000000000000000000000000000000..8a7095e8d1bd608420fdec06fe964f35
 +$env:HOOKSHOT_VR_GPU_EYE_HEIGHT=$env:HOOKSHOT_VR_GPU_EYE_WIDTH
 +[string[]]$shiftSelectionArgs=if($FirstPersonNativeEyeDrawProbe){@('--native-eye-selection')}elseif($TranslatedColorDrawProbe){@('--view-color-selection')}elseif($TranslatedDrawProbe){@('--view-shift-selection')}elseif($ShiftedDrawProbe){@('--lens-shift-selection')}else{@()}
 +$env:RX_VK_XR_NATIVE_EYE_DRAW_PROBE=if($FirstPersonNativeEyeDrawProbe){'1'}else{'0'}
++$env:RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE=if($FirstPersonNativeEyeColorDrawProbe){'1'}else{'0'}
 +$env:RX_VK_XR_ROOT_ALIAS_PROBE=if($GpuRootAliasProbe){'1'}else{'0'}
 +$env:HOOKSHOT_VR_CAMERA_PAYLOAD_FILE=if($GpuRootAliasProbe){Join-Path $runRoot ('camera-payload-'+[guid]::NewGuid().ToString('N')+'.json')}else{''}
 +$env:RX_VK_XR_VIEW_COLOR_PROBE=if($TranslatedColorDrawProbe){'1'}else{'0'}
@@ -19492,7 +19605,8 @@ index 0000000000000000000000000000000000000000..8a7095e8d1bd608420fdec06fe964f35
 +        & $python -I -B (Join-Path $PSScriptRoot 'audit_camera_history.py') $env:HOOKSHOT_VR_CAMERA_HISTORY_DIR --out $firstPersonProjectionAuditPath > $null 2> (Join-Path $runRoot 'camera-history-analysis-stderr.txt')
 +        if($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $firstPersonProjectionAuditPath)){
 +            $historyAudit=Get-Content -LiteralPath $firstPersonProjectionAuditPath -Raw | ConvertFrom-Json
-+            $firstPersonNativeProjectionAudited=$historyAudit.native_projection_samples -eq 32 -and $historyAudit.native_projection_audit_coverage_complete -eq $true
++            $firstPersonNativeProjectionAudited=$historyAudit.native_projection_samples -eq 32 -and $historyAudit.native_projection_audit_coverage_complete -eq $true -and
++                (!$FirstPersonNativeEyeDrawProbe -or ($historyAudit.writer_identity_tagged_samples -eq 32 -and $historyAudit.writer_identity_coverage_complete -eq $true))
 +        }
 +    }
 +    if(!$firstPersonNativeProjectionAudited -and $reason -eq 'time_limit'){$reason='first_person_native_projection_unverified'}
@@ -19581,7 +19695,7 @@ index 0000000000000000000000000000000000000000..8a7095e8d1bd608420fdec06fe964f35
 +}
 +$nativeEyeDrawVerified=$false
 +if($FirstPersonNativeEyeDrawProbe){
-+    $nativeEyeDrawVerified=$isolatedDrawMatched -and $baselineDraw.native_eye_requested -and $baselineDraw.native_eye_source_prefix_matched -and $baselineDraw.native_eye_gpu_tails_preserved -and $baselineDraw.native_eye_raster_observed -and $baselineDraw.native_eye_pair_differences -gt 0 -and $baselineDraw.matrix_probe_validated -and $baselineDraw.matrix_source_unchanged -and $baselineDraw.root_alias_verified -and $baselineDraw.root_indirect_verified -and $baselineDraw.root_indirect_draws_recorded -and $baselineDraw.native_eye_game_present -ge 0 -and $baselineDraw.native_eye_nvn_submit -gt 0 -and $baselineDraw.native_eye_recording -gt 0 -and $baselineDraw.native_eye_tracking_sequence -gt 0 -and $baselineDraw.native_eye_origin_generation -gt 0 -and $baselineDraw.native_eye_predicted_display_time -gt 0 -and $baselineDraw.native_eye_observed_ns -gt 0
++    $nativeEyeDrawVerified=$isolatedDrawMatched -and $baselineDraw.reference_attachment -eq $(if($FirstPersonNativeEyeColorDrawProbe){"color"}else{"depth"}) -and $baselineDraw.native_eye_requested -and $baselineDraw.native_eye_source_prefix_matched -and $baselineDraw.native_eye_gpu_tails_preserved -and $baselineDraw.native_eye_raster_observed -and $baselineDraw.native_eye_pair_differences -gt 0 -and $baselineDraw.matrix_probe_validated -and $baselineDraw.matrix_source_unchanged -and $baselineDraw.root_alias_verified -and $baselineDraw.root_indirect_verified -and $baselineDraw.root_indirect_draws_recorded -and $baselineDraw.native_eye_game_present -ge 0 -and $baselineDraw.native_eye_nvn_submit -gt 0 -and $baselineDraw.native_eye_recording -gt 0 -and $baselineDraw.native_eye_tracking_sequence -gt 0 -and $baselineDraw.native_eye_origin_generation -gt 0 -and $baselineDraw.native_eye_predicted_display_time -gt 0 -and $baselineDraw.native_eye_observed_ns -gt 0
 +    if(!$nativeEyeDrawVerified){$isolatedDrawMatched=$false}
 +}
 +if($GpuEyeMatrixProbe){$gpuMatrixVerified=(!$TranslatedColorDrawProbe -or $baselineDraw.view_color_requested) -and (!$TranslatedDrawProbe -or $baselineDraw.view_shift_requested) -and $isolatedDrawMatched -and $baselineDraw.matrix_probe_requested -and $baselineDraw.matrix_probe_validated -and $baselineDraw.matrix_source_unchanged -and ($baselineDraw.patched_buffers_bound_to_draw -eq [bool]$ShiftedDrawProbe) -and (!$ShiftedDrawProbe -or $baselineDraw.shifted_draw_verified);if(!$gpuMatrixVerified){$isolatedDrawMatched=$false}}
@@ -19630,7 +19744,7 @@ index 0000000000000000000000000000000000000000..8a7095e8d1bd608420fdec06fe964f35
 +$gpuWorldVerified=$false
 +if($GpuWorldPreview){$gpuWorldVerified=($CullingFovDegrees -eq 0 -or $cullingFieldsVerified) -and $sessionClosed -and $sessionValidPoses -and !$sessionApiErrors -and $immersiveVerified -and (Test-VrGpuWorldPreview -Report $env:HOOKSHOT_VR_GPU_WORLD_REPORT_FILE -StreamReport $env:HOOKSHOT_VR_GPU_EYE_STREAM_REPORT_FILE -SourceReport $env:HOOKSHOT_VR_GPU_SOURCE_REPORT_FILE -ExpectedEyeScale (1+$GpuGuardBandPercent/100.0) -XrOwned ([bool]$GpuXrReproject))}
 +if($GpuWorldPreview -and !$gpuWorldVerified -and $reason -eq 'time_limit'){$reason='gpu_world_unverified'}
-+[ordered]@{ first_person_native_eye_draw_requested=[bool]$FirstPersonNativeEyeDrawProbe;first_person_native_eye_draw_verified=[bool]$nativeEyeDrawVerified;first_person_eye_uniform_requested=[bool]$FirstPersonEyeUniformProbe;first_person_eye_uniform_completed=[bool]($FirstPersonEyeUniformProbe -and $eyeUniformProbeComplete);first_person_native_projection_audited=[bool]$firstPersonNativeProjectionAudited;first_person_projection_audit_path=$firstPersonProjectionAuditPath;first_person_history_requested=[bool]$FirstPersonHistoryAudit;camera_history_captured=[bool]$cameraHistoryCaptured;camera_history_directory=$env:HOOKSHOT_VR_CAMERA_HISTORY_DIR; first_person_scene_audit_requested=[bool]$FirstPersonSceneAudit; source_fingerprint=$fingerprint;renderer_abi=(Get-VrManifest $projectRoot).mod_host_renderer_abi; first_person_move_requested=[bool]$FirstPersonMoveTest;first_person_move_applied=[bool]$firstPersonMoveApplied; first_person_head_mask_loaded=[bool]$firstPersonHeadMaskLoaded; first_person_head_mask_requested=([bool]$FirstPersonReadbackTest -and !$FirstPersonKeepHead);first_person_overlay=$firstPersonOverlay; first_person_readback_requested=[bool]$FirstPersonReadbackTest;first_person_samples=$firstPersonSamples;first_person_sweep=$FirstPersonSweep;first_person_shots=$env:RX_VK_SHOTS;first_person_physical_scale_calibrated=$false;native_stereo_verified=$false; test_head_sweep=$TestHeadSweep;coherent_view_requested=[bool]$CoherentView;coherent_view_verified=[bool]$coherentViewVerified;coherent_lens_verified=[bool]$coherentLensVerified;lens_coherence_report=$env:HOOKSHOT_VR_LENS_REPORT_FILE;view_coherence_report=$env:HOOKSHOT_VR_VIEW_REPORT_FILE;gpu_world_requested=[bool]$GpuWorldPreview;xr_owned_reconstruction=[bool]$GpuXrReproject;gpu_square_size=$GpuSquareSize;gpu_frames_ahead=$GpuFramesAhead;gpu_eye_size=[int]$env:HOOKSHOT_VR_GPU_EYE_WIDTH;culling_fov_degrees=$CullingFovDegrees;culling_fields_verified=[bool]$cullingFieldsVerified;culling_report=$env:HOOKSHOT_VR_CULL_REPORT_FILE;gpu_guard_band_percent=$GpuGuardBandPercent;gpu_world_verified=[bool]$gpuWorldVerified;gpu_world_report=$env:HOOKSHOT_VR_GPU_WORLD_REPORT_FILE;gpu_eye_stream_requested=[bool]$GpuEyeStreamProbe;gpu_eye_stream_verified=[bool]$gpuEyeStreamVerified;gpu_eye_stream_report=$env:HOOKSHOT_VR_GPU_EYE_STREAM_REPORT_FILE;gpu_eye_stream_image_base=$env:HOOKSHOT_VR_GPU_EYE_STREAM_IMAGE_BASE; gpu_depth_pair_source_debug=[bool]$GpuDepthPairSourceDebug;gpu_depth_pair_debug_file=$env:HOOKSHOT_VR_GPU_DEPTH_PAIR_SOURCE_DEBUG_FILE; gpu_depth_pair_requested=[bool]$GpuDepthPairProbe;gpu_depth_pair_verified=[bool]$gpuDepthPairVerified;gpu_depth_pair_image=$env:HOOKSHOT_VR_GPU_DEPTH_PAIR_IMAGE_FILE;gpu_depth_pair_report=$env:HOOKSHOT_VR_GPU_DEPTH_PAIR_REPORT_FILE; gpu_scene_source_requested=[bool]$GpuSceneSourceProbe;gpu_scene_source_verified=[bool]$gpuSceneSourceVerified;gpu_scene_source_file=$env:HOOKSHOT_VR_GPU_SOURCE_PROBE_FILE;gpu_scene_source_report=$env:HOOKSHOT_VR_GPU_SOURCE_REPORT_FILE; probe_camera_turn_mode='input_before_selection';probe_camera_turn=$ProbeCameraTurn;probe_camera_turn_applied=[bool]$probeCameraTurnApplied;camera_payload_file=$env:HOOKSHOT_VR_CAMERA_PAYLOAD_FILE;camera_payload_exported=[bool]($GpuRootAliasProbe -and $baselineDraw.camera_payload_exported);root_alias_probe_requested=[bool]$GpuRootAliasProbe;root_alias_probe_verified=[bool]$rootAliasVerified;translated_draw_requested=[bool]$TranslatedDrawProbe;low_latency_preview=[bool]$LowLatencyPreview;docked_preview=[bool]$previewHD;preview_resolution=$PreviewResolution;fov_margin_percent=$FovMarginPercent;native_render_resolution=[bool]$previewHD;shifted_draw_requested=[bool]$ShiftedDrawProbe;shifted_draw_verified=[bool]($ShiftedDrawProbe -and $gpuMatrixVerified);gpu_matrix_probe_requested=[bool]$GpuEyeMatrixProbe;gpu_matrix_probe_verified=[bool]$gpuMatrixVerified;temporal_pair_observed=$temporalPairObserved;immersive_requested=[bool]($ImmersivePreview -or $ImmersiveReadbackTest);immersive_camera_verified=$immersiveVerified;immersive_report=$immersiveReport;depth_scene_stream_requested=[bool]$DepthSceneStream;depth_scene_capture_completed=$depthSceneComplete;depth_scene_capture_requested=[bool]$DepthSceneCapture;depth_scene_capture_file=$env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE;isolated_draw_requested=[bool]$IsolatedDrawProbe;isolated_draw_matched=$isolatedDrawMatched;isolated_draw_file=$env:HOOKSHOT_VR_BASELINE_DRAW_FILE;baseline_draw_preflight_requested=[bool]$BaselineDrawPreflight;baseline_draw_preflight_file=$env:HOOKSHOT_VR_BASELINE_PREFLIGHT_FILE;eye_uniform_probe_requested=[bool]$EyeUniformProbe;eye_uniform_probe_completed=$eyeUniformProbeComplete;eye_uniform_probe_file=$env:HOOKSHOT_VR_EYE_UNIFORM_PROBE_FILE;eye_image_probe_requested=[bool]$EyeImageProbe;eye_image_probe_completed=$eyeImageProbeComplete;eye_image_probe_file=$env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE; compute_shader_uniform_audit_requested = [bool]$ComputeShaderUniformAudit; shader_uniform_audit_requested = [bool]$ShaderUniformAudit; shader_uniform_audit_observed = $shaderAuditObserved; shader_uniform_audit_directory = $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR; camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]($XrPreview -and !$ImmersivePreview); flat_quad_submitted = ($previewSubmitted -and !$ImmersivePreview); readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
++[ordered]@{ first_person_native_eye_color_draw_requested=[bool]$FirstPersonNativeEyeColorDrawProbe;first_person_native_eye_color_draw_verified=[bool]($FirstPersonNativeEyeColorDrawProbe -and $nativeEyeDrawVerified);first_person_native_eye_draw_requested=[bool]$FirstPersonNativeEyeDrawProbe;first_person_native_eye_draw_verified=[bool]$nativeEyeDrawVerified;first_person_eye_uniform_requested=[bool]$FirstPersonEyeUniformProbe;first_person_eye_uniform_completed=[bool]($FirstPersonEyeUniformProbe -and $eyeUniformProbeComplete);first_person_native_projection_audited=[bool]$firstPersonNativeProjectionAudited;first_person_projection_audit_path=$firstPersonProjectionAuditPath;first_person_history_requested=[bool]$FirstPersonHistoryAudit;camera_history_captured=[bool]$cameraHistoryCaptured;camera_history_directory=$env:HOOKSHOT_VR_CAMERA_HISTORY_DIR; first_person_scene_audit_requested=[bool]$FirstPersonSceneAudit; source_fingerprint=$fingerprint;renderer_abi=(Get-VrManifest $projectRoot).mod_host_renderer_abi; first_person_move_requested=[bool]$FirstPersonMoveTest;first_person_move_applied=[bool]$firstPersonMoveApplied; first_person_head_mask_loaded=[bool]$firstPersonHeadMaskLoaded; first_person_head_mask_requested=([bool]$FirstPersonReadbackTest -and !$FirstPersonKeepHead);first_person_overlay=$firstPersonOverlay; first_person_readback_requested=[bool]$FirstPersonReadbackTest;first_person_samples=$firstPersonSamples;first_person_sweep=$FirstPersonSweep;first_person_shots=$env:RX_VK_SHOTS;first_person_physical_scale_calibrated=$false;native_stereo_verified=$false; test_head_sweep=$TestHeadSweep;coherent_view_requested=[bool]$CoherentView;coherent_view_verified=[bool]$coherentViewVerified;coherent_lens_verified=[bool]$coherentLensVerified;lens_coherence_report=$env:HOOKSHOT_VR_LENS_REPORT_FILE;view_coherence_report=$env:HOOKSHOT_VR_VIEW_REPORT_FILE;gpu_world_requested=[bool]$GpuWorldPreview;xr_owned_reconstruction=[bool]$GpuXrReproject;gpu_square_size=$GpuSquareSize;gpu_frames_ahead=$GpuFramesAhead;gpu_eye_size=[int]$env:HOOKSHOT_VR_GPU_EYE_WIDTH;culling_fov_degrees=$CullingFovDegrees;culling_fields_verified=[bool]$cullingFieldsVerified;culling_report=$env:HOOKSHOT_VR_CULL_REPORT_FILE;gpu_guard_band_percent=$GpuGuardBandPercent;gpu_world_verified=[bool]$gpuWorldVerified;gpu_world_report=$env:HOOKSHOT_VR_GPU_WORLD_REPORT_FILE;gpu_eye_stream_requested=[bool]$GpuEyeStreamProbe;gpu_eye_stream_verified=[bool]$gpuEyeStreamVerified;gpu_eye_stream_report=$env:HOOKSHOT_VR_GPU_EYE_STREAM_REPORT_FILE;gpu_eye_stream_image_base=$env:HOOKSHOT_VR_GPU_EYE_STREAM_IMAGE_BASE; gpu_depth_pair_source_debug=[bool]$GpuDepthPairSourceDebug;gpu_depth_pair_debug_file=$env:HOOKSHOT_VR_GPU_DEPTH_PAIR_SOURCE_DEBUG_FILE; gpu_depth_pair_requested=[bool]$GpuDepthPairProbe;gpu_depth_pair_verified=[bool]$gpuDepthPairVerified;gpu_depth_pair_image=$env:HOOKSHOT_VR_GPU_DEPTH_PAIR_IMAGE_FILE;gpu_depth_pair_report=$env:HOOKSHOT_VR_GPU_DEPTH_PAIR_REPORT_FILE; gpu_scene_source_requested=[bool]$GpuSceneSourceProbe;gpu_scene_source_verified=[bool]$gpuSceneSourceVerified;gpu_scene_source_file=$env:HOOKSHOT_VR_GPU_SOURCE_PROBE_FILE;gpu_scene_source_report=$env:HOOKSHOT_VR_GPU_SOURCE_REPORT_FILE; probe_camera_turn_mode='input_before_selection';probe_camera_turn=$ProbeCameraTurn;probe_camera_turn_applied=[bool]$probeCameraTurnApplied;camera_payload_file=$env:HOOKSHOT_VR_CAMERA_PAYLOAD_FILE;camera_payload_exported=[bool]($GpuRootAliasProbe -and $baselineDraw.camera_payload_exported);root_alias_probe_requested=[bool]$GpuRootAliasProbe;root_alias_probe_verified=[bool]$rootAliasVerified;translated_draw_requested=[bool]$TranslatedDrawProbe;low_latency_preview=[bool]$LowLatencyPreview;docked_preview=[bool]$previewHD;preview_resolution=$PreviewResolution;fov_margin_percent=$FovMarginPercent;native_render_resolution=[bool]$previewHD;shifted_draw_requested=[bool]$ShiftedDrawProbe;shifted_draw_verified=[bool]($ShiftedDrawProbe -and $gpuMatrixVerified);gpu_matrix_probe_requested=[bool]$GpuEyeMatrixProbe;gpu_matrix_probe_verified=[bool]$gpuMatrixVerified;temporal_pair_observed=$temporalPairObserved;immersive_requested=[bool]($ImmersivePreview -or $ImmersiveReadbackTest);immersive_camera_verified=$immersiveVerified;immersive_report=$immersiveReport;depth_scene_stream_requested=[bool]$DepthSceneStream;depth_scene_capture_completed=$depthSceneComplete;depth_scene_capture_requested=[bool]$DepthSceneCapture;depth_scene_capture_file=$env:HOOKSHOT_VR_DEPTH_CAPTURE_FILE;isolated_draw_requested=[bool]$IsolatedDrawProbe;isolated_draw_matched=$isolatedDrawMatched;isolated_draw_file=$env:HOOKSHOT_VR_BASELINE_DRAW_FILE;baseline_draw_preflight_requested=[bool]$BaselineDrawPreflight;baseline_draw_preflight_file=$env:HOOKSHOT_VR_BASELINE_PREFLIGHT_FILE;eye_uniform_probe_requested=[bool]$EyeUniformProbe;eye_uniform_probe_completed=$eyeUniformProbeComplete;eye_uniform_probe_file=$env:HOOKSHOT_VR_EYE_UNIFORM_PROBE_FILE;eye_image_probe_requested=[bool]$EyeImageProbe;eye_image_probe_completed=$eyeImageProbeComplete;eye_image_probe_file=$env:HOOKSHOT_VR_EYE_IMAGE_PROBE_FILE; compute_shader_uniform_audit_requested = [bool]$ComputeShaderUniformAudit; shader_uniform_audit_requested = [bool]$ShaderUniformAudit; shader_uniform_audit_observed = $shaderAuditObserved; shader_uniform_audit_directory = $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR; camera_uniform_audit_requested = [bool]$CameraUniformAudit; camera_uniform_audit_captured = $uniformAuditCaptured; camera_uniform_audit_multiple_views = $uniformAuditMultipleViews; image_lineage_requested = [bool]$ImageLineage; image_lineage_verified = $lineageVerified; audio_requested = [bool]$Audio; scene_capture_requested = [bool]$SceneCapture; scene_camera_matched = $sceneObserved; scene_submission_matched = $submissionObserved; flat_quad_preview_requested = [bool]($XrPreview -and !$ImmersivePreview); flat_quad_submitted = ($previewSubmitted -and !$ImmersivePreview); readback_test_requested = [bool]$PreviewReadbackTest; readback_observed = $readbackObserved; camera_capture_requested = [bool]$CameraCapture; xr_session_api_errors = $sessionApiErrors; xr_session_requested = [bool]$XrSessionProbe; xr_session_closed = $sessionClosed; xr_session_valid_poses = $sessionValidPoses; experimental_xr_renderer = [bool]($ExperimentalXrRenderer -or $XrNegotiation); xr_negotiation_requested = [bool]$XrNegotiation; xr_device_negotiated = $xrNegotiated; reason = $reason; exit_code = $p.ExitCode; peak_working_set_MB = $peakMB; runtime_root = $runRoot;
 +             user_root = $userRoot; save_snapshot = [bool]$SnapshotStableSaves; headless = !$Window; upfront_shader_precompile = [bool]$PrepareAllShaders; gameplay_verified = $false } | ConvertTo-Json
 +if ($reason -eq 'memory_limit' -or $reason -eq 'disk_limit') { exit 124 }
 +if ($reason -eq 'process_exited' -and $p.ExitCode -ne 0) { exit 1 }
@@ -23581,10 +23695,10 @@ index 0000000000000000000000000000000000000000..72a6efb4e0cf9c6ef338e39a88b90a34
 +}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
 diff --git a/vr/tests/baseline_recorder_test.cpp b/vr/tests/baseline_recorder_test.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..4f9e4cb51bad33d4ba82d8eccaaef7267cc72539
+index 0000000000000000000000000000000000000000..80faa268dc765578ca38939de00723cbc36cefb9
 --- /dev/null
 +++ b/vr/tests/baseline_recorder_test.cpp
-@@ -0,0 +1,231 @@
+@@ -0,0 +1,232 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#define VK_NO_PROTOTYPES
 +#include "xr_baseline_recorder.h"
@@ -23759,8 +23873,8 @@ index 0000000000000000000000000000000000000000..4f9e4cb51bad33d4ba82d8eccaaef726
 +    }
 +    // Native projections clone GPU tails, bypass the artificial-shift compute
 +    // pipeline, record the original controls, and wait for known completion.
-+    for(int fault=0;fault<4;++fault){
-+        reset();in=input(buffer);in.native_eye_probe=in.matrix_probe=in.shifted_draw_probe=in.root_alias_probe=in.depth_reference=true;
++    for(bool depth_reference:{true,false})for(int fault=0;fault<4;++fault){
++        reset();in=input(buffer);in.native_eye_probe=in.matrix_probe=in.shifted_draw_probe=in.root_alias_probe=true;in.depth_reference=depth_reference;
 +        in.guest_camera=0x4000;in.color.width=in.depth.width=160;in.color.height=in.depth.height=32;
 +        fake.native_root=fake.large_scene=true;fake.images[handle<VkImage>(11)].resize(160*32*4);fake.images[handle<VkImage>(12)].resize(160*32*4);
 +        auto& patch=in.native_eye_patch;patch.source={7,130,9,0x4000,0x5000};patch.source_bytes=560;patch.tracking_sequence=8;patch.origin_generation=1;patch.predicted_display_time=200;patch.observed_ns=100;
@@ -23778,6 +23892,7 @@ index 0000000000000000000000000000000000000000..4f9e4cb51bad33d4ba82d8eccaaef726
 +        check(xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes)&&fake.draws==4&&fake.last_ubo==handle<VkBuffer>(10),"two controls plus two native draws, source restored");
 +        check(!xr_baseline_recorder_retire(p,comparison),"native private allocations cannot retire in flight");fake.completed=9;
 +        check(xr_baseline_recorder_retire(p,comparison)&&!p&&comparison.native_eye_requested&&comparison.result==XrBaselineComparison::Result::Match,"strict original controls remain intact");
++        check(comparison.depth_reference==depth_reference,"native color/depth result retains exact reference attachment");
 +        check(comparison.matrix_probe_validated==(fault==0)&&comparison.native_eye_gpu_tails_preserved==(fault!=1),"native GPU byte verification detects bad tails, source and prefixes");
 +        check(comparison.native_eye_raster_observed&&!comparison.shifted_draw_verified&&comparison.native_eye_pair_differences>0,"native raster evidence never borrows legacy centroid result");
 +        check(comparison.native_eye_nvn_submit==130&&comparison.native_eye_recording==9&&comparison.native_eye_game_present==7,"source and pose provenance retained");
@@ -24156,10 +24271,10 @@ index 0000000000000000000000000000000000000000..63fdc01c45dcd3266263ecd557b51c1c
 +}catch(const std::exception& e){std::fprintf(stderr,"%s\n",e.what());mkwvk::xr_vulkan_reset();return 1;}}
 diff --git a/vr/tests/camera_submission_test.cpp b/vr/tests/camera_submission_test.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..5f46f303740cd2a72ada36bbdd34e26a9a32cf77
+index 0000000000000000000000000000000000000000..7f86234c80ae7ee4052373b8ffeeea3bdd3236a7
 --- /dev/null
 +++ b/vr/tests/camera_submission_test.cpp
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,135 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "xr_camera_submission.h"
 +#include "xr_first_person_projection_audit.h"
@@ -24170,6 +24285,11 @@ index 0000000000000000000000000000000000000000..5f46f303740cd2a72ada36bbdd34e26a
 +#include <cstdlib>
 +#include <string>
 +#include <limits>
++#include <filesystem>
++#include <fstream>
++#include <chrono>
++#include <cstring>
++#include <vector>
 +using namespace mkwvk;
 +namespace mkwvk { FirstPersonProjectionEvidence xr_first_person_native_projection_evidence(int64_t,const float*,const float*){return {};} void logf(const char*,...){} void xr_immersive_note_camera(uint64_t,const float*,size_t){} void xr_immersive_note_scene_candidate(uint64_t,uint32_t,uint32_t){}}
 +void check(bool x,const char* why){if(!x)throw std::runtime_error(why);}
@@ -24202,6 +24322,7 @@ index 0000000000000000000000000000000000000000..5f46f303740cd2a72ada36bbdd34e26a
 +
 +    auto missing_draw=draw;missing_draw.depth=0;
 +    check(!match_submitted_camera(&first,t+1000,missing_draw,block,0x230/4).matched,"uniform match cannot fabricate scene evidence");
++    check(!match_submitted_camera(&first,t+1000,missing_draw,block,0x230/4,9).matched,"exact writer cannot fabricate missing scene attachments");
 +    check(!match_submitted_uniform(&first,t+600000000,1280,720,block,0x230/4).matched,"compute context expires too");
 +    check(!match_submitted_camera(&first,t+600000000,draw,block,0x230/4).matched,"delayed context fails closed");
 +    check(!match_submitted_camera(&first,t-1,draw,block,0x230/4).matched,"clock reversal fails closed");
@@ -24259,7 +24380,35 @@ index 0000000000000000000000000000000000000000..5f46f303740cd2a72ada36bbdd34e26a
 +     check(refreshed,"resumed work selects refreshed context on its own thread");
 +     std::thread other([]{check(!xr_scene_submission_current()&&!xr_scene_submission_source_value(),"parallel worker has no accidental context or source serial");});other.join();}
 +    check(!xr_scene_submission_current()&&!xr_scene_submission_source_value(),"scope and source serial end deterministically");
-+    std::cout<<"Bounded submit-time camera snapshots and scope isolation checked\n";return 0;
++    const auto at=std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
++    const auto directory=std::filesystem::temp_directory_path()/("vr-history-writer-"+std::to_string(at));
++    check(std::filesystem::create_directory(directory),"fresh authored capture directory");
++#ifdef _WIN32
++    _putenv_s("HOOKSHOT_VR_CAMERA_HISTORY_DIR",directory.string().c_str());
++#else
++    setenv("HOOKSHOT_VR_CAMERA_HISTORY_DIR",directory.string().c_str(),1);
++#endif
++    {std::ofstream marker(directory/"armed");marker<<"fixture";}
++    SceneSubmissionSnapshot scoped{};scoped.captured_ns=at;scoped.count=2;
++    for(unsigned k=0;k<2;++k){auto& c=scoped.cameras[k];c.received_ns=at;c.pair=pair(k+1);c.pair.primary.game_present=c.pair.uniforms.game_present=k?8:1;c.pair.uniforms.camera_id=k?10:9;}
++    std::vector<std::byte> payload(0xb00);std::memcpy(payload.data(),block,sizeof block);
++    SceneCameraEvidence authored{42,2,3,4,123,1280,720};
++    auto record=[&](uint64_t submit,uint64_t writer){xr_scene_submission_bind(submit,std::make_shared<const SceneSubmissionSnapshot>(scoped));SceneSubmissionScope scope(submit);
++        check(xr_camera_history_wants(authored.replay_frame,authored.program,payload.size()),"history fixture armed");
++        xr_camera_history_capture(authored,submit+100,payload.data(),payload.size(),writer);};
++    record(900,9);
++    auto row=[&]{std::ifstream file(directory/"index.jsonl");std::string line,last;while(std::getline(file,line))last=line;return last;};
++    check(row().find("\"writer_guest_camera\":9")!=std::string::npos&&row().find("\"observation_game_present\":1")!=std::string::npos&&
++        row().find("\"observation_present_ambiguous\":false")!=std::string::npos,"actual history capture filters distinct CPU writer identities");
++    scoped.cameras[1].pair.uniforms.camera_id=9;authored.replay_frame=43;record(901,9);
++    check(row().find("\"observation_present_ambiguous\":true")!=std::string::npos&&row().find("\"observation_game_present\":-1")!=std::string::npos,
++        "same writer with conflicting presents is still recorded as ambiguous");
++    authored.replay_frame=44;record(902,11);check(!std::filesystem::exists(directory/"frame-44.bin"),"unknown writer cannot borrow equal matrices");
++    authored.replay_frame=45;record(903,0);check(row().find("\"writer_guest_camera\":0")!=std::string::npos&&row().find("\"observation_present_ambiguous\":true")!=std::string::npos,
++        "legacy unfiltered history retains ambiguity without inventing a writer");
++    for(const char* file:{"armed","index.jsonl","frame-42.bin","frame-43.bin","frame-45.bin"})std::filesystem::remove(directory/file);
++    std::filesystem::remove(directory);
++    std::cout<<"Bounded submit-time camera snapshots, guarded history and scope isolation checked\n";return 0;
 +}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
 diff --git a/vr/tests/depth_pair_reproject_test.cpp b/vr/tests/depth_pair_reproject_test.cpp
 new file mode 100644
@@ -27200,13 +27349,14 @@ index 0000000000000000000000000000000000000000..61fe02c7cdc7c3069134433afd238784
 +}
 diff --git a/vr/tests/shader_uniform_export_test.cpp b/vr/tests/shader_uniform_export_test.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..b53305bf0605aa06727a14e475fb5702838e7e96
+index 0000000000000000000000000000000000000000..2898cb72d639487e19f524c5ab9d9b9e6cccaea7
 --- /dev/null
 +++ b/vr/tests/shader_uniform_export_test.cpp
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,79 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "xr_shader_uniform_audit.h"
 +#include <filesystem>
++#include <algorithm>
 +#include <fstream>
 +#include <cstdlib>
 +#include <iostream>
@@ -27216,19 +27366,45 @@ index 0000000000000000000000000000000000000000..b53305bf0605aa06727a14e475fb5702
 +void check(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
 +int main(int argc,char** argv){try{
 +    check(argc==2,"mode required");const std::string mode=argv[1];
-+    const uint32_t words[]={0x07230203,0x00010500,0,16,0,0x00010000};
++    const uint32_t words[]={0x07230203,0x00010500,0,16,0,0x0005000f,0,1,0x6e69616d,0};
++    const uint32_t fragment[]={0x07230203,0x00010500,0,16,0,0x0005000f,4,1,0x6e69616d,0};
++    const uint32_t compute[]={0x07230203,0x00010500,0,16,0,0x0005000f,5,1,0x6e69616d,0};
 +    if(mode=="off"){
 +        check(!xr_shader_uniform_audit_enabled()&&!xr_shader_uniform_audit_module(1,words,6)&&!xr_shader_uniform_audit_wants_program(7),"disabled audit is inactive");return 0;
 +    }
-+    check(mode=="enabled"&&xr_shader_uniform_audit_enabled(),"audit explicitly enabled");
++    check((mode=="enabled"||mode=="compute")&&xr_shader_uniform_audit_enabled(),"audit explicitly enabled");
 +    auto path=std::filesystem::u8path(std::getenv("HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR"));
-+    check(path.filename()=="shader-audit-test"&&!std::filesystem::is_symlink(path),"test output is a named build child, never a link");
++    check(path.filename()==(mode=="compute"?"shader-compute-audit-test":"shader-audit-test")&&!std::filesystem::is_symlink(path),"test output is a named build child, never a link");
 +    check(std::filesystem::weakly_canonical(path.parent_path())==std::filesystem::canonical(std::filesystem::current_path()),"test output stays inside build directory");
 +    std::filesystem::create_directories(path);
-+    check(xr_shader_uniform_audit_module(1,words,6)&&xr_shader_uniform_audit_module(2,words,6),"bounded authored modules exported");
++    if(mode=="compute"){
++        check(xr_shader_uniform_audit_compute_only(),"compute scope explicitly enabled");
++        // More than the entire disk-export budget, rejected before hashing or charging it.
++        std::vector<uint32_t> ignored(2*1024*1024,0x00010000);std::copy(std::begin(words),std::end(words),ignored.begin());
++        for(uint64_t i=100;i<109;++i)check(!xr_shader_uniform_audit_module(i,ignored.data(),ignored.size()),"unrequested graphics cannot consume compute quota");
++        check(xr_shader_uniform_audit_module(1,compute,10),"compute still exports after rejected graphics exceed byte quota");
++        uint64_t digest=0;size_t n=0;check(xr_shader_uniform_audit_identity(1,digest,n)&&n==10,"compute identity refers to actual exported data");
++        check(!xr_shader_uniform_audit_module(1,words,10)&&!xr_shader_uniform_audit_identity(1,digest,n),"ignored replacement clears reused handle identity");
++        check(xr_shader_uniform_audit_module(1,compute,10),"eligible replacement restores only its own identity");
++        return 0;
++    }
++    check(!xr_shader_uniform_audit_compute_only(),"graphics scope selected");
++    check(!xr_shader_uniform_audit_module(100,compute,10),"compute modules leave graphics quota available");
++    check(xr_shader_uniform_audit_module(1,words,10)&&xr_shader_uniform_audit_module(2,fragment,10),"bounded authored graphics modules exported");
++    uint32_t special[10];std::copy(std::begin(words),std::end(words),special);
++    for(uint32_t model:{5267u,5268u,5364u,5365u}){special[6]=model;check(xr_shader_uniform_audit_module(30+model,special,10),"both NV and EXT task/mesh graphics models retained");}
++    special[6]=6;check(!xr_shader_uniform_audit_module(40,special,10),"unsupported execution model rejected");
++    std::copy(std::begin(words),std::end(words),special);special[5]=0;check(!xr_shader_uniform_audit_module(40,special,10),"zero instruction length rejected");
++    special[5]=0x000b000f;check(!xr_shader_uniform_audit_module(40,special,10),"truncated instruction rejected");
++    check(!xr_shader_uniform_audit_module(40,words,5),"header without an entry point cannot consume quota");
++    std::vector<uint32_t> mixed(std::begin(words),std::end(words));mixed.insert(mixed.end(),std::begin(compute)+5,std::end(compute));
++    check(!xr_shader_uniform_audit_module(40,mixed.data(),mixed.size()),"mixed compute/graphics module is not a scoped proof");
++    uint64_t previous=0;size_t previous_words=0;
++    check(!xr_shader_uniform_audit_module(2,compute,10)&&!xr_shader_uniform_audit_identity(2,previous,previous_words),"filtered handle reuse invalidates old graphics evidence");
++    check(xr_shader_uniform_audit_module(2,fragment,10),"recaptured graphics replacement has its own identity");
 +    uint64_t identity=0;size_t count=0;
-+    check(xr_shader_uniform_audit_identity(1,identity,count)&&count==6,"live module identity available only after successful export");
-+    const auto original_identity=identity;check(!xr_shader_uniform_audit_identity(999,identity,count)&&identity==original_identity&&count==6,"missing identity preserves output");
++    check(xr_shader_uniform_audit_identity(1,identity,count)&&count==10,"live module identity available only after successful export");
++    const auto original_identity=identity;check(!xr_shader_uniform_audit_identity(999,identity,count)&&identity==original_identity&&count==10,"missing identity preserves output");
 +    check(!xr_shader_uniform_audit_module(3,nullptr,6)&&!xr_shader_uniform_audit_module(3,words,0),"invalid payload rejected");
 +    std::vector<ShaderUniformAuditBinding> bindings{{1,0,1,6,0,3,560,true},{2,1,16,9,0,4,64,false}};
 +    const std::vector<ShaderUniformAuditStage> stages{{1,0,1,false,false,false,false},{2,1,16,true,false,false,false,true}};
@@ -27760,10 +27936,10 @@ index 0000000000000000000000000000000000000000..1ef9ed5535eb2220f8fae6d08d1bd2f1
 +if __name__=="__main__":unittest.main()
 diff --git a/vr/tests/test_audit_graphics_programs.py b/vr/tests/test_audit_graphics_programs.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..d7f20e9baebce324f78774416423c3e3fee760af
+index 0000000000000000000000000000000000000000..111ab9ea55e16bd826094a718e9871dea09786f7
 --- /dev/null
 +++ b/vr/tests/test_audit_graphics_programs.py
-@@ -0,0 +1,176 @@
+@@ -0,0 +1,192 @@
 +"""Complete stage/binding joins with authored modules and private temporary fixtures."""
 +import importlib.util
 +import hashlib
@@ -27859,6 +28035,22 @@ index 0000000000000000000000000000000000000000..d7f20e9baebce324f78774416423c3e3
 +        program={"program":7,"shader_subset_candidate":True,"vertex_camera_transform_reads_observed":True,
 +            "eye_patch_preflight":audit.eye_patch_footprint([({**binding,"vk_stage":16},{"static_subset_resolved":True,"static_read_word_offsets":[0]})])}
 +        with self.assertRaises(ValueError):audit.baseline_selection_text({"safe_to_replay":False,"programs":[program]},"a"*32,"1234abcd",True)
++    def test_native_eye_can_use_reviewed_fragment_prefix_without_relaxing_legacy(self):
++        op=fixture.op
++        self.vertex=self.write_module(fixture.module([op(32,9,2,2),op(59,9,50,2),op(71,50,33,0),op(71,50,34,0),op(61,2,51,50)]))
++        self.record["stages"][0]["module"]=self.vertex;self.record["bindings"][0]["module"]=self.vertex
++        program=self.analyze()["programs"][0];binding=self.record["bindings"][0]
++        rows=[(binding,{"static_subset_resolved":True,"static_read_word_offsets":[0,112]}),
++              ({**binding,"vk_stage":16},{"static_subset_resolved":True,"static_read_word_offsets":[0,4,44]})]
++        program["eye_patch_preflight"]=audit.eye_patch_footprint(rows)
++        report={"safe_to_replay":False,"programs":[program]}
++        self.assertTrue(audit.baseline_selection_text(report,"a"*32,"1234abcd",native_eye=True).startswith("HSVR_NATIVE_EYE_DRAW_V1\n"))
++        with self.assertRaises(ValueError):audit.baseline_selection_text(report,"a"*32,"1234abcd",lens_shift=True)
++        rows[1][1]["static_read_word_offsets"].append(224);program["eye_patch_preflight"]=audit.eye_patch_footprint(rows)
++        with self.assertRaises(ValueError):audit.baseline_selection_text(report,"a"*32,"1234abcd",native_eye=True)
++        rows[1][1]["static_read_word_offsets"]=[0];rows[1][1]["static_subset_resolved"]=False;program["eye_patch_preflight"]=audit.eye_patch_footprint(rows)
++        with self.assertRaises(ValueError):audit.baseline_selection_text(report,"a"*32,"1234abcd",native_eye=True)
++
 +    def test_baseline_selection_requires_actual_vertex_transform_reads(self):
 +        with self.assertRaises(ValueError):audit.baseline_selection_text(self.analyze(),"a"*32,"1234abcd")
 +    def test_baseline_selection_is_bounded_and_run_scoped(self):
@@ -28134,10 +28326,10 @@ index 0000000000000000000000000000000000000000..44627517505e940ed74b628db8747455
 +if __name__=='__main__':unittest.main()
 diff --git a/vr/tests/test_camera_history_audit.py b/vr/tests/test_camera_history_audit.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..ad4d5a9245b9847b875b32fddd743cdb3194bb41
+index 0000000000000000000000000000000000000000..86f1f8945bef044228e6dcf1548e100e1a70ba81
 --- /dev/null
 +++ b/vr/tests/test_camera_history_audit.py
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,117 @@
 +"""Invented moving matrices and buffers; no game data required."""
 +import importlib.util
 +import json
@@ -28187,6 +28379,29 @@ index 0000000000000000000000000000000000000000..ad4d5a9245b9847b875b32fddd743cdb
 +            self.assertEqual(result['observation_tagged_samples'],32);self.assertEqual(result['ambiguous_observation_samples'],1)
 +            self.assertEqual(result['source_nvn_submit_count'],32);self.assertEqual(result['recording_differs_from_source_samples'],32)
 +            self.assertFalse(result['producer_present_verified']);self.assertFalse(result['safe_to_patch'])
++    def test_guarded_writer_metadata_is_not_a_producer_claim(self):
++        for value in (9,0,True,-1,1<<40):
++            with self.subTest(writer=value),tempfile.TemporaryDirectory() as d:
++                root=Path(d);rows=fixture(root)
++                for k,row in enumerate(rows):row.update(source_nvn_submit=500+k,observation_game_present=700+k,
++                    observation_present_ambiguous=False,primary_sequence=900+k,producer_present_verified=False,writer_guest_camera=value)
++                (root/'index.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in rows))
++                if type(value) is int and 0<=value<(1<<40):
++                    result=audit.analyze(root)
++                    self.assertEqual(result['writer_identity_tagged_samples'],32 if value else 0)
++                    self.assertEqual(result['writer_identity_coverage_complete'],bool(value))
++                    self.assertFalse(result['producer_present_verified']);self.assertFalse(result['safe_to_patch'])
++                else:
++                    with self.assertRaises(ValueError):audit.analyze(root)
++    def test_partial_writer_coverage_stays_unverified(self):
++        with tempfile.TemporaryDirectory() as d:
++            root=Path(d);rows=fixture(root)
++            for k,row in enumerate(rows):row.update(source_nvn_submit=500+k,observation_game_present=700+k,
++                observation_present_ambiguous=False,primary_sequence=900+k,producer_present_verified=False,writer_guest_camera=9)
++            del rows[0]['writer_guest_camera']
++            (root/'index.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in rows))
++            result=audit.analyze(root)
++            self.assertEqual(result['writer_identity_tagged_samples'],31);self.assertFalse(result['writer_identity_coverage_complete'])
 +    def test_partial_or_invalid_source_metadata_rejected(self):
 +        for change in ('partial','mixed','negative','ambiguous','producer','sequence','bool_submit'):
 +            with self.subTest(change=change),tempfile.TemporaryDirectory() as d:
@@ -28400,10 +28615,10 @@ index 0000000000000000000000000000000000000000..46e62a9b88e10961e58b25ecb74122cb
 +if __name__=='__main__':unittest.main()
 diff --git a/vr/tests/test_color_retry_policy.py b/vr/tests/test_color_retry_policy.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..873d076492c6aad0c813a3181dc65811c1525083
+index 0000000000000000000000000000000000000000..6196373a47cecb38a3d6a9dfae1676c2ac7781fe
 --- /dev/null
 +++ b/vr/tests/test_color_retry_policy.py
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,73 @@
 +"""Compile actual native color-retry selection/gate with authored state only."""
 +import argparse
 +from pathlib import Path
@@ -28421,7 +28636,8 @@ index 0000000000000000000000000000000000000000..873d076492c6aad0c813a3181dc65811
 +    root=Path(__file__).resolve().parents[2]
 +    source=(root/'gpu/vk/vk_xr_baseline_draw.cpp').read_text(encoding='utf-8-sig')
 +    selection=block(source,'bool xr_baseline_draw_selected(')
-+    retry=block(source,'if(result.result==XrBaselineComparison::Result::Invisible&&result.view_color_requested')
++    retry=block(source,'if(retryable_invisible_color(result))')
++    helper=block(source,'bool retryable_invisible_color(')
 +    fixture=r'''
 +#include "xr_baseline_attempt.h"
 +#include <map>
@@ -28435,6 +28651,7 @@ index 0000000000000000000000000000000000000000..873d076492c6aad0c813a3181dc65811
 +State& state(){return shared;}bool enabled=true;bool xr_baseline_draw_enabled(){return enabled;}
 +bool selected(const State&,const Program& program){return program.reviewed;}
 +void check(bool value,const char* why){if(!value)throw std::runtime_error(why);}
++HELPER
 +SELECTION
 +void completion(const XrBaselineComparison& result){auto& p=state();RETRY}
 +int main(){try{
@@ -28445,6 +28662,16 @@ index 0000000000000000000000000000000000000000..873d076492c6aad0c813a3181dc65811
 +    result.matrix_probe_validated=true;result.result=XrBaselineComparison::Result::Mismatch;completion(result);check(p.attempted.count(7),"mismatched baseline cannot retry");
 +    result.result=XrBaselineComparison::Result::Match;completion(result);check(p.attempted.count(7),"visible failed raster is not retried by invisible policy");
 +    result.result=XrBaselineComparison::Result::Invisible;completion(result);check(!p.attempted.count(7)&&p.invisible_retries[7]==1,"only invisible validated color draw becomes retryable");
++    XrBaselineComparison native;native.result=XrBaselineComparison::Result::Invisible;native.native_eye_requested=true;
++    native.matrix_probe_validated=native.matrix_source_unchanged=true;
++    check(!retryable_invisible_color(native),"native color cannot retry without source/root proof");
++    native.native_eye_source_prefix_matched=native.native_eye_gpu_tails_preserved=native.root_alias_verified=native.root_indirect_verified=true;
++    check(retryable_invisible_color(native),"invisible native color with intact source, tail and root may advance to next draw");
++    native.depth_reference=true;check(!retryable_invisible_color(native),"depth native diagnostic keeps its original program selection");native.depth_reference=false;
++    native.root_indirect_verified=false;check(!retryable_invisible_color(native),"unverified indirect root cannot authorize retry");native.root_indirect_verified=true;
++    native.native_eye_gpu_tails_preserved=false;check(!retryable_invisible_color(native),"unverified native tail cannot authorize retry");native.native_eye_gpu_tails_preserved=true;
++    native.view_color_requested=true;check(!retryable_invisible_color(native),"mixed legacy/native modes cannot authorize retry");native.view_color_requested=false;
++    native.result=XrBaselineComparison::Result::Match;check(!retryable_invisible_color(native),"visible failed native raster is not hidden by invisible retry");
 +    p.previous_visits[7]=4;
 +    check(!xr_baseline_draw_selected(program),"retry skips first eligible ordinal");
 +    check(xr_baseline_draw_selected(program),"retry can select next eligible draw");
@@ -28458,7 +28685,7 @@ index 0000000000000000000000000000000000000000..873d076492c6aad0c813a3181dc65811
 +    enabled=false;check(!xr_baseline_draw_selected(program),"disabled mode cannot select");
 +    std::cout<<"Native invisible-color retry requires intact controls and a bounded total budget\n";return 0;
 +}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
-+'''.replace('SELECTION',selection).replace('RETRY',retry)
++'''.replace('HELPER',helper).replace('SELECTION',selection).replace('RETRY',retry)
 +    with tempfile.TemporaryDirectory(prefix='vr-color-retry-') as directory:
 +        cpp=Path(directory)/'test.cpp';exe=Path(directory)/'test.exe';cpp.write_text(fixture,encoding='utf-8')
 +        command=[args.cxx,'-std=c++20','-O2','-I',str(root/'gpu/vk'),str(cpp),'-o',str(exe)]
