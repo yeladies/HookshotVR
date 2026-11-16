@@ -91,6 +91,10 @@ class UpdateTests(unittest.TestCase):
         for path in ("work/image.bin", "vr/game.exe", "../host/hos_main.c", "user/save.sav", "vr/shaders/game.spv", "vr/shaders/unknown.comp", "work/capture.comp", "gpu/vk/unknown.cpp", "docs/unknown.md"):
             self.assertFalse(update.allowed_patch(path))
         self.assertTrue(update.allowed_patch("nx2/oot_wide.py"))
+        for path in ("nx2/lift.py", "nx2/oot_jitter.py", "tests/test_oot_jitter.py"):
+            self.assertTrue(update.allowed_patch(path))
+        for path in ("nx2/generated.c", "nx2/image.bin", "assets/saves/local.sav", "work/sa/gen/code_hot.c"):
+            self.assertFalse(update.allowed_patch(path))
         self.assertTrue(update.allowed_patch("host/vr_view_parameters.h"))
         self.assertTrue(update.allowed_patch("gpu/vk/vk_memory.cpp"))
         self.assertTrue(update.allowed_patch("docs/tested-configurations.md"))

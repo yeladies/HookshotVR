@@ -1,5 +1,24 @@
 # Estado, resultados y hoja de ruta
 
+## Estado actual: Hookshot 2.3.1 / ABI 24
+
+El experimento nativo ha pasado un **dibujo aislado de profundidad del juego real** desde un mismo estado congelado, con cámara propia para cada ojo. La fuente `e4ec0ddc` obtuvo 119 muestras de primera persona; el intento aceptado conservó el origen GPU, hizo coincidir exactamente los dos controles, verificó uniformes y alias/comandos indirectos, y liberó sus recursos privados. Las pruebas usan seguimiento sintético.
+
+**Todavía no es estéreo de la escena completa ni una build para el visor.** Falta revisar e integrar color, mesh/task, cómputo, recursos completos e historiales por ojo antes de presentar a OpenXR. La cámara anterior por reconstrucción de profundidad está retirada. [Pruebas, instrucciones y límites](../../vr-native-eye-draw.md) · [Parche reproducible para 2.3.1](../../vr-hookshot-2.3.1.md).
+
+Siguientes pasos:
+
+1. Relacionar los demás campos e historiales de cámara con sus escritores y shaders reales, incluido el culling mesh/task.
+2. Cubrir pases completos de color/profundidad con recursos por ojo, actualizando simulación y trabajo compartido una vez.
+3. Enviar ambos ojos completos a OpenXR directamente en GPU y componer HUD, textos y menús legibles.
+4. Probar en Quest escala, visibilidad, transiciones, antigüedad de frames y estabilidad; añadir mecánicas de movimiento tras estabilizar el render.
+
+Pasan 181/181 checks VR. Los heredados registran 586 correctos, 22 fallos conocidos de upstream y 40 omisiones. Siguen intactos nueve hashes de la instalación y catorce archivos de partida originales. Solo se comparten fuente, pruebas y documentación; todos los derivados del juego quedan locales.
+
+## Experimentos archivados del renderizador
+
+Lo que sigue conserva prototipos anteriores y sus solicitudes históricas de prueba; no es el plan actual de ejecución.
+
 **Primera persona:** el juego local ya dispone de anclaje a raíz/ojos, cachés coherentes, un paquete de cámara inmutable y máscara privada de geometría de cabeza. Sigue pendiente el estéreo nativo de la escena completa. [Implementación y pruebas aisladas](../../vr-first-person.md).
 
 **Rama de reconstrucción de cámara — 15-11-2026.** La cámara por profundidad y sus lanzadores están retirados; el prototipo queda archivado. Existe un módulo C nuevo con rig/poses separados y proyección asimétrica, todavía sin renderizado completo por ojo. [Estado actual, diagnóstico y pasos pendientes](../../vr-camera-rebuild.md). Las entradas siguientes documentan pruebas históricas.

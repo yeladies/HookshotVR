@@ -1,5 +1,24 @@
 # Status, evidence and roadmap
 
+## Current: Hookshot 2.3.1 / ABI 24
+
+The native-eye experiment has passed an isolated **real-game depth draw** from one frozen state, with different native cameras for both eyes. Source `e4ec0ddc` recorded 119 first-person samples; its accepted attempt preserved the original GPU source, matched both unchanged controls exactly, verified eye uniforms and root/indirect guards, and released its private resources. The standalone and game tests use synthetic tracking.
+
+This is **not full-scene stereo or a headset test build**. Color, mesh/task and compute consumers, complete pass resources and eye histories still need review and integration before OpenXR presentation. The previous depth-reconstruction camera is retired. [Evidence, instructions and limits](../../vr-native-eye-draw.md) · [Reproducible 2.3.1 source overlay](../../vr-hookshot-2.3.1.md).
+
+Next steps:
+
+1. Map the remaining camera fields and histories to their real producers and shader consumers, including mesh/task culling.
+2. Cover complete eye-dependent color/depth passes with private resources, while updating simulation and shared work once.
+3. Submit both completed eye images directly on GPU to OpenXR, then compose readable HUD, texts and menus.
+4. Run Quest checks for scale, visibility, transitions, frame age and stability; add motion mechanics after stable rendering.
+
+The VR suite passes 181/181. Inherited checks: 586 passed, 22 known upstream failures, 40 skips. Nine installation hashes and fourteen original save files remain unchanged. Only source, tests and documentation are shared; all game-derived artifacts stay local.
+
+## Archived renderer experiments
+
+Everything below records earlier prototypes and their historical test requests; it is not the current launch plan.
+
 **First-person work:** the local game now has an opt-in root/eye anchor, coherent view caches, an immutable camera packet and private head-geometry masking. Native complete-scene stereo remains pending. [Implementation and isolated tests](../../vr-first-person.md).
 
 **Camera rebuild branch — 2026-11-15.** The depth camera and its launchers are retired; the prototype is archived. A new C module separates rig/poses and builds asymmetric projections, but complete per-eye scene rendering is still pending. [Current status, diagnosis and remaining gates](../../vr-camera-rebuild.md). Entries below describe historical experiments.
