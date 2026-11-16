@@ -89,3 +89,5 @@ After the first wide/temporal headset comparison, [preview quality and continuit
 ## 2026-11-16: native eye depth
 
 A private same-state experiment confirmed that reusing the centre-camera depth with `EQUAL` rejected native eye colour. The new bounded forward-depth probe renders the selected opaque surface into separate per-eye D32 depth and colour. It passed the actual-game single-draw checks and 190 VR checks. This is not a headset-ready full scene; pass accumulation and complete eye resource coverage remain next. See [details](../../vr-native-forward-depth.md).
+
+The native route observer has now passed a real-game 150-second run: 1196 eye-dependent graphics operations in the presented slice had valid state observations, with no missing route records. Complete shader/pass coverage remains pending, and the isolated depth repeat was not recorded in this run. See [route coverage](../../vr-native-graphics-route.md). The extracted cache fixture found by the full inherited suite is corrected; six related cache checks pass.

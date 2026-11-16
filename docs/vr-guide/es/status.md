@@ -89,3 +89,5 @@ Tras la primera comparación de FOV/estéreo, el [trabajo de calidad y continuid
 ## 16-11-2026: profundidad nativa por ojo
 
 Una prueba privada del mismo estado confirmó que reutilizar la profundidad de la cámara central con `EQUAL` rechazaba el color de los ojos nativos. La nueva prueba dibuja la superficie opaca seleccionada con color y profundidad D32 propios por ojo. Pasó las comprobaciones de un dibujo del juego real y 190 pruebas VR. Aún no es una escena completa para el visor: quedan la acumulación de pases y la cobertura de recursos por ojo. Consulta los [detalles](../../vr-native-forward-depth.md).
+
+El observador nativo ha pasado una ejecución real de 150 segundos: 1196 operaciones gráficas dependientes del ojo en la cadena presentada tienen estado observado válido, sin registros de ruta ausentes. Falta cubrir shaders y pases completos; la repetición aislada de profundidad no se grabó en esta ejecución. Consulta la [cobertura de rutas](../../vr-native-graphics-route.md). También está corregida la prueba de caché detectada en la batería completa; pasan las seis comprobaciones relacionadas.

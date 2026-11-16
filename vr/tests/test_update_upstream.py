@@ -97,7 +97,7 @@ class UpdateTests(unittest.TestCase):
             self.assertFalse(update.allowed_patch(path))
         self.assertTrue(update.allowed_patch("host/vr_view_parameters.h"))
         self.assertTrue(update.allowed_patch("gpu/vk/vk_memory.cpp"))
-        for path in ("gpu/vk/vk_progcache.cpp", "gpu/vk/vk_shader.h", "host/nvn_native.c", "tests/program_cache_cleanup_test.cpp", "tests/program_cache_one_variant_test.cpp"):
+        for path in ("tests/seed_variant_cleanup_test.cpp", "gpu/vk/vk_progcache.cpp", "gpu/vk/vk_shader.h", "host/nvn_native.c", "tests/program_cache_cleanup_test.cpp", "tests/program_cache_one_variant_test.cpp"):
             self.assertTrue(update.allowed_patch(path))
         self.assertFalse(update.allowed_patch("host/unknown.c"))
         self.assertFalse(update.allowed_patch("tests/unknown.cpp"))
