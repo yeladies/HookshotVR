@@ -2,14 +2,14 @@
   "schema": 1,
   "upstream_url": "https://git.notrexed.dev/Hookshot/Hookshot.git",
   "upstream_commit": "5d3de413df5587a1896b2b7df6a3a385ae24195a",
-  "source_tree": "44647b9377bba6fb1fcbb580cde8372541be0438",
+  "source_tree": "3f04cb293ba2b9efa981dc187a93daf1c8e72608",
   "abi": 24,
   "patch": "source.patch",
-  "patch_sha256": "8c76f0aae1b24cbaf1d02712bb623c1d90299d0691823b69b5d68910a66226bc",
-  "source_files": 372,
+  "patch_sha256": "bc39d367c0c84acaa5f52d05ad505a764ef0e94f4f87dbc81915b8a891316e6c",
+  "source_files": 393,
   "compatibility": "unverified",
   "release_ready": false,
-  "vr_contract_tests_passed": 182,
+  "vr_contract_tests_passed": 190,
   "native_game_validation": false,
   "headset_test_ready": false,
   "publication": "authored source patch only; upstream tree/history, saves and binaries excluded",
@@ -24,8 +24,8 @@
     "eye_uniform_GPU_verified": true,
     "includes_native_eye_draw_experiment": false
   },
-  "native_eye_build_source_commit": "0f35414bdc55d2cb05d09f5ff9b8bd427379cd24",
-  "native_eye_source_fingerprint": "6c2491f0",
+  "native_eye_build_source_commit": "e990dd715cf8fbf98fabaddc2579ea8b325fecb3",
+  "native_eye_source_fingerprint": "52428c42",
   "sparse_mirror_range_validation": true,
   "guarded_primary_uniform_writer": true,
   "native_eye_experiment_game_draw_verified": true,
@@ -79,5 +79,23 @@
     "resources_released": true,
     "separate_Lean_trial_history_complete": false,
     "producer_tick_verified": false
+  },
+  "native_forward_depth_probe": {
+    "actual_game_single_draw_verified": true,
+    "source_controls_mismatched_pixels": [
+      0,
+      0
+    ],
+    "colour_with_D32_pixels": [
+      3273,
+      3243
+    ],
+    "eye_pair_differences": 5939,
+    "original_depth_compare": "EQUAL",
+    "private_depth_compare": "LESS_OR_EQUAL",
+    "private_depth_clear": 1,
+    "resources_released": true,
+    "full_scene_stereo": false,
+    "shader_root_read_semantics_confirmed": false
   }
 }

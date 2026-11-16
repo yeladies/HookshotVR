@@ -85,3 +85,7 @@ The user subsequently confirmed a persistent moving depth scene, apparently corr
 A real-game offscreen run now saves bounded, private left/right eye samples. The source lens is 110° horizontal / 100° vertical with synthetic tracking; temporal eye images are distinct. One inventory image was captured, but continuous menu delivery still needs correction. Wide-view edge geometry needs culling review. This does not establish perceived stereo, comfort, audio or performance in Quest. No XR session is opened while the user is remote. See the [current experiment and capture instructions](../../vr-temporal-stereo-preview.md).
 
 After the first wide/temporal headset comparison, [preview quality and continuity work](../../vr-preview-quality.md) adds opt-in HD mono, lens margin and bounded stereo-pair retention. Human validation remains pending; HD temporal stereo failed the actual freshness check and is not an accepted headset profile.
+
+## 2026-11-16: native eye depth
+
+A private same-state experiment confirmed that reusing the centre-camera depth with `EQUAL` rejected native eye colour. The new bounded forward-depth probe renders the selected opaque surface into separate per-eye D32 depth and colour. It passed the actual-game single-draw checks and 190 VR checks. This is not a headset-ready full scene; pass accumulation and complete eye resource coverage remain next. See [details](../../vr-native-forward-depth.md).
