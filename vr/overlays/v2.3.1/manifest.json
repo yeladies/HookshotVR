@@ -2,14 +2,14 @@
   "schema": 1,
   "upstream_url": "https://git.notrexed.dev/Hookshot/Hookshot.git",
   "upstream_commit": "5d3de413df5587a1896b2b7df6a3a385ae24195a",
-  "source_tree": "db06834ef0e7ee09113d15e26ad4acf209c6461c",
+  "source_tree": "24096a51fa7396f386b33cc83b2ca209d412ca76",
   "abi": 24,
   "patch": "source.patch",
-  "patch_sha256": "1260f300d1a3ebd2b36d6ef52d61d7a87a8bd48acbaac2851e39a485a3d9db7f",
-  "source_files": 399,
+  "patch_sha256": "0f36b6defdc0ec6c91e7bbcd52ab2bae2a96b4e7470aa933775d06e5b3ebf223",
+  "source_files": 406,
   "compatibility": "unverified",
   "release_ready": false,
-  "vr_contract_tests_passed": 192,
+  "vr_contract_tests_passed": 199,
   "native_game_validation": false,
   "headset_test_ready": false,
   "publication": "authored source patch only; upstream tree/history, saves and binaries excluded",
@@ -24,8 +24,8 @@
     "eye_uniform_GPU_verified": true,
     "includes_native_eye_draw_experiment": false
   },
-  "native_eye_build_source_commit": "afa68935790a7ff0a0db346bf4418699497c89ed",
-  "native_eye_source_fingerprint": "3ce34e66",
+  "native_eye_build_source_commit": "0adbf6549ff0e0e4045560af08d286d8021dfa96",
+  "native_eye_source_fingerprint": "10b88bd6",
   "sparse_mirror_range_validation": true,
   "guarded_primary_uniform_writer": true,
   "native_eye_experiment_game_draw_verified": true,
@@ -105,5 +105,50 @@
     "missing_eye_graphics": 0,
     "opaque_pass_ready": false,
     "forward_depth_repeat_verified": false
+  },
+  "shader_inventory": {
+    "source_fingerprint": "86871e96",
+    "program_limit": 256,
+    "programs_captured": 256,
+    "world_programs_covered": 129,
+    "replay_approved": false
+  },
+  "classic_native_transport": {
+    "source_fingerprint": "09d31761",
+    "actual_game_completed_proof": false,
+    "private_colour_and_depth_observed": true,
+    "original_reference_changed": false,
+    "headset_ready": false
+  },
+  "source_coverage_diagnostic": {
+    "source_fingerprint": "127f8ed8",
+    "off_by_default": true,
+    "unit_tests_passed": true,
+    "actual_game_verified": true,
+    "available_original_samples": 0,
+    "source_fingerprint_of_actual_run": "127f8ed8",
+    "stereo_success_criteria_unchanged": true
+  },
+  "source_visibility_qualification": {
+    "source_fingerprint": "10b88bd6",
+    "off_by_default": true,
+    "unit_tests_passed": true,
+    "actual_game_verified": false,
+    "max_programs": 32,
+    "max_observations": 256,
+    "world_replay_approved": false,
+    "actual_game_observed": true,
+    "positive_source_samples": 21778,
+    "continued_after_positive_hint": true,
+    "complete_classic_draw_verified": false,
+    "full_scene_stereo": false
+  },
+  "latest_complete_inherited_suite": {
+    "source_commit": "0adbf6549ff0e0e4045560af08d286d8021dfa96",
+    "source_fingerprint": "10b88bd6",
+    "passed": 586,
+    "known_base_failures": 22,
+    "skipped": 40,
+    "new_failures": 0
   }
 }

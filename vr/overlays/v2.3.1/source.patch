@@ -3620,6 +3620,61 @@ index 0000000000000000000000000000000000000000..53a99accbdf48a04e3c881afe7df6aca
 +Inherited suite: 357 passed, 5 known baseline/environment failures, 59 skipped in 374 seconds. The five failures remain test_fpx_sticky, test_builder_details_hitbox, test_builder_dlss_update, nx2/test_nup_paths and test_vram_budget_row. Default-off startup passed; all 19 monitored stable-installation hashes match. No new XR session was opened for native alias testing.
 +
 +Batería heredada: 357 correctas, los 5 fallos conocidos de base/entorno y 59 omitidas en 374 segundos. El arranque con el diagnóstico desactivado pasó y coinciden los 19 hashes vigilados de la instalación estable. No se abrió otra sesión XR para esta prueba nativa.
+diff --git a/docs/vr-native-classic-transport.md b/docs/vr-native-classic-transport.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..a29ea963fce06217ad19f624280c0599b6eb1dfd
+--- /dev/null
++++ b/docs/vr-native-classic-transport.md
+@@ -0,0 +1,49 @@
++# Isolated native classic transport
++
++## English
++
++This explicitly gated offscreen experiment extends private per-eye forward depth to a selected direct vertex/fragment draw, including indexed draws. It is not a complete world render or a headset build. The 256-program private capture contains 224 observed direct draws across 45 classic programs with the required opaque source state; these counts are planning evidence, not authorization to replay an old capture.
++
++`HSVR_NATIVE_CLASSIC_TRANSPORT_V1` is separate from the old classic colour and task/mesh protocols. It requires current-process module identities, exact vertex/fragment stage mapping, reviewed read-only private-root effects and observed primary vertex transform reads. Global/shared writes, unsupported stages and incomplete effect review remain rejected. Unknown camera tails are copied GPU-verbatim as in the isolated mesh transport experiment; this does not certify complete camera/root read semantics.
++
++The experimental flags `RX_VK_XR_NATIVE_CLASSIC_TRANSPORT_PROBE` and `RX_VK_XR_NATIVE_CLASSIC_FORWARD_DEPTH_PROBE` require native-eye colour mode and reject mesh mode. Source geometry remains direct triangles only, with the existing count/index/instance limits. Preliminary admission requires an opaque depth-tested `EQUAL` source with writes disabled and blending disabled; actual post-draw dynamic state is checked again. Fragment modes must be known and compatible with late native depth writes. Exact submitted-camera identity and freshness requirements are unchanged.
++
++Both eyes use the same submitted geometry/resources and their validated matrices, preserving near/far coefficients. Private depth is cleared to the far endpoint and written with the direction-correct comparison. The unchanged controls, native colour and actual D32 depth must be verified together. Source depth state, root and descriptors are restored. The existing bounded four-set copy path supports ordinary classic descriptors only in the explicit forward experiment; original push and ordinary descriptor limits remain unchanged elsewhere. Protocol limits remain 32 programs/8192 bytes. Recorder and root allocations keep their separate existing budgets.
++
++All 197 VR checks, eight renderer syntax checks and four affected inherited resource/query checks pass. The recorder test now covers direct/indexed classic commands, push/ordinary descriptor restoration, signed indexed offsets, depth ordering and completion-gated retirement. Actual-game validation of this classic colour/depth experiment is pending. The preceding mesh surface proof and route inventory remain separate observations.
++
++## Castellano
++
++Este experimento explícito sin visor amplía la profundidad nativa privada por ojo a un dibujo directo de vértices/fragmentos, también indexado. No es el mundo completo ni una build de visor. La captura privada de 256 programas contiene 224 dibujos directos de 45 programas clásicos con el estado opaco requerido; son datos para planificar, no una autorización para repetir capturas antiguas.
++
++`HSVR_NATIVE_CLASSIC_TRANSPORT_V1` está separado de los protocolos anteriores. Exige identidades de módulos del proceso actual, etapas de vértices/fragmentos exactas, efectos de lectura por raíz privada revisados y lecturas observadas de transformación de vértices. Siguen rechazándose escrituras globales/compartidas, etapas no admitidas y revisión incompleta. Los campos de cámara desconocidos se conservan literalmente en GPU, como en el experimento aislado de malla; no demuestra toda su semántica ni todas las lecturas por raíz.
++
++Las opciones experimentales `RX_VK_XR_NATIVE_CLASSIC_TRANSPORT_PROBE` y `RX_VK_XR_NATIVE_CLASSIC_FORWARD_DEPTH_PROBE` requieren color nativo por ojo y rechazan el modo de malla. Se mantienen triángulos directos y los límites de geometría existentes. Se exige de entrada profundidad `EQUAL`, prueba de profundidad activa, escritura desactivada y ausencia de mezcla; después del dibujo original se vuelve a verificar el estado dinámico real. El shader de fragmentos debe admitir escritura tardía de profundidad. La identidad y frescura exactas de la cámara presentada no se relajan.
++
++Los dos ojos usan la misma geometría y recursos presentados, con matrices validadas y planos cercano/lejano conservados. Se limpia la profundidad privada al extremo lejano y se escribe con la comparación correspondiente. Deben verificarse controles intactos, color nativo y profundidad D32 real, restaurando profundidad, raíz y descriptores. La copia acotada de cuatro conjuntos de descriptores admite el caso clásico ordinario solo en el experimento explícito. Se conservan límites de 32 programas/8192 bytes y los presupuestos separados del recorder y las raíces.
++
++Pasan 197 pruebas VR, ocho comprobaciones de sintaxis y cuatro pruebas heredadas de recursos/consultas. La prueba del recorder cubre comandos directos/indexados, restauración de ambos tipos de descriptor, desplazamientos indexados firmados, orden de profundidad y liberación tras completar GPU. Falta validar color/profundidad clásicos con el juego real. La prueba anterior de una superficie de malla y el inventario de rutas siguen siendo observaciones independientes.
++
++## Source coverage diagnostic / Diagnóstico de cobertura original
++
++**English.** The 150-second private horizontal and vertical runs on source `7656a9e1` remain inconclusive: the original selected colour draw changed zero reference pixels, although the vertical run produced 2649/2624 private colour pixels with matching per-eye D32 writes and 3158 eye-pair differences. These numbers do not prove correct scene coverage. Original installation and save hashes were preserved. No headset test is ready.
++
++The optional `RX_VK_XR_SOURCE_COVERAGE_PROBE=1` diagnostic measures whether the exact selected direct classic source draw passes its original depth/stencil tests. It allocates one private occlusion query, resets outside rendering, begins immediately before the exact indexed/non-indexed command, and ends inside the original render pass before all private draws. It refuses to overlap the game's occlusion query. Serial, queue recording, program and command-buffer identity must match. Reads occur only after known queue completion, with availability and without WAIT or PRECISE requirements; zero, unavailable and nonzero results remain distinct. Query resources use the recorder's existing completion-gated lifetime. The result is diagnostic metadata only: it does not turn an unchanged reference into a successful stereo proof, change depth/camera parameters, or enable complete-world replay. It is off by default.
++
++**Castellano.** Las pruebas privadas horizontal y vertical de 150 segundos con `7656a9e1` siguen siendo inconcluyentes: el dibujo de color original seleccionado cambió cero píxeles de referencia, aunque la vertical produjo 2649/2624 píxeles privados con escritura D32 por ojo y 3158 diferencias entre ojos. Esto no demuestra la cobertura correcta de la escena. Se conservaron los hashes de instalación y partidas originales. Aún no hay una prueba de visor lista.
++
++El diagnóstico opcional `RX_VK_XR_SOURCE_COVERAGE_PROBE=1` mide si el dibujo clásico directo seleccionado supera las pruebas de profundidad/stencil originales. Usa una consulta privada, reiniciada fuera del renderizado, iniciada justo antes del comando original y terminada dentro de su pasada antes de los dibujos privados. Evita solaparse con consultas de oclusión del juego y exige identidad exacta de dibujo, grabación, programa y buffer de comandos. Solo lee tras completar la cola GPU, sin espera y distinguiendo cero, resultado no disponible y cobertura positiva. Sus recursos se liberan con el resto del recorder tras completar GPU. Solo añade información: no convierte una referencia sin cambios en una prueba estéreo válida ni cambia cámara o profundidad. Está desactivado por defecto.
++
++## Bounded visibility qualification / Selección previa acotada
++
++English: the first `127f8ed8` actual-game source query returned available with zero samples, matching its unchanged original image. Its private forward eyes still wrote coincident colour/depth. This establishes absence of passing source samples for that particular selected draw, not absence of all classic world geometry. Nine installation and fourteen original save hashes remained unchanged.
++
++The additional opt-in `RX_VK_XR_QUALIFY_SOURCE_COVERAGE=1` samples candidate original direct draws before allocating private eye images, UBO copies or page roots. It requires the existing classic/source-coverage flags and unchanged current-process shader/preflight checks. At most one query is in flight, 32 program identities, eight observations per program and 256 observations total. Only an available nonzero result supplies a program/ordinal selection hint; it cannot approve a shader or make an unchanged image pass. The subsequent full recorder independently measures the exact source again and retains every original image, camera, root and depth verification. This new selection path has not yet been tested in the actual game.
++
++Castellano: la primera consulta real `127f8ed8` devolvió un resultado disponible con cero muestras, coincidiendo con la referencia original intacta. Los ojos privados sí escribieron color/profundidad. Demuestra ausencia de muestras que superaran las pruebas en ese dibujo concreto, no ausencia de toda la geometría clásica. Permanecieron idénticos nueve hashes de instalación y catorce de partidas.
++
++La opción adicional `RX_VK_XR_QUALIFY_SOURCE_COVERAGE=1` mide candidatos originales antes de reservar imágenes, copias de cámara o raíces privadas. Exige las opciones clásicas existentes y las mismas comprobaciones de shaders y estado del proceso actual. Limita a una consulta en vuelo, 32 programas, ocho observaciones por programa y 256 en total. Solo una cobertura positiva disponible aporta una pista de programa/ordinal; no autoriza shaders ni convierte una referencia intacta en éxito. El recorder completo vuelve a medir el dibujo exacto y conserva todas las verificaciones previas. Esta selección aún no se ha ejecutado en el juego real.
++
++The `3a5490a3` cold/warm runs each found one available positive source observation (24222/24242 samples), but neither recorded a full private classic draw. A visible program/ordinal can cease to satisfy fresh descriptor/camera admission before reuse. Selection hints now expire after eight source frames when no full recorder is active, and recorder-creation rejection clears the hint immediately. This prevents an unusable hint from monopolizing the bounded diagnostic; it does not relax descriptor freshness or stereo verification. Actual-game validation of the expiry change remains pending.
++
++Las pruebas fría y con caché `3a5490a3` encontraron una observación positiva cada una (24222/24242 muestras), sin llegar a grabar un dibujo clásico privado completo. El programa/ordinal visible puede dejar de cumplir los requisitos de cámara/descriptores frescos antes de reutilizarse. La pista ahora caduca tras ocho fotogramas de origen sin recorder activo y se borra si su creación se rechaza. Evita bloquear la selección manteniendo los requisitos de frescura y verificación estéreo. Falta validar este cambio de caducidad con el juego real.
 diff --git a/docs/vr-native-eye-draw.md b/docs/vr-native-eye-draw.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..c092c1af7064f09bcf9a1e18e82feae3738e6c1c
@@ -3810,10 +3865,10 @@ index 0000000000000000000000000000000000000000..e1c1b5a47e39c35267ace889e5aea540
 +El resultado corresponde a un dibujo. No demuestra toda la semántica de las lecturas por raíz ni el estéreo del mundo completo. El lanzador general sigue indicando que faltan sus requisitos más amplios de juego e historiales; esta prueba aislada no los sustituye.
 diff --git a/docs/vr-native-graphics-route.md b/docs/vr-native-graphics-route.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..9450f55ecfc2a73643075b9249e2b7557d479a6e
+index 0000000000000000000000000000000000000000..9bb2eb232ae9605e6b41cac2943ba073ce7504db
 --- /dev/null
 +++ b/docs/vr-native-graphics-route.md
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,37 @@
 +# Native graphics route observations
 +
 +## English
@@ -3822,7 +3877,7 @@ index 0000000000000000000000000000000000000000..9450f55ecfc2a73643075b9249e2b755
 +
 +The analyser checks attachment identities against the same event's resource writes, rejects malformed state, and lists known and missing route observations within the eye-dependent presented slice. Old captures remain readable with missing coverage. A known route does not establish camera alias semantics, shader side effects, subresources, visibility, histories or pass completeness; `replay_ready` and `opaque_pass_ready` remain false.
 +
-+All 192 VR checks, eight renderer syntax checks and four affected inherited resource/query checks pass. Actual-game validation of this added route inventory is pending. The separate selected-surface forward depth result is documented in [native forward depth](vr-native-forward-depth.md); it is not complete world stereo.
++All 192 VR checks, eight renderer syntax checks and four affected inherited resource/query checks pass. Actual-game route validation is recorded below. The separate selected-surface forward depth result is documented in [native forward depth](vr-native-forward-depth.md); it is not complete world stereo.
 +
 +## Castellano
 +
@@ -3830,7 +3885,27 @@ index 0000000000000000000000000000000000000000..9450f55ecfc2a73643075b9249e2b755
 +
 +El analizador comprueba que los destinos pertenecen a las escrituras del mismo evento, rechaza datos inválidos y enumera observaciones presentes y ausentes en la cadena dependiente del ojo. Las capturas antiguas se pueden leer, pero no acreditan esta cobertura. Registrar un estado no demuestra alias de cámara, efectos laterales, subrecursos, visibilidad, historiales ni un pase completo. `replay_ready` y `opaque_pass_ready` siguen siendo falsos.
 +
-+Pasan 192 pruebas VR, ocho comprobaciones de sintaxis del renderer y cuatro pruebas heredadas de recursos/consultas. Falta validar este inventario ampliado con el juego real. El resultado independiente de profundidad de una superficie está en [profundidad nativa](vr-native-forward-depth.md); no equivale al estéreo de todo el mundo.
++Pasan 192 pruebas VR, ocho comprobaciones de sintaxis del renderer y cuatro pruebas heredadas de recursos/consultas. El resultado de este inventario con el juego real se recoge abajo. El resultado independiente de profundidad de una superficie está en [profundidad nativa](vr-native-forward-depth.md); no equivale al estéreo de todo el mundo.
++
++## Actual-game inventory / Inventario del juego real
++
++The matched ABI24 `3ce34e66` build completed its bounded 150-second no-XR run. In the presented dependency slice, 1196 graphics operations had valid route metadata and none lacked it. Fragment execution-mode metadata was available for those observations. The full captured frame included 1013 camera-seeded operations across 138 programs, exceeding the default 64-program shader-effect inventory. Most observed graphics commands were indexed draws; direct/indirect mesh commands were also present. This inventory does not approve these shaders for replay.
++
++The isolated forward-depth repeat did not record a selected draw in this run because the exact camera association was unavailable. The earlier successful depth result remains independently identified by `52428c42`; it is not claimed as repeated by this inventory. Nine installation and fourteen save hashes remained unchanged, and the exact private process stopped at its wall-clock deadline. Complete native world rendering and a headset build remain pending.
++
++La build ABI24 `3ce34e66` terminó su prueba de 150 segundos sin XR. En la cadena de dependencias presentada, 1196 operaciones gráficas tuvieron metadatos válidos y ninguna quedó sin esa observación. Se dispuso de los modos de ejecución de fragmentos de esas operaciones. El fotograma completo incluía 1013 operaciones con semilla de cámara y 138 programas, por encima del inventario de efectos de 64 programas por defecto. Predominaron dibujos indexados; también hubo comandos de malla directos e indirectos. Este inventario no autoriza a repetir esos shaders.
++
++La repetición aislada de profundidad no llegó a grabar un dibujo seleccionado porque faltó su asociación exacta de cámara. La prueba anterior correcta conserva su identidad `52428c42`; este inventario no la da por repetida. Permanecieron idénticos nueve hashes de instalación y catorce de partidas, y el proceso privado se cerró dentro del plazo previsto. Siguen pendientes el mundo nativo completo y la build de visor.
++
++## Expanded audit capacity / Capacidad de auditoría ampliada
++
++The captured frame uses 138 camera-seeded programs, so the default inventory of 64 programs cannot establish complete shader coverage. An explicit private audit may set `HOOKSHOT_VR_SHADER_UNIFORM_MAX_PROGRAMS` to `128` or `256`. Absent, malformed or excessive values retain 64. The existing 64 MiB module-export and 4 MiB metadata budgets remain unchanged, as do module identity, scope and replay admission checks. The option expands observations only; it does not authorize additional draws. Four tests exercise the exact default/128/256 bounds and an excessive request; all 196 VR checks pass. Actual-game validation of the expanded capacity remains pending.
++
++El fotograma capturado usa 138 programas con semilla de cámara; el inventario de 64 no basta para revisar todos. Una auditoría privada explícita puede usar `HOOKSHOT_VR_SHADER_UNIFORM_MAX_PROGRAMS` con `128` o `256`. Un valor ausente, inválido o excesivo conserva 64. Siguen vigentes los límites de 64 MiB de módulos y 4 MiB de metadatos, las identidades, el ámbito y las reglas de admisión. La opción amplía observaciones; no autoriza dibujos adicionales. Cuatro pruebas cubren los límites exactos y una petición excesiva; pasan las 196 comprobaciones VR. Falta validar esta capacidad ampliada con el juego real.
++
++The launcher uses `-ShaderAuditProgramLimit 128` or `256` together with shader auditing. Offline analyzers require the matching explicit `--max-programs`; their default remains 64 and inputs above the selected capacity are rejected. Both count and byte bounds apply.
++
++El lanzador usa `-ShaderAuditProgramLimit 128` o `256` junto con la auditoría. Los analizadores requieren el `--max-programs` explícito correspondiente; conservan 64 por defecto y rechazan entradas que excedan el valor seleccionado. Se aplican tanto el límite de programas como el de bytes.
 diff --git a/docs/vr-native-ordinary-descriptors.md b/docs/vr-native-ordinary-descriptors.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..af9495d420b00706a2cc33a06393fcf80db496e5
@@ -5896,7 +5971,7 @@ index 8d0cfdb9e6469b1b154a4abaa783657f697cdc8e..48a5a7e8f6f7258a9c2ff1fc304ac271
  
  /* the DLL's one export: null when Vulkan is not usable (the executable then falls back to WebGPU) */
 diff --git a/gpu/vk/vk_draw.cpp b/gpu/vk/vk_draw.cpp
-index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799bedf5018 100644
+index 49f2785e2d7001968b57ca013d8216932dcc11f2..fb4416321a60abc2d44fb99b2249f8bafd261ad1 100644
 --- a/gpu/vk/vk_draw.cpp
 +++ b/gpu/vk/vk_draw.cpp
 @@ -6,6 +6,10 @@
@@ -6031,7 +6106,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
          else drop(kOccReturned);
      }
  };
-@@ -7215,6 +7266,309 @@ void mask_stabilize(VkCommandBuffer cmd, Texture* tex, uint32_t level, uint32_t
+@@ -7215,6 +7266,316 @@ void mask_stabilize(VkCommandBuffer cmd, Texture* tex, uint32_t level, uint32_t
      if (told++ == 0) logf("vk: tree-shadow mask blend on #%u %ux%u, weight %.2f", tex->id, w, h, weight);
  }
  
@@ -6235,12 +6310,19 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
 +    if(!seed){note.reason="camera_seed_not_established";xr_baseline_preflight_note(note);return;}
 +    XrBaselineRecorderInput replay;XrUniformCopySource description{};
 +    const bool native_mesh=env_on("RX_VK_XR_NATIVE_MESH_TRANSPORT_PROBE");
-+    const bool forward_depth=env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE");
++    const bool mesh_forward=env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE");
++    const bool classic_forward=env_on("RX_VK_XR_NATIVE_CLASSIC_FORWARD_DEPTH_PROBE");
++    const bool classic_transport=env_on("RX_VK_XR_NATIVE_CLASSIC_TRANSPORT_PROBE");
++    const bool forward_depth=mesh_forward||classic_forward;
 +    const bool native_eye=env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE");
 +    bool native_color=env_on("RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE");
 +    auto examine=[&]()->const char*{
 +        if(native_mesh&&(!native_eye||env_on("RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE")))return "native_mesh_transport_mode_conflict";
-+        if(forward_depth&&!native_mesh)return "native_forward_requires_mesh_mode";
++        if(classic_transport&&(!classic_forward||native_mesh||!native_eye||!native_color))return "native_classic_transport_mode_conflict";
++        if(mesh_forward&&classic_forward)return "native_forward_mode_conflict";
++        if(mesh_forward&&!native_mesh)return "native_forward_requires_mesh_mode";
++        if(classic_forward&&(native_mesh||!native_eye||!native_color))return "native_classic_forward_requires_native_color_mode";
++        if(classic_forward&&(!note.depth_test||note.depth_write||note.source_depth_compare_op!=VK_COMPARE_OP_EQUAL||(s.color.blend_en&1)))return "native_classic_forward_requires_opaque_equal_source";
 +        if(par_active||stats_frame_now()||probe_on()||dump_on())return "diagnostic_or_parallel_state";
 +        if(same_desc||dw().prog!=&p)return "descriptor_build_not_fresh";
 +        if(p.mesh!=native_mesh)return "program_geometry_mode_mismatch";
@@ -6248,7 +6330,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
 +        if(p.compute)return "program_compute_unsupported";
 +        if(p.failed)return "program_failed";
 +        if(p.stages.size()!=(native_mesh?3:2))return "program_stage_count_unsupported";
-+        if(!p.push&&!native_mesh)return "program_ordinary_descriptors_unsupported";
++        if(!p.push&&!native_mesh&&!classic_transport)return "program_ordinary_descriptors_unsupported";
 +        uint32_t mask=0;
 +        for(const auto& stage:p.stages){
 +            if((native_mesh?(stage.vk_stage!=VK_SHADER_STAGE_TASK_BIT_EXT&&stage.vk_stage!=VK_SHADER_STAGE_MESH_BIT_EXT&&stage.vk_stage!=VK_SHADER_STAGE_FRAGMENT_BIT):(stage.vk_stage!=VK_SHADER_STAGE_VERTEX_BIT&&stage.vk_stage!=VK_SHADER_STAGE_FRAGMENT_BIT))||(mask&stage.vk_stage))return "unsupported_stages";
@@ -6257,7 +6339,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
 +                replay.fragment_depth_modes=stage.fragment_depth_modes;
 +                if(forward_depth&&!stage.fragment_depth_modes.late_opaque_compatible())return "native_forward_fragment_depth_modes_unsupported";
 +            }
-+            if(stage.nvn_stage<0||stage.nvn_stage>=kNvnStages||(!native_mesh&&stage.info.uses_global_memory)||stage.info.stores_global_memory)return "global_or_unknown_stage";
++            if(stage.nvn_stage<0||stage.nvn_stage>=kNvnStages||(!native_mesh&&!classic_transport&&stage.info.uses_global_memory)||stage.info.stores_global_memory)return "global_or_unknown_stage";
 +            for(const auto& descriptor:stage.info.storage_buffers_descriptors)if(descriptor.is_written)return "storage_buffer_write";
 +            for(const auto& descriptor:stage.info.image_descriptors)if(descriptor.is_written)return "storage_image_write";
 +            for(const auto& descriptor:stage.info.image_buffer_descriptors)if(descriptor.is_written)return "texel_buffer_write";
@@ -6288,7 +6370,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
 +        note.read_images=uint32_t(baseline_read_images().size());
 +        for(auto image:baseline_read_images())if(image==at.color[0]->image||image==at.depth->image)return "target_image_feedback";
 +        XrDescriptorSnapshot source;
-+        if(!source.capture(dw().writes,native_mesh&&!p.push?128:32,native_mesh&&!p.push?1024:32))return "unsupported_descriptor_set";
++        if(!source.capture(dw().writes,(native_mesh||classic_transport)&&!p.push?128:32,(native_mesh||classic_transport)&&!p.push?1024:32))return "unsupported_descriptor_set";
 +        VkDescriptorBufferInfo camera{};
 +        if(const char* reason=primary_camera_descriptors(p,s,source.writes(),camera,replay.camera_slots))return reason;
 +        note.camera_bindings=uint32_t(replay.camera_slots.size());
@@ -6341,7 +6423,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
  static bool writes_memory(const Program& p) {
      for (const Stage& st : p.stages) {
          const auto& info = st.info;
-@@ -7262,6 +7616,8 @@ static bool fallback_list_held(uint64_t list) {
+@@ -7262,6 +7623,8 @@ static bool fallback_list_held(uint64_t list) {
  
  void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
      Pass& ps = pass();   // (once: the accessor is a call and a thread-local read at each use. The same object for the thread's life: draw_begin_recording resets it in place)
@@ -6350,7 +6432,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      PROF_HOT(PROF_DRAW);
      FINE_N(FC_DRAWS, 1);
      stats_tick();
-@@ -7300,9 +7656,26 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7300,9 +7663,26 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                                program_code_keys(s).c_str());
          SKIP_HERE();
      }
@@ -6378,7 +6460,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      if (cp->key == 0x02ff9920c2571cc2ULL) wheel_drawn_at.store(presents_now, std::memory_order_relaxed);
      if (skip_live(cp->key)) return;   // (EvilOOT, RX_VK_SKIP_FILE)
      {   // (hookshot, RX_VK_SKIP_PROG=<key prefix,...>: draws too, their native code keys logged once; =-: none)
-@@ -7604,7 +7977,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7604,7 +7984,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
      if (dump_on()) log_dump_draw(s, p, d);
      PROF_HOT(PROF_CMDS);
      texture_watch_prog(p.key);
@@ -6387,7 +6469,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      static const bool barrier_every = env_on("RX_VK_BARRIER_EVERY_DRAW");   // (an experiment: a pass each)
      if (barrier_every) end_pass(cmd);
      reactive_scene_draw(cmd, p, s, at);
-@@ -7685,6 +8058,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7685,6 +8065,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
          SKIP_HERE();
      }
      if (fallback_role == FallbackRole::Colour) fallback_list_hold(d.indirect, false);
@@ -6397,7 +6479,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      {
          FINE_SCOPE(FT_HAZARD);
          begin_pass(cmd, at);
-@@ -7794,6 +8170,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7794,6 +8177,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                       d.indirect ? " indirect" : "", d.count);
          }
      }
@@ -6405,7 +6487,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      StatsQuery stats_query(cmd, p, d);   // (EvilOOT, RX_VK_DRAW_STATS)
      OccGuard occ(cmd, d);   // (hookshot: after stats_query, so it ends first, inside the pass; begun by occ.issue())
      if (stats_frame_now() && stats_prog_wanted(p.key)) {   // (and the wanted programs' buffers: a mesh draw's stages, fragment)
-@@ -7806,9 +8183,13 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7806,9 +8190,13 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
      if (d.mesh) {
          if (p.fallback) {   // (hookshot: the generated vertex stage reads the records; one vertex a corner)
              occ.issue();
@@ -6419,7 +6501,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
              return;
          }
          {   // (amd-fix, diagnosis) RX_VK_LOG_MESH_PROGS=1: each mesh program's first draw and every 600th, with what its
-@@ -7868,6 +8249,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7868,6 +8256,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                  // (hookshot: as many records as mesh_indirect_convert wrote, not the game's maximum)
                  const uint32_t conv_n = (uint32_t)std::clamp(d.max, 1, 4096);
                  occ.issue();
@@ -6427,7 +6509,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
                  if (cnt && vkCmdDrawMeshTasksIndirectCountEXT)
                      vkCmdDrawMeshTasksIndirectCountEXT(cmd, mesh_conv_buf, mesh_conv_off, cnt.buffer, cnt.offset, conv_n, 12);
                  else
-@@ -7875,6 +8257,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7875,6 +8264,9 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                  mesh_conv_buf = VK_NULL_HANDLE;
                  st_mesh++;
                  st_draws++, ps.draws++;
@@ -6437,7 +6519,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
                  return;
              }
              if (d.max < 0 || d.stride < 0) SKIP_HERE();   // (hookshot: the game's ints; a negative count was ~4e9 draws)
-@@ -7888,6 +8273,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7888,6 +8280,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                  vkCmdPushConstants(cmd, p.layout, p.push_stages, Shader::Backend::SPIRV::MESH_FIRST_PUSH_OFFSET, 8, &firsts);
              }
              occ.issue();
@@ -6445,7 +6527,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
              if (cnt && vkCmdDrawMeshTasksIndirectCountEXT)
                  vkCmdDrawMeshTasksIndirectCountEXT(cmd, mesh_args.buffer, mesh_args.offset, cnt.buffer, cnt.offset, d.max, step);
              else
-@@ -7903,11 +8289,16 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7903,11 +8296,16 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
                  vkCmdPushConstants(cmd, p.layout, p.push_stages, Shader::Backend::SPIRV::MESH_FIRST_PUSH_OFFSET, 8, &firsts);
              }
              occ.issue();
@@ -6462,7 +6544,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
          return;
      }
      // vertex streams (from their pools, strides dynamic) and the zero stream
-@@ -7999,9 +8390,13 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -7999,9 +8397,13 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
          }
          bind_index(cmd, cur->stream, at6, VK_INDEX_TYPE_UINT32);
          occ.issue();
@@ -6476,7 +6558,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
          return;
      }
      if (d.indirect) {
-@@ -8017,10 +8412,12 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -8017,10 +8419,12 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
              if (!ib) SKIP_HERE();
              bind_index(cmd, ib.buffer, ib.offset, itype);
              occ.issue();
@@ -6489,16 +6571,18 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
              if (cnt) vkCmdDrawIndirectCount(cmd, args.buffer, args.offset, cnt.buffer, cnt.offset, std::max(d.max, 1), ind_stride);
              else vkCmdDrawIndirect(cmd, args.buffer, args.offset, std::max(d.max, 1), ind_stride);
          }
-@@ -8036,13 +8433,19 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
+@@ -8036,13 +8440,21 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
          }
          FINE_SCOPE(FT_DRAWCALL);
          occ.issue();
 +        lineage_command=XrGraphicsCommand::DrawIndexed;
++        if(xr_baseline_draw_enabled())xr_baseline_draw_source_begin(baseline_draw_serial,rec_value,p.key,cmd,d.occ_pool!=VK_NULL_HANDLE);
          vkCmdDrawIndexed(cmd, (uint32_t)d.count, (uint32_t)std::max(1, d.instances), 0, d.base_vertex, (uint32_t)d.base_instance);
      } else {
          FINE_SCOPE(FT_DRAWCALL);
          occ.issue();
 +        lineage_command=XrGraphicsCommand::Draw;
++        if(xr_baseline_draw_enabled())xr_baseline_draw_source_begin(baseline_draw_serial,rec_value,p.key,cmd,d.occ_pool!=VK_NULL_HANDLE);
          vkCmdDraw(cmd, (uint32_t)d.count, (uint32_t)std::max(1, d.instances), (uint32_t)d.first, (uint32_t)d.base_instance);
      }
      st_draws++, ps.draws++;
@@ -6509,7 +6593,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
  }
  
  /// A dispatch over 2 ms is logged, 60 times, and only while RX_VK_SLOW_DISPATCH is set. Off, the clock is not read.
-@@ -8207,7 +8610,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8207,7 +8619,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
      // offers the networks that did translate, and so is FSR 3.1, as fsr3_stand_in. It takes only the scene into the picture;
      // anything else goes on below
      if ((temporal_wanted() || temporal_off() || fsr3_inputs::wanted()) && temporal_rejected_network(cmd, key, src, &in, dst, &out))
@@ -6518,7 +6602,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      VkFormatProperties fs{}, fd{};
      vkGetPhysicalDeviceFormatProperties(dev.physical, src->format, &fs);
      vkGetPhysicalDeviceFormatProperties(dev.physical, dst->format, &fd);
-@@ -8222,7 +8625,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8222,7 +8634,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
          static std::atomic<bool> logged_movie_upscale{false};
          if (!logged_movie_upscale.exchange(true, std::memory_order_relaxed))
              logf("vk: movie upscaling uses the linear compute path");
@@ -6527,7 +6611,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      }
      // Failed upscales can receive RGB9E5 bits in a shared R11 image, including the 75% gameplay TAAU.
      // Match the observed base-level 2D case only; other fallbacks keep their existing blit.
-@@ -8252,7 +8655,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8252,7 +8664,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
                  typed_upscale(cmd, input_view, output_view, dst, 0, key, "PsychoV35 TAAU fallback", true)) {
                  full_barrier(cmd);
                  texture_written(dst);
@@ -6536,7 +6620,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
              }
          }
          return false; // Do not blit perceptually encoded PsychoV35 input into a linear output.
-@@ -8288,7 +8691,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8288,7 +8700,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
                      if (!logged_gameplay_upscale.exchange(true, std::memory_order_relaxed))
                          logf("vk: gameplay RGB9E5 upscale uses the typed fallback");
                  }
@@ -6545,7 +6629,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
              }
          }
      }
-@@ -8318,7 +8721,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
+@@ -8318,7 +8730,7 @@ bool upscale_stub(VkCommandBuffer cmd, const NvnState& s, uint64_t key) {
               "into %#llx %ux%u (vk %d)", (unsigned long long)key, (unsigned long long)in.gpu, in.d.width, in.d.height,
               (int)src->format, (unsigned long long)out.gpu, out.d.width, out.d.height, (int)dst->format);
      (void)in_h, (void)out_h;
@@ -6554,7 +6638,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
  }
  
  /// (hookshot) OoT's gameplay TAAU network (fd029a317a9a4b94) stood in for: its input upscaled into its output
-@@ -10224,9 +10627,14 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
+@@ -10224,9 +10636,14 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
              logf("%s", line);
          }
      }
@@ -6572,7 +6656,7 @@ index 49f2785e2d7001968b57ca013d8216932dcc11f2..427b347d577e1db4ecae80b03e639799
      if (!p.compute_pipeline) SKIP_HERE();
      dump_ssbos(cmd, p, "before");
      if (!p.dispatched.load(std::memory_order_relaxed)) compute_variant_note(p.key, p.variant);   // (which variant: this install's own)
-@@ -10319,6 +10727,8 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
+@@ -10319,6 +10736,8 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
          gprof_end(cmd, label);
      }
      st_dispatches++;
@@ -7514,14 +7598,17 @@ index 0000000000000000000000000000000000000000..d1b75e9b7ffa465a64dad634941334d3
 \ No newline at end of file
 diff --git a/gpu/vk/vk_xr_baseline_draw.cpp b/gpu/vk/vk_xr_baseline_draw.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872e7555d0a
+index 0000000000000000000000000000000000000000..d1ed905552b643df728e330f155b721ccb87cd51
 --- /dev/null
 +++ b/gpu/vk/vk_xr_baseline_draw.cpp
-@@ -0,0 +1,182 @@
+@@ -0,0 +1,231 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "vk_internal.h"
 +#include "vk_shader.h"
 +#include "xr_baseline_draw.h"
++#include "vk_draw.h"
++#include "xr_source_coverage.h"
++#include "xr_source_coverage_selection.h"
 +#include "xr_baseline_selection.h"
 +#include "xr_baseline_preflight.h"
 +#include "xr_shader_uniform_audit.h"
@@ -7531,11 +7618,25 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +#include <mutex>
 +#include <set>
 +#include <map>
++#include "vk_work.h"
 +namespace mkwvk {
 +namespace {
 +const char* output(){static const char* path=std::getenv("HOOKSHOT_VR_BASELINE_DRAW_FILE");return path&&*path?path:nullptr;}
++bool qualify_source(){return env_on("RX_VK_XR_QUALIFY_SOURCE_COVERAGE")&&env_on("RX_VK_XR_SOURCE_COVERAGE_PROBE")&&env_on("RX_VK_XR_NATIVE_CLASSIC_FORWARD_DEPTH_PROBE")&&env_on("RX_VK_XR_NATIVE_CLASSIC_TRANSPORT_PROBE");}
++VKAPI_ATTR void VKAPI_CALL qualifier_reset(VkCommandBuffer c,VkQueryPool p,uint32_t f,uint32_t n){vkCmdResetQueryPool(c,p,f,n);}
++VKAPI_ATTR void VKAPI_CALL qualifier_begin(VkCommandBuffer c,VkQueryPool p,uint32_t i,VkQueryControlFlags f){vkCmdBeginQuery(c,p,i,f);}
++VKAPI_ATTR void VKAPI_CALL qualifier_end(VkCommandBuffer c,VkQueryPool p,uint32_t i){vkCmdEndQuery(c,p,i);}
++VKAPI_ATTR void VKAPI_CALL qualifier_destroy(VkDevice d,VkQueryPool p,const VkAllocationCallbacks* a){vkDestroyQueryPool(d,p,a);}
++VKAPI_ATTR VkResult VKAPI_CALL qualifier_results(VkDevice d,VkQueryPool p,uint32_t f,uint32_t n,size_t bytes,void* data,VkDeviceSize stride,VkQueryResultFlags flags){return vkGetQueryPoolResults(d,p,f,n,bytes,data,stride,flags);}
++XrSourceCoverage::Api qualifier_api(){return {vkCreateQueryPool,qualifier_destroy,qualifier_reset,qualifier_begin,qualifier_end,qualifier_results};}
++struct CoverageCandidate {
++    XrSourceCoverage query;VkDevice device=VK_NULL_HANDLE;VkCommandBuffer command=VK_NULL_HANDLE;
++    uint64_t serial=0,recording=0,program=0;unsigned ordinal=0;bool pending=false;
++    bool matches(uint64_t s,uint64_t r,uint64_t p,VkCommandBuffer c)const{return pending&&s==serial&&r==recording&&p==program&&c==command;}
++};
 +struct State {
 +    std::mutex mutex;XrBaselineSelection selection;XrBaselineRecorder* current=nullptr;
++    CoverageCandidate coverage;XrSourceCoverageSelection coverage_selection;
 +    std::set<uint64_t> attempted;uint64_t last_frame=UINT64_MAX,last_poll_frame=UINT64_MAX;bool stopped=false;
 +    unsigned completed=0,started=0;uint64_t visits_frame=UINT64_MAX,current_program=0;
 +    std::map<uint64_t,unsigned> visits,previous_visits,invisible_retries;XrBaselineComparison result;
@@ -7544,12 +7645,14 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +void report(const State& p,const char* status){
 +    std::ofstream attempts(std::filesystem::u8path(std::string(output())+".attempts.jsonl"),std::ios::app);
 +    if(attempts)attempts<<"{\"program\":\""<<std::hex<<p.current_program<<std::dec<<"\",\"status\":\""<<status<<"\",\"changed_pixels\":"<<p.result.changed_pixels<<",\"left_mismatched_pixels\":"<<p.result.mismatched_pixels[0]<<",\"right_mismatched_pixels\":"<<p.result.mismatched_pixels[1]
++        <<",\"source_coverage_requested\":"<<(p.result.source_coverage_requested?"true":"false")<<",\"source_coverage_available\":"<<(p.result.source_coverage_available?"true":"false")<<",\"source_coverage_samples\":"<<p.result.source_coverage_samples
 +        <<",\"mask_pixels\":["<<p.result.shifted_changed_pixels[0]<<","<<p.result.shifted_changed_pixels[1]<<","<<p.result.shifted_changed_pixels[2]<<"]"
 +        <<",\"centroid_x\":["<<p.result.shifted_centroid_x[0]<<","<<p.result.shifted_centroid_x[1]<<","<<p.result.shifted_centroid_x[2]<<"]"
 +        <<",\"centroid_y\":["<<p.result.shifted_centroid_y[0]<<","<<p.result.shifted_centroid_y[1]<<","<<p.result.shifted_centroid_y[2]<<"]"
 +        <<",\"view_shift_units\":"<<p.result.view_shift_units<<"}\n";
 +    std::ofstream file(std::filesystem::u8path(output()),std::ios::trunc);
 +    if(file)file<<"{\"schema\":1,\"status\":\""<<status<<"\",\"attempts\":"<<p.started<<",\"completed_attempts\":"<<p.completed
++        <<",\"source_coverage_requested\":"<<(p.result.source_coverage_requested?"true":"false")<<",\"source_coverage_available\":"<<(p.result.source_coverage_available?"true":"false")<<",\"source_coverage_samples\":"<<p.result.source_coverage_samples
 +        <<",\"reference_attachment\":\""<<(p.result.depth_reference?"depth":"color")<<"\""
 +        <<",\"changed_original_pixels\":"<<p.result.changed_pixels<<",\"left_mismatched_pixels\":"<<p.result.mismatched_pixels[0]
 +        <<",\"right_mismatched_pixels\":"<<p.result.mismatched_pixels[1]<<",\"resources_released\":"<<(!p.current?"true":"false")
@@ -7570,6 +7673,7 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +        <<",\"root_alias_uncovered\":["<<p.result.root_alias_uncovered[0]<<","<<p.result.root_alias_uncovered[1]<<"]"
 +        <<",\"root_alias_errors\":["<<p.result.root_alias_errors[0]<<","<<p.result.root_alias_errors[1]<<"]"
 +        <<",\"native_forward_depth_probe\":"<<(p.result.native_forward_depth_probe?"true":"false")<<",\"native_forward_depth_observed\":"<<(p.result.native_forward_depth_observed?"true":"false")
++        <<",\"native_forward_geometry_mesh\":"<<(p.result.native_forward_geometry_mesh?"true":"false")
 +        <<",\"native_forward_clear\":"<<p.result.native_forward_clear<<",\"native_forward_compare\":"<<p.result.native_forward_compare
 +        <<",\"native_forward_colour_visible\":["<<p.result.native_forward_colour_visible[0]<<","<<p.result.native_forward_colour_visible[1]<<"]"
 +        <<",\"native_forward_depth_written\":["<<p.result.native_forward_depth_written[0]<<","<<p.result.native_forward_depth_written[1]<<"]"
@@ -7596,7 +7700,7 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +    if(!path||!nonce||!source)return;
 +    std::ifstream file(std::filesystem::u8path(path),std::ios::binary);if(!file)return;
 +    std::string text(8193,'\0');file.read(text.data(),text.size());const auto size=file.gcount();if(size<=0||size>8192)return;text.resize(size);
-+    XrBaselineSelection next;if(parse_xr_baseline_selection(text,nonce,source,next,env_on("RX_VK_XR_SHIFTED_DRAW_PROBE"),env_on("RX_VK_XR_VIEW_SHIFT_PROBE"),env_on("RX_VK_XR_VIEW_COLOR_PROBE"),env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE"),env_on("RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE"),env_on("RX_VK_XR_NATIVE_MESH_TRANSPORT_PROBE")))p.selection=std::move(next);
++    XrBaselineSelection next;if(parse_xr_baseline_selection(text,nonce,source,next,env_on("RX_VK_XR_SHIFTED_DRAW_PROBE"),env_on("RX_VK_XR_VIEW_SHIFT_PROBE"),env_on("RX_VK_XR_VIEW_COLOR_PROBE"),env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE"),env_on("RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE"),env_on("RX_VK_XR_NATIVE_MESH_TRANSPORT_PROBE"),env_on("RX_VK_XR_NATIVE_CLASSIC_TRANSPORT_PROBE")))p.selection=std::move(next);
 +}
 +bool retryable_invisible_color(const XrBaselineComparison& result){
 +    if(result.result!=XrBaselineComparison::Result::Invisible||!result.matrix_probe_validated||!result.matrix_source_unchanged)return false;
@@ -7622,6 +7726,14 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +bool xr_baseline_draw_enabled(){static const bool on=env_on("RX_VK_XR_BASELINE_DRAW")&&output();return on;}
 +void xr_baseline_draw_tick(uint64_t frame,uint64_t serial){
 +    if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);
++    if(p.coverage.pending&&p.coverage.device==dev.device&&vk_timeline_completed()>=p.coverage.recording){
++        const auto result=p.coverage.query.read(p.coverage.device,true,qualifier_api());
++        p.coverage_selection.observe(p.coverage.program,p.coverage.ordinal,result.available,result.samples,frame);
++        std::ofstream file(std::filesystem::u8path(std::string(output())+".coverage.jsonl"),std::ios::app);
++        if(file)file<<"{\"program\":\""<<std::hex<<p.coverage.program<<std::dec<<"\",\"ordinal\":"<<p.coverage.ordinal<<",\"recording\":"<<p.coverage.recording<<",\"available\":"<<(result.available?"true":"false")<<",\"samples\":"<<result.samples<<"}\n";
++        p.coverage.query.release(p.coverage.device,qualifier_api());p.coverage.pending=false;
++    }
++    if(!p.current)p.coverage_selection.advance_frame(frame);
 +    if(p.visits_frame!=frame){p.previous_visits=std::move(p.visits);p.visits.clear();p.visits_frame=frame;}
 +    if(p.current){
 +        xr_baseline_recorder_abandon(p.current); // Finished attempts remain finished; skipped sources become abandoned.
@@ -7634,7 +7746,7 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +                    if(!result.matrix_source_unchanged||!result.native_eye_source_prefix_matched){p.stopped=true;report(p,"native_eye_source_mismatch");}
 +                    else if(!result.matrix_probe_validated){p.stopped=true;report(p,"native_eye_readback_mismatch");}
 +                    else if(result.native_forward_depth_probe){
-+                        if(result.native_forward_depth_observed&&result.root_alias_verified&&result.root_indirect_verified){p.stopped=true;report(p,"native_eye_forward_depth_probe_completed");}
++                        if(result.native_forward_depth_observed&&result.root_alias_verified&&result.root_indirect_verified){p.stopped=true;report(p,result.native_forward_geometry_mesh?"native_eye_forward_depth_probe_completed":"native_eye_classic_forward_depth_probe_completed");}
 +                        else report(p,"native_eye_forward_depth_probe_inconclusive");
 +                    }
 +                    else if(result.native_color_depth_diagnostic&&result.native_depth_diagnostic_raster_observed&&result.root_alias_verified&&result.root_indirect_verified){p.stopped=true;report(p,"native_eye_depth_diagnostic_completed");}
@@ -7648,6 +7760,7 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +            }
 +            else if(result.result==XrBaselineComparison::Result::Mismatch){p.stopped=true;report(p,"baseline_mismatch");}
 +            else {
++                if(qualify_source())p.coverage_selection.reject(p.current_program);
 +                if(retryable_invisible_color(result)){
 +                    ++p.invisible_retries[p.current_program];p.attempted.erase(p.current_program);
 +                }
@@ -7666,14 +7779,19 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +    const auto previous=p.previous_visits.find(program.key),retry=p.invisible_retries.find(program.key);
 +    const unsigned available=previous==p.previous_visits.end()?1:std::max(1u,previous->second);
 +    const unsigned skip=retry==p.invisible_retries.end()?0:retry->second%available;
-+    return ordinal>=skip&&!p.stopped&&!p.current&&p.started<8&&!p.attempted.count(program.key)&&selected(p,program);
++    const bool source_candidate=qualify_source()?(!p.coverage.pending&&p.coverage_selection.selectable(program.key,ordinal,available)):ordinal>=skip;
++    return source_candidate&&!p.stopped&&!p.current&&p.started<8&&!p.attempted.count(program.key)&&selected(p,program);
 +}
 +void xr_baseline_draw_prepare(const XrBaselineRecorderInput& input){
 +    if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);
 +    if(p.stopped||p.current||p.started>=8||p.attempted.count(input.program))return;
-+    const bool forward_depth=env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE");
++    const bool mesh_forward=env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE");
++    const bool classic_forward=env_on("RX_VK_XR_NATIVE_CLASSIC_FORWARD_DEPTH_PROBE");
++    if(mesh_forward&&classic_forward)return;
++    const bool forward_depth=mesh_forward||classic_forward;
 +    const bool depth_diagnostic=forward_depth||env_on("RX_VK_XR_NATIVE_COLOR_DEPTH_DIAGNOSTIC");
-+    if(depth_diagnostic&&(!env_on("RX_VK_XR_NATIVE_MESH_TRANSPORT_PROBE")||!input.native_eye_probe||input.depth_reference||!input.geometry.mesh))return;
++    if(classic_forward&&(env_on("RX_VK_XR_NATIVE_MESH_TRANSPORT_PROBE")||input.geometry.mesh||!env_on("RX_VK_XR_NATIVE_EYE_COLOR_DRAW_PROBE")))return;
++    if(depth_diagnostic&&(!input.native_eye_probe||input.depth_reference||(!classic_forward&&(!env_on("RX_VK_XR_NATIVE_MESH_TRANSPORT_PROBE")||!input.geometry.mesh))))return;
 +    auto requested=input;requested.native_color_depth_diagnostic=depth_diagnostic;requested.native_forward_depth_probe=forward_depth;requested.root_alias_probe=env_on("RX_VK_XR_ROOT_ALIAS_PROBE");requested.view_color_probe=env_on("RX_VK_XR_VIEW_COLOR_PROBE");requested.view_shift_probe=env_on("RX_VK_XR_VIEW_SHIFT_PROBE");requested.shifted_draw_probe=env_on("RX_VK_XR_SHIFTED_DRAW_PROBE");requested.matrix_probe=requested.shifted_draw_probe||env_on("RX_VK_XR_MATRIX_PATCH_PROBE");
 +    if(requested.native_eye_probe!=env_on("RX_VK_XR_NATIVE_EYE_DRAW_PROBE"))return;
 +    if(requested.native_eye_probe){
@@ -7683,7 +7801,15 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +    if(requested.view_shift_probe)if(const char* value=std::getenv("RX_VK_XR_VIEW_SHIFT_UNITS")){
 +        char* end=nullptr;const float units=std::strtof(value,&end);if(end==value||*end||!std::isfinite(units)||units<=0||units>8)return;requested.view_shift_units=units;
 +    }
++    requested.source_coverage_probe=requested.native_eye_probe&&!requested.geometry.mesh&&env_on("RX_VK_XR_SOURCE_COVERAGE_PROBE");
++    if(qualify_source()&&!p.coverage_selection.qualified()){
++        if(p.coverage.pending||requested.geometry.mesh||!requested.source_coverage_probe||!p.coverage.query.create(dev.device,qualifier_api()))return;
++        end_pass(input.command);p.coverage.device=dev.device;p.coverage.command=input.command;p.coverage.serial=input.serial;p.coverage.recording=input.recording;p.coverage.program=input.program;
++        const auto visit=p.visits.find(input.program);p.coverage.ordinal=visit==p.visits.end()||!visit->second?0:visit->second-1;
++        p.coverage.query.reset(input.command,qualifier_api());p.coverage.pending=true;return;
++    }
 +    p.current=xr_baseline_recorder_create(requested);if(!p.current){
++        if(qualify_source())p.coverage_selection.reject(input.program);
 +        if(requested.native_eye_probe)xr_baseline_preflight_note({input.program,input.recording,0,input.color.width,input.color.height,uint32_t(input.camera.range),0,0,"native_eye_recorder_create_rejected"});
 +        return;
 +    }
@@ -7691,11 +7817,18 @@ index 0000000000000000000000000000000000000000..ec3024e03f6c50b189c501b02df87872
 +    if(!xr_baseline_recorder_prepare(p.current))xr_baseline_recorder_abandon(p.current);
 +    report(p,"attempt_prepared");
 +}
++void xr_baseline_draw_source_begin(uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer command,bool existing_occlusion){
++    if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);
++    if(p.coverage.matches(serial,recording,program,command))p.coverage.query.begin(command,existing_occlusion,qualifier_api());
++    xr_baseline_recorder_source_begin(p.current,serial,recording,program,command,existing_occlusion);
++}
 +void xr_baseline_draw_finish(uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer command,const std::vector<VkWriteDescriptorSet>& writes,const XrBaselineSourceDepthState& source_depth){
-+    if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);if(!p.current)return;
-+    if((env_on("RX_VK_XR_NATIVE_COLOR_DEPTH_DIAGNOSTIC")||env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE"))&&(source_depth.compare<VK_COMPARE_OP_NEVER||source_depth.compare>VK_COMPARE_OP_ALWAYS))
++    if(!xr_baseline_draw_enabled())return;auto& p=state();std::lock_guard lock(p.mutex);
++    if(p.coverage.matches(serial,recording,program,command)){p.coverage.query.end(command,qualifier_api());return;}
++    if(!p.current)return;
++    if((env_on("RX_VK_XR_NATIVE_COLOR_DEPTH_DIAGNOSTIC")||env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE")||env_on("RX_VK_XR_NATIVE_CLASSIC_FORWARD_DEPTH_PROBE"))&&(source_depth.compare<VK_COMPARE_OP_NEVER||source_depth.compare>VK_COMPARE_OP_ALWAYS))
 +        xr_baseline_preflight_note({program,recording,0,0,0,0,0,0,"native_eye_depth_diagnostic_source_state_unknown"});
-+    if(env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE")&&!source_depth.opaque_prepass())
++    if((env_on("RX_VK_XR_NATIVE_FORWARD_DEPTH_PROBE")||env_on("RX_VK_XR_NATIVE_CLASSIC_FORWARD_DEPTH_PROBE"))&&!source_depth.opaque_prepass())
 +        xr_baseline_preflight_note({program,recording,0,0,0,0,0,0,"native_forward_source_depth_state_unsupported"});
 +    if(xr_baseline_recorder_finish(p.current,serial,recording,program,command,writes,source_depth))report(p,"private_draws_recorded");
 +}
@@ -7754,15 +7887,16 @@ index 0000000000000000000000000000000000000000..cd879534531072923981e382e91e3f62
 +}
 diff --git a/gpu/vk/vk_xr_baseline_recorder.cpp b/gpu/vk/vk_xr_baseline_recorder.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fedc7dd236
+index 0000000000000000000000000000000000000000..2418027ace167d9e865ae402fb23b290bba5ad59
 --- /dev/null
 +++ b/gpu/vk/vk_xr_baseline_recorder.cpp
-@@ -0,0 +1,424 @@
+@@ -0,0 +1,441 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "vk_internal.h"
 +#include "vk_draw.h"
 +#include "xr_baseline_recorder.h"
 +#include "xr_uniform_copy_source.h"
++#include "xr_source_coverage.h"
 +#include "xr_eye_matrix_patch_spv.h"
 +#include "xr_matrix_patch_check.h"
 +#include "xr_shifted_draw_check.h"
@@ -7785,6 +7919,7 @@ index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fe
 +    VkBuffer readback=VK_NULL_HANDLE;VmaAllocation readback_memory=nullptr;void* mapped=nullptr;
 +    uint32_t image_frames=0;uint64_t frame_bytes=0,allocated=0;bool prepared=false,finished=false;
 +    XrRootAliasProbe* root_alias=nullptr;
++    XrSourceCoverage source_coverage;
 +    XrBaselineAttempt attempt;XrUniformSourceStamp source_stamp{};
 +};
 +namespace {
@@ -7797,7 +7932,14 @@ index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fe
 +}
 +void release_image(VkImage image,uintptr_t allocation){destroy_image(image,reinterpret_cast<VmaAllocation>(allocation));}
 +uint64_t image_bytes(uintptr_t allocation){return allocation_size(reinterpret_cast<VmaAllocation>(allocation));}
++VKAPI_ATTR void VKAPI_CALL coverage_reset(VkCommandBuffer c,VkQueryPool p,uint32_t first,uint32_t count){vkCmdResetQueryPool(c,p,first,count);}
++VKAPI_ATTR void VKAPI_CALL coverage_begin(VkCommandBuffer c,VkQueryPool p,uint32_t index,VkQueryControlFlags flags){vkCmdBeginQuery(c,p,index,flags);}
++VKAPI_ATTR void VKAPI_CALL coverage_end(VkCommandBuffer c,VkQueryPool p,uint32_t index){vkCmdEndQuery(c,p,index);}
++VKAPI_ATTR void VKAPI_CALL coverage_destroy(VkDevice d,VkQueryPool p,const VkAllocationCallbacks* a){vkDestroyQueryPool(d,p,a);}
++VKAPI_ATTR VkResult VKAPI_CALL coverage_results(VkDevice d,VkQueryPool p,uint32_t first,uint32_t count,size_t bytes,void* data,VkDeviceSize stride,VkQueryResultFlags flags){return vkGetQueryPoolResults(d,p,first,count,bytes,data,stride,flags);}
++XrSourceCoverage::Api coverage_api(){return {vkCreateQueryPool,coverage_destroy,coverage_reset,coverage_begin,coverage_end,coverage_results};}
 +void release_buffers(XrBaselineRecorder& p){
++    p.source_coverage.release(p.device,coverage_api());
 +    p.ordinary_sets.reset();
 +    for(unsigned eye=0;eye<2;++eye)if(p.uniforms[eye])destroy_buffer(p.uniforms[eye],p.uniform_memory[eye]);
 +    for(unsigned eye=0;eye<2;++eye)if(p.matrix_buffers[eye])destroy_buffer(p.matrix_buffers[eye],p.matrix_memory[eye]);
@@ -7889,8 +8031,8 @@ index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fe
 +            if(projection[10]!=original[10]||projection[11]!=original[11]||!xr_native_forward_depth_policy(projection,0,1,policy))return nullptr;}
 +    }
 +
-+    if(in.native_color_depth_diagnostic&&(!in.native_eye_probe||in.depth_reference||!in.geometry.mesh||!vkCmdSetDepthCompareOp))return nullptr;
-+    if(in.ordinary_descriptors&&(!in.native_eye_probe||!in.geometry.mesh||!in.descriptor_layout))return nullptr;
++    if(in.native_color_depth_diagnostic&&(!in.native_eye_probe||in.depth_reference||(!in.geometry.mesh&&!in.native_forward_depth_probe)||!vkCmdSetDepthCompareOp))return nullptr;
++    if(in.ordinary_descriptors&&(!in.native_eye_probe||(!in.geometry.mesh&&!in.native_forward_depth_probe)||!in.descriptor_layout))return nullptr;
 +    const uint32_t max_bindings=in.ordinary_descriptors?128:32,max_descriptors=in.ordinary_descriptors?1024:32;
 +    // Validate and own the writer payload before examining raw descriptor arrays.
 +    XrDescriptorSnapshot checked;if(!checked.capture(in.writes,max_bindings,max_descriptors))return nullptr;
@@ -8004,6 +8146,7 @@ index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fe
 +        if(!vkCmdBindDescriptorSets||!p->ordinary_sets.create(p->device,in.descriptor_layout,descriptors,
 +            {&p->descriptors[0],&p->descriptors[1],&p->shift_descriptors[0],&p->shift_descriptors[1]}))return nullptr;
 +    }
++    if(in.source_coverage_probe&&(!in.native_eye_probe||in.geometry.mesh||!p->source_coverage.create(p->device,coverage_api())))return nullptr;
 +    return owned.release();
 +}
 +XrBaselineRecorder* xr_baseline_recorder_create(const XrBaselineRecorderInput& in){
@@ -8016,6 +8159,7 @@ index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fe
 +    if(in.native_eye_probe&&source.guest_address!=in.native_eye_patch.source.writer_guest_camera)return false;
 +    if(!p->attempt.prepare(in.serial,in.recording,in.program,identity(p->device),identity(in.command)))return false;
 +    end_pass(in.command);p->prepared=true; // Every allocation is now protected by the actual queue value.
++    if(in.source_coverage_probe)p->source_coverage.reset(in.command,coverage_api());
 +    ::mkwvk::rec::boundary(::mkwvk::rec::B_DIRECT);
 +    const bool color=p->color.record_initial_copy(in.command,in.recording),depth=p->depth.record_initial_copy(in.command,in.recording);
 +    note_work(); // The image factory uses raw function pointers rather than vk_work wrappers.
@@ -8051,8 +8195,13 @@ index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fe
 +    if(in.root_alias_probe&&!xr_root_alias_probe_record(p->root_alias)){p->attempt.abandon();return false;}
 +    order(in.command,VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,VK_ACCESS_2_MEMORY_READ_BIT|VK_ACCESS_2_MEMORY_WRITE_BIT);return true;
 +}
++void xr_baseline_recorder_source_begin(XrBaselineRecorder* p,uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer command,bool existing_occlusion){
++    if(!p||!p->prepared||p->finished||!p->source.source_coverage_probe||p->source.serial!=serial||p->source.recording!=recording||p->source.program!=program||p->source.command!=command)return;
++    p->source_coverage.begin(command,existing_occlusion,coverage_api());
++}
 +bool xr_baseline_recorder_finish(XrBaselineRecorder* p,uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer command,const std::vector<VkWriteDescriptorSet>& writes,const XrBaselineSourceDepthState& source_depth){
 +    if(!p||!p->prepared||p->finished)return false;
++    if(p->source.serial==serial&&p->source.recording==recording&&p->source.program==program&&p->source.command==command)p->source_coverage.end(command,coverage_api());
 +    if(p->source.native_color_depth_diagnostic&&(source_depth.compare<VK_COMPARE_OP_NEVER||source_depth.compare>VK_COMPARE_OP_ALWAYS)){p->attempt.abandon();return false;}
 +    if(p->source.native_forward_depth_probe){
 +        std::array<float,16> projection{};std::memcpy(projection.data(),p->source.native_eye_patch.eye_prefixes[0].data()+0x70,sizeof projection);
@@ -8135,8 +8284,9 @@ index 0000000000000000000000000000000000000000..da2df378ecbe6ee3357ea6c289ecd7fe
 +    const bool finished=p->finished;const auto completed=vk_timeline_completed();
 +    if(!p->attempt.retire(identity(dev.device),completed,p->device==dev.device))return false;
 +    comparison={};if(finished){invalidate_mapped(p->readback_memory,p->readback_bytes);comparison=compare_xr_baseline(p->mapped,size_t(4*p->frame_bytes),p->source.color.width,p->source.color.height);
++        comparison.source_coverage_requested=p->source.source_coverage_probe;const auto coverage=p->source_coverage.read(p->device,true,coverage_api());comparison.source_coverage_available=coverage.available;comparison.source_coverage_samples=coverage.samples;
 +        comparison.private_allocated_bytes=p->allocated;comparison.private_budget_bytes=p->allocation_budget;
-+        comparison.native_forward_depth_probe=p->source.native_forward_depth_probe;
++        comparison.native_forward_depth_probe=p->source.native_forward_depth_probe;comparison.native_forward_geometry_mesh=p->source.geometry.mesh;
 +        if(p->source.native_forward_depth_probe){comparison.native_forward_clear=p->forward_depth.clear_depth;comparison.native_forward_compare=p->forward_depth.compare==XrNativeForwardDepthPolicy::Compare::LessOrEqual?VK_COMPARE_OP_LESS_OR_EQUAL:VK_COMPARE_OP_GREATER_OR_EQUAL;}
 +        comparison.native_color_depth_diagnostic=p->source.native_color_depth_diagnostic;comparison.native_eye_original_depth_compare=uint32_t(p->source_depth_state.compare);
 +        if(p->source.matrix_probe){const auto n=size_t(p->source.camera.range);const auto* bytes=static_cast<const unsigned char*>(p->mapped)+p->image_frames*p->frame_bytes;
@@ -10213,13 +10363,14 @@ index 0000000000000000000000000000000000000000..144187de9266d6fe1b2086d08ccbf542
 \ No newline at end of file
 diff --git a/gpu/vk/vk_xr_shader_uniform_audit.cpp b/gpu/vk/vk_xr_shader_uniform_audit.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..92d080b20ea396b46bdaffa2ae00bbf46f530f5b
+index 0000000000000000000000000000000000000000..e3c5de11faa10f0511981cba70d9cc21805c9e20
 --- /dev/null
 +++ b/gpu/vk/vk_xr_shader_uniform_audit.cpp
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,142 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "xr_shader_uniform_audit.h"
 +#include <cstdlib>
++#include <cstring>
 +#include <filesystem>
 +#include <fstream>
 +#include <iomanip>
@@ -10234,6 +10385,13 @@ index 0000000000000000000000000000000000000000..92d080b20ea396b46bdaffa2ae00bbf4
 +// Process lifetime, matching renderer workers; no CRT teardown of a mutex they may still reach.
 +State& state(){static auto* value=new State;return *value;}
 +const char* directory(){static const char* path=std::getenv("HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR");return path;}
++// Optional inventory capacity only. Module (64 MiB) and metadata (4 MiB)
++// byte caps and all shader replay admission checks remain unchanged.
++size_t program_limit(){static const size_t limit=[]{const char* p=std::getenv("HOOKSHOT_VR_SHADER_UNIFORM_MAX_PROGRAMS");
++    if(p&&std::strcmp(p,"128")==0)return size_t(128);
++    if(p&&std::strcmp(p,"256")==0)return size_t(256);
++    return size_t(64); // Absent, malformed or excessive requests retain the default.
++}();return limit;}
 +std::string name(uint64_t digest){std::ostringstream s;s<<std::hex<<std::setw(16)<<std::setfill('0')<<digest;return s.str();}
 +// Keep the existing byte budget for the stage family requested by this audit.
 +// Entry-point models come from SPIR-V; unsupported/mixed or malformed modules fail closed.
@@ -10287,12 +10445,12 @@ index 0000000000000000000000000000000000000000..92d080b20ea396b46bdaffa2ae00bbf4
 +}
 +bool xr_shader_uniform_audit_wants_program(uint64_t program){
 +    if(!xr_shader_uniform_audit_enabled()||!program)return false;
-+    auto& s=state();std::lock_guard lock(s.mutex);return s.programs.size()<64&&!s.programs.count(program);
++    auto& s=state();std::lock_guard lock(s.mutex);return s.programs.size()<program_limit()&&!s.programs.count(program);
 +}
 +bool xr_shader_uniform_audit_program(uint64_t program,const std::vector<ShaderUniformAuditBinding>& bindings,const std::vector<ShaderUniformAuditStage>& stages){
 +    if(!xr_shader_uniform_audit_enabled()||!program)return false;
 +    auto& s=state();std::lock_guard lock(s.mutex);
-+    if(s.programs.count(program)||s.programs.size()>=64)return false;
++    if(s.programs.count(program)||s.programs.size()>=program_limit())return false;
 +    s.programs.insert(program);
 +    if((bindings.empty()&&stages.empty())||bindings.size()>128||stages.size()>8)return false;
 +    uint32_t mask=0;
@@ -10353,10 +10511,10 @@ index 0000000000000000000000000000000000000000..92d080b20ea396b46bdaffa2ae00bbf4
 +}
 diff --git a/gpu/vk/xr_baseline_attempt.h b/gpu/vk/xr_baseline_attempt.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..c112339ae1211e48c72ccb9ea2b614c3017d4ac4
+index 0000000000000000000000000000000000000000..3c318f36829b60306cf7a78944a32f70e64498e5
 --- /dev/null
 +++ b/gpu/vk/xr_baseline_attempt.h
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,84 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#pragma once
 +#include <cstddef>
@@ -10399,7 +10557,8 @@ index 0000000000000000000000000000000000000000..c112339ae1211e48c72ccb9ea2b614c3
 +    Result result=Result::Invalid;
 +    bool matrix_probe_requested=false,matrix_probe_validated=false,matrix_source_unchanged=false;
 +    bool depth_reference=false;
-+    bool native_forward_depth_probe=false,native_forward_depth_observed=false;
++    bool source_coverage_requested=false,source_coverage_available=false;uint64_t source_coverage_samples=0;
++    bool native_forward_depth_probe=false,native_forward_depth_observed=false,native_forward_geometry_mesh=false;
 +    std::array<uint64_t,2> native_forward_colour_visible{},native_forward_depth_written{},native_forward_colour_with_depth{};
 +    uint64_t native_forward_pair_differences=0,private_allocated_bytes=0,private_budget_bytes=0;
 +    uint32_t native_forward_compare=0xffffffffu;float native_forward_clear=0;
@@ -10442,10 +10601,10 @@ index 0000000000000000000000000000000000000000..c112339ae1211e48c72ccb9ea2b614c3
 +}
 diff --git a/gpu/vk/xr_baseline_draw.h b/gpu/vk/xr_baseline_draw.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..51a7327e3236b663f8c45844251aa83e44eec244
+index 0000000000000000000000000000000000000000..4d77c3ba41f2085857e5648ff803eeb39b6a5478
 --- /dev/null
 +++ b/gpu/vk/xr_baseline_draw.h
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,13 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#pragma once
 +#include "xr_baseline_recorder.h"
@@ -10455,6 +10614,7 @@ index 0000000000000000000000000000000000000000..51a7327e3236b663f8c45844251aa83e
 +void xr_baseline_draw_tick(uint64_t frame,uint64_t serial);
 +bool xr_baseline_draw_selected(const Program&);
 +void xr_baseline_draw_prepare(const XrBaselineRecorderInput&);
++void xr_baseline_draw_source_begin(uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer,bool existing_occlusion);
 +void xr_baseline_draw_finish(uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer,
 +                             const std::vector<VkWriteDescriptorSet>&,const XrBaselineSourceDepthState& source_depth={});
 +}
@@ -10487,10 +10647,10 @@ index 0000000000000000000000000000000000000000..1da8b1a5670c7a1a5f5d1603333c86b2
 +}
 diff --git a/gpu/vk/xr_baseline_recorder.h b/gpu/vk/xr_baseline_recorder.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..a42954c036c15418b04d43917c87124960255d30
+index 0000000000000000000000000000000000000000..3ffff391aa72841ae6b73b4f6b05a5f908fc3ae0
 --- /dev/null
 +++ b/gpu/vk/xr_baseline_recorder.h
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,60 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#pragma once
 +#include "xr_eye_image_factory.h"
@@ -10524,6 +10684,7 @@ index 0000000000000000000000000000000000000000..a42954c036c15418b04d43917c871249
 +    uint64_t serial=0,recording=0,program=0;VkCommandBuffer command=VK_NULL_HANDLE;
 +    VkShaderStageFlags root_push_stages=0;uint32_t root_push_offset=0,root_push_range=0;
 +    VkPipelineLayout layout=VK_NULL_HANDLE;EyeImageSource color{},depth{};
++    bool source_coverage_probe=false;
 +    bool native_forward_depth_probe=false;XrFragmentDepthModes fragment_depth_modes{};
 +    bool native_color_depth_diagnostic=false; // Offscreen diagnosis only; never a playable depth policy.
 +    bool ordinary_descriptors=false;VkDescriptorSetLayout descriptor_layout=VK_NULL_HANDLE;
@@ -10538,6 +10699,7 @@ index 0000000000000000000000000000000000000000..a42954c036c15418b04d43917c871249
 +XrBaselineRecorder* xr_baseline_recorder_create(const XrBaselineRecorderInput&);
 +// Ends the previous ordinary pass and snapshots private images/uniforms. No draw yet.
 +bool xr_baseline_recorder_prepare(XrBaselineRecorder*);
++void xr_baseline_recorder_source_begin(XrBaselineRecorder*,uint64_t serial,uint64_t recording,uint64_t program,VkCommandBuffer,bool existing_occlusion);
 +// Called after the exact source draw: unchanged controls, optional native eyes,
 +// and an explicit same-state depth diagnostic. Restores source descriptors,
 +// graphics root and (when overridden) actual depth comparison. Never calls draw().
@@ -10551,10 +10713,10 @@ index 0000000000000000000000000000000000000000..a42954c036c15418b04d43917c871249
 +}
 diff --git a/gpu/vk/xr_baseline_selection.h b/gpu/vk/xr_baseline_selection.h
 new file mode 100644
-index 0000000000000000000000000000000000000000..7b6f3ed9f99883416d686f694e1f78245643c7ba
+index 0000000000000000000000000000000000000000..48f356f6f5148ef4f9923e78baa10394e9d9f255
 --- /dev/null
 +++ b/gpu/vk/xr_baseline_selection.h
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,51 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#pragma once
 +#include <charconv>
@@ -10580,14 +10742,15 @@ index 0000000000000000000000000000000000000000..7b6f3ed9f99883416d686f694e1f7824
 +}
 +// Selection scopes a baseline-only experiment. It is not permission for camera/scene
 +// replay; live state and module identities must still be checked at the actual draw.
-+inline bool parse_xr_baseline_selection(std::string_view text,std::string_view nonce,std::string_view source,XrBaselineSelection& out,bool lens_shift=false,bool view_shift=false,bool view_color=false,bool native_eye=false,bool native_color=false,bool native_mesh=false){
++inline bool parse_xr_baseline_selection(std::string_view text,std::string_view nonce,std::string_view source,XrBaselineSelection& out,bool lens_shift=false,bool view_shift=false,bool view_color=false,bool native_eye=false,bool native_color=false,bool native_mesh=false,bool native_classic=false){
 +    if(native_color&&!native_eye)return false;
++    if(native_classic&&(!native_eye||!native_color||native_mesh))return false;
 +    if(native_mesh&&(!native_eye||native_color))return false;
 +    if(native_eye&&(lens_shift||view_shift||view_color))return false;
 +    if(view_color&&!view_shift)return false;
 +    if(text.size()>8192||!xr_lower_hex(nonce,32)||!xr_lower_hex(source,8))return false;
 +    std::istringstream input{std::string(text)};std::string magic;XrBaselineSelection next;
-+    if(!(input>>magic>>next.nonce>>next.source)||magic!=(native_mesh?"HSVR_NATIVE_MESH_TRANSPORT_V1":native_color?"HSVR_NATIVE_EYE_COLOR_DRAW_V1":native_eye?"HSVR_NATIVE_EYE_DRAW_V1":view_color?"HSVR_VIEW_COLOR_DRAW_V1":(view_shift?"HSVR_VIEW_SHIFT_DRAW_V1":(lens_shift?"HSVR_LENS_SHIFT_DRAW_V1":"HSVR_BASELINE_DRAW_V1")))||next.nonce!=nonce||next.source!=source)return false;
++    if(!(input>>magic>>next.nonce>>next.source)||magic!=(native_classic?"HSVR_NATIVE_CLASSIC_TRANSPORT_V1":native_mesh?"HSVR_NATIVE_MESH_TRANSPORT_V1":native_color?"HSVR_NATIVE_EYE_COLOR_DRAW_V1":native_eye?"HSVR_NATIVE_EYE_DRAW_V1":view_color?"HSVR_VIEW_COLOR_DRAW_V1":(view_shift?"HSVR_VIEW_SHIFT_DRAW_V1":(lens_shift?"HSVR_LENS_SHIFT_DRAW_V1":"HSVR_BASELINE_DRAW_V1")))||next.nonce!=nonce||next.source!=source)return false;
 +    uint64_t count=0;if(!xr_selection_number(input,count)||!count||count>32)return false;
 +    for(uint64_t i=0;i<count;++i){XrBaselineProgram program;uint64_t stages=0;
 +        if(!xr_selection_number(input,program.program,true)||!program.program||!xr_selection_number(input,stages)||stages!=(native_mesh?3:2))return false;
@@ -10596,6 +10759,7 @@ index 0000000000000000000000000000000000000000..7b6f3ed9f99883416d686f694e1f7824
 +        for(uint64_t stage=0;stage<stages;++stage){uint64_t ns=0,vk=0;XrBaselineStage item;
 +            if(!xr_selection_number(input,ns)||ns>=8||!xr_selection_number(input,vk)||(native_mesh?(vk!=64&&vk!=128&&vk!=16):(vk!=1&&vk!=16))||(mask&vk)||
 +               !xr_selection_number(input,item.fingerprint,true)||!xr_selection_number(input,item.words)||item.words<5||item.words>2*1024*1024)return false;
++            if(native_classic&&ns!=(vk==1?0:1))return false;
 +            if(native_mesh&&ns!=(vk==64?6:vk==128?7:1))return false;
 +            item.nvn_stage=uint32_t(ns);item.vk_stage=uint32_t(vk);mask|=uint32_t(vk);program.stages.push_back(item);
 +        }
@@ -15276,6 +15440,78 @@ index 0000000000000000000000000000000000000000..fb7ffdd6f128684199268f97a058bba4
 +    out.verified=std::memcmp(bytes+4*frame,bytes+5*frame,size_t(frame))!=0;return out;
 +}
 +}
+diff --git a/gpu/vk/xr_source_coverage.h b/gpu/vk/xr_source_coverage.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..2d8e498b417333f7ec5dd3303b41c305b5d7f3da
+--- /dev/null
++++ b/gpu/vk/xr_source_coverage.h
+@@ -0,0 +1,31 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#pragma once
++#include <vulkan/vulkan.h>
++#include <cstdint>
++namespace mkwvk {
++// Diagnostic only. Ownership is explicitly retired by the recorder's queue fence.
++class XrSourceCoverage {
++    VkQueryPool pool_=VK_NULL_HANDLE; bool reset_=false, active_=false, ended_=false;
++public:
++    struct Api {PFN_vkCreateQueryPool create;PFN_vkDestroyQueryPool destroy;PFN_vkCmdResetQueryPool reset;PFN_vkCmdBeginQuery begin;PFN_vkCmdEndQuery end;PFN_vkGetQueryPoolResults results;};
++    struct Result {bool available=false;uint64_t samples=0;};
++    bool create(VkDevice device,const Api& api){
++        if(pool_||!api.create||!api.destroy||!api.reset||!api.begin||!api.end||!api.results)return false;
++        VkQueryPoolCreateInfo info{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};info.queryType=VK_QUERY_TYPE_OCCLUSION;info.queryCount=1;
++        return api.create(device,&info,nullptr,&pool_)==VK_SUCCESS&&pool_;
++    }
++    void reset(VkCommandBuffer command,const Api& api){if(pool_&&!reset_){api.reset(command,pool_,0,1);reset_=true;}}
++    bool begin(VkCommandBuffer command,bool existing_occlusion,const Api& api){
++        if(!pool_||!reset_||active_||ended_||existing_occlusion)return false;
++        api.begin(command,pool_,0,0);active_=true;return true;
++    }
++    void end(VkCommandBuffer command,const Api& api){if(active_){api.end(command,pool_,0);active_=false;ended_=true;}}
++    Result read(VkDevice device,bool completed,const Api& api)const{
++        Result out;if(!pool_||!ended_||!completed)return out;
++        uint64_t values[2]{};
++        const auto status=api.results(device,pool_,0,1,sizeof values,values,sizeof values,VK_QUERY_RESULT_64_BIT|VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
++        if(status==VK_SUCCESS&&values[1]){out.available=true;out.samples=values[0];}return out;
++    }
++    void release(VkDevice device,const Api& api){if(pool_){api.destroy(device,pool_,nullptr);pool_=VK_NULL_HANDLE;}reset_=active_=ended_=false;}
++};
++}
+diff --git a/gpu/vk/xr_source_coverage_selection.h b/gpu/vk/xr_source_coverage_selection.h
+new file mode 100644
+index 0000000000000000000000000000000000000000..c317102d3dafeb3fff79e3c791e5eb71dc163724
+--- /dev/null
++++ b/gpu/vk/xr_source_coverage_selection.h
+@@ -0,0 +1,29 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#pragma once
++#include <algorithm>
++#include <cstdint>
++#include <map>
++namespace mkwvk {
++// A hint for choosing a diagnostic source, never authority to replay it.
++class XrSourceCoverageSelection {
++    std::map<uint64_t,unsigned> attempts_;unsigned total_=0;
++    uint64_t winner_=0,observed_frame_=0;unsigned ordinal_=0;
++public:
++    bool qualified()const{return winner_!=0;}
++    bool selectable(uint64_t program,unsigned ordinal,unsigned previous_visits)const{
++        if(!program)return false;
++        if(winner_)return program==winner_&&ordinal==ordinal_;
++        const auto i=attempts_.find(program);const unsigned attempts=i==attempts_.end()?0:i->second;
++        if(total_>=256||attempts>=8||(i==attempts_.end()&&attempts_.size()>=32))return false;
++        return ordinal==attempts%std::clamp(previous_visits,1u,8u);
++    }
++    bool observe(uint64_t program,unsigned ordinal,bool available,uint64_t samples,uint64_t frame=0){
++        if(!program||winner_||total_>=256)return false;
++        auto i=attempts_.find(program);if(i==attempts_.end()){if(attempts_.size()>=32)return false;i=attempts_.emplace(program,0).first;}
++        if(i->second>=8)return false;++i->second;++total_;
++        if(available&&samples){winner_=program;ordinal_=ordinal;observed_frame_=frame;}return true;
++    }
++    void advance_frame(uint64_t frame){if(winner_&&frame>=observed_frame_&&frame-observed_frame_>=8)reject(winner_);}
++    void reject(uint64_t program){if(winner_==program){winner_=0;ordinal_=0;}}
++};
++}
 diff --git a/gpu/vk/xr_synthetic_head.h b/gpu/vk/xr_synthetic_head.h
 new file mode 100644
 index 0000000000000000000000000000000000000000..1a1796d4d7f4e41c9e35173747234841f3009927
@@ -16639,10 +16875,10 @@ index 627714562cd54cb9c25e37627fde68b543a396d9..b4b62626b823db7ca0787f3c5474ea23
  }
 diff --git a/vr/CMakeLists.txt b/vr/CMakeLists.txt
 new file mode 100644
-index 0000000000000000000000000000000000000000..f200d03838b4666c9e1fa846303f527c992ef2a0
+index 0000000000000000000000000000000000000000..60e2996c6b9260535925916d82bc2a9418c9acc4
 --- /dev/null
 +++ b/vr/CMakeLists.txt
-@@ -0,0 +1,827 @@
+@@ -0,0 +1,860 @@
 +cmake_minimum_required(VERSION 3.24)
 +project(HookshotVRBootstrap VERSION 0.1.0 LANGUAGES C CXX)
 +
@@ -17470,6 +17706,39 @@ index 0000000000000000000000000000000000000000..f200d03838b4666c9e1fa846303f527c
 +if(Python3_Interpreter_FOUND)
 +    add_test(NAME vr_graphics_route_review COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_graphics_route_review.py")
 +endif()
++
++foreach(audit_limit IN ITEMS 64 128 256 invalid)
++    add_test(NAME vr_shader_inventory_limit_${audit_limit} COMMAND hookshot_vr_shader_uniform_export_tests limit${audit_limit})
++    if(audit_limit STREQUAL "invalid")
++        set(audit_env_limit "4096")
++    elseif(audit_limit STREQUAL "64")
++        set(audit_env_limit "")
++    else()
++        set(audit_env_limit "${audit_limit}")
++    endif()
++    set_tests_properties(vr_shader_inventory_limit_${audit_limit} PROPERTIES
++        ENVIRONMENT "HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR=${CMAKE_CURRENT_BINARY_DIR}/shader-audit-limit${audit_limit};HOOKSHOT_VR_SHADER_UNIFORM_COMPUTE_ONLY=0;HOOKSHOT_VR_SHADER_UNIFORM_MAX_PROGRAMS=${audit_env_limit}"
++        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
++endforeach()
++if(Python3_Interpreter_FOUND)
++    add_test(NAME vr_classic_transport_selection COMMAND "${Python3_EXECUTABLE}" -I -B "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_classic_transport_selection.py" "$<TARGET_FILE:hookshot_vr_baseline_selection_tests>")
++endif()
++
++if(vr_vulkan_include)
++    add_executable(hookshot_vr_source_coverage_tests tests/source_coverage_test.cpp)
++    target_include_directories(hookshot_vr_source_coverage_tests PRIVATE ../gpu/vk "${vr_vulkan_include}")
++    if(MINGW)
++        target_link_options(hookshot_vr_source_coverage_tests PRIVATE -static)
++    endif()
++    add_test(NAME vr_source_coverage COMMAND hookshot_vr_source_coverage_tests)
++endif()
++
++add_executable(hookshot_vr_source_coverage_selection_tests tests/source_coverage_selection_test.cpp)
++target_include_directories(hookshot_vr_source_coverage_selection_tests PRIVATE ../gpu/vk)
++if(MINGW)
++    target_link_options(hookshot_vr_source_coverage_selection_tests PRIVATE -static)
++endif()
++add_test(NAME vr_source_coverage_selection COMMAND hookshot_vr_source_coverage_selection_tests)
 diff --git a/vr/README.md b/vr/README.md
 new file mode 100644
 index 0000000000000000000000000000000000000000..7c0ae342be72eb10c9c56f5b7b592fc37f9e115a
@@ -18359,6 +18628,84 @@ index 0000000000000000000000000000000000000000..d095eb5d746511f4e1b4135e2c715517
 +
 +
 +if __name__ == '__main__': main()
+diff --git a/vr/audit_classic_transport.py b/vr/audit_classic_transport.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f4b5c1d61c1d3e4e0fcc020f217244d5d979fbaa
+--- /dev/null
++++ b/vr/audit_classic_transport.py
+@@ -0,0 +1,72 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++"""Review isolated classic attachment transport with private roots; never scene replay."""
++import argparse
++import importlib.util
++import json
++from pathlib import Path
++import re
++import struct
++_spec=importlib.util.spec_from_file_location('classic_transport_base',Path(__file__).with_name('audit_graphics_programs.py'))
++base=importlib.util.module_from_spec(_spec);_spec.loader.exec_module(base)
++STAGES={1:(0,0),16:(1,4)}
++WRITE_FLAGS=('stores_global_memory','writes_storage_buffers','writes_storage_images','writes_texel_buffers')
++def analyze_directory(directory,grammar,max_programs=64):
++    root=Path(directory).resolve();original=base.analyze_directory(root,grammar,max_programs=max_programs)
++    raw={p['program']:p for p in [json.loads(line) for line in (root/'program-bindings.jsonl').read_text(encoding='utf-8-sig').splitlines() if line.strip()]}
++    reviewed={};programs=[];total_bytes=0
++    for program in original['programs']:
++        stages=raw[program['program']]['stages']
++        if len(stages)!=2 or {s['vk_stage'] for s in stages}!={1,16}:continue
++        rows=[]
++        for stage in stages:
++            vk=stage['vk_stage'];ns,model=STAGES[vk];digest=stage['module']
++            flags_valid=stage['nvn_stage']==ns and all(type(stage.get(k)) is bool and stage[k] is False for k in WRITE_FLAGS)
++            if digest not in reviewed:
++                if not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{16}',digest):raise ValueError('Missing classic module identity')
++                path=root/(digest+'.spv')
++                if path.is_symlink() or path.resolve().parent!=root:raise ValueError('Classic module escapes capture')
++                data=path.read_bytes();total_bytes+=len(data)
++                if len(data)>8*1024*1024 or total_bytes>64*1024*1024 or len(data)%4 or base.fingerprint(data)!=digest:raise ValueError('Classic module identity/budget mismatch')
++                effect=base.effects.analyze(struct.unpack('<'+'I'*(len(data)//4),data),grammar,private_root_read_inventory=True)
++                effect['module_words']=len(data)//4;reviewed[digest]=effect
++            effect=reviewed[digest]
++            rows.append(dict(vk_stage=vk,nvn_stage=stage['nvn_stage'],module_fingerprint=digest,effects=effect,
++                transport_effects_reviewed=bool(flags_valid and effect['entry_models']==[model] and effect['private_root_read_inventory_subset'] and not effect['rejections'])))
++        footprints=program['eye_patch_preflight']['primary_binding_footprints'];camera_stages={row['vk_stage'] for row in footprints}
++        transform=any(row['vk_stage']==1 and any(0<=offset<112 for offset in row['matrix_patch_read_byte_offsets']) for row in footprints)
++        eligible=program['stage_inventory_declared_complete'] and program['all_declared_stage_files_available'] and 1 in camera_stages and transform and all(s['transport_effects_reviewed'] for s in rows)
++        programs.append(dict(program=program['program'],transport_candidate=bool(eligible),stages=rows,primary_camera_stages=sorted(camera_stages),
++            vertex_transform_reads_observed=transform,preserved_tail_policy='source_verbatim_gpu_verified',camera_semantics_verified=False,safe_to_replay=False))
++    return dict(schema=1,experiment='isolated_classic_attachment_transport',programs=programs,candidate_count=sum(p['transport_candidate'] for p in programs),safe_to_replay=False,full_scene_stereo=False,headset_ready=False)
++def selection_text(report,nonce,source):
++    if not isinstance(nonce,str) or not re.fullmatch('[0-9a-f]{32}',nonce) or not isinstance(source,str) or not re.fullmatch('[0-9a-f]{8}',source):raise ValueError('Invalid classic run/build identity')
++    if report.get('experiment')!='isolated_classic_attachment_transport' or any(report.get(k) is not False for k in ('safe_to_replay','full_scene_stereo','headset_ready')):raise ValueError('Expected isolated classic diagnostic report')
++    selected=[];seen=set()
++    for p in report.get('programs',[]):
++        if p.get('transport_candidate') is not True:continue
++        if p.get('vertex_transform_reads_observed') is not True or 1 not in p.get('primary_camera_stages',[]) or p.get('preserved_tail_policy')!='source_verbatim_gpu_verified' or p.get('camera_semantics_verified') is not False:raise ValueError('Missing submitted-camera transport evidence')
++        key=p.get('program');stages=p.get('stages',[])
++        if type(key) is not int or not 0<key<1<<64 or key in seen or len(stages)!=2:raise ValueError('Invalid classic program identity')
++        seen.add(key);mask=set();lines=[]
++        for s in stages:
++            vk,ns,digest=s.get('vk_stage'),s.get('nvn_stage'),s.get('module_fingerprint');effect=s.get('effects') or {};words=effect.get('module_words')
++            if type(vk) is not int or vk not in STAGES or vk in mask or type(ns) is not int or ns!=STAGES[vk][0]:raise ValueError('Invalid classic stage mapping')
++            if s.get('transport_effects_reviewed') is not True or effect.get('private_root_read_inventory_subset') is not True or effect.get('entry_models')!=[STAGES[vk][1]] or effect.get('rejections') or effect.get('safe_to_replay') is not False:raise ValueError('Incomplete classic effect review')
++            if not isinstance(digest,str) or not re.fullmatch('[0-9a-f]{16}',digest) or type(words) is not int or not 5<=words<=2*1024*1024:raise ValueError('Invalid classic module identity')
++            mask.add(vk);lines.append(f'{ns} {vk} {digest} {words}')
++        if mask!={1,16}:raise ValueError('Expected classic vertex/fragment stages')
++        selected.append(f'{key:016x} 2\n'+'\n'.join(lines))
++        if len(selected)==32:break
++    if not selected:raise ValueError('No reviewed classic transport candidates yet')
++    text=f'HSVR_NATIVE_CLASSIC_TRANSPORT_V1\n{nonce} {source} {len(selected)}\n'+'\n'.join(selected)+'\n'
++    if len(text.encode('ascii'))>8192:raise ValueError('Classic selection exceeds native budget')
++    return text
++def main():
++    p=argparse.ArgumentParser(description=__doc__);p.add_argument('directory',type=Path);p.add_argument('--grammar',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--max-programs',type=int,choices=(64,128,256),default=64);p.add_argument('--baseline-selection',type=Path);p.add_argument('--nonce');p.add_argument('--source-fingerprint');a=p.parse_args()
++    if a.grammar.stat().st_size>8*1024*1024:p.error('Grammar budget exceeded')
++    try:
++        report=analyze_directory(a.directory,json.loads(a.grammar.read_text(encoding='utf-8')),a.max_programs);a.output.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
++        if a.baseline_selection:
++            text=selection_text(report,a.nonce,a.source_fingerprint);temporary=a.baseline_selection.with_suffix('.tmp');temporary.write_text(text,encoding='ascii');temporary.replace(a.baseline_selection)
++    except (OSError,ValueError,KeyError,TypeError) as error:p.error(str(error))
++if __name__=='__main__':main()
 diff --git a/vr/audit_graphics_effects.py b/vr/audit_graphics_effects.py
 new file mode 100644
 index 0000000000000000000000000000000000000000..71793ccd97aac8ddedc32c5866621921c03b6c45
@@ -18555,10 +18902,10 @@ index 0000000000000000000000000000000000000000..71793ccd97aac8ddedc32c5866621921
 +if __name__=="__main__":main()
 diff --git a/vr/audit_graphics_programs.py b/vr/audit_graphics_programs.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..f7595d33610b9f25c0b11853ba8f78193983e5dc
+index 0000000000000000000000000000000000000000..232ba5a284201a23de62f7a2fb0baf0fdffa99c4
 --- /dev/null
 +++ b/vr/audit_graphics_programs.py
-@@ -0,0 +1,206 @@
+@@ -0,0 +1,207 @@
 +# SPDX-License-Identifier: GPL-3.0-or-later
 +"""Join complete native stage inventories to conservative shader effect observations."""
 +import argparse
@@ -18632,11 +18979,11 @@ index 0000000000000000000000000000000000000000..f7595d33610b9f25c0b11853ba8f7819
 +        "full_scene_stereo":False}
 +
 +
-+def analyze_directory(directory,grammar,require_association=False):
++def analyze_directory(directory,grammar,require_association=False,max_programs=64):
 +    root=Path(directory).resolve();associated=False
 +    if require_association or (root/"baseline-preflight.jsonl").exists():
 +        link=load("vr_program_association",_here/"analyze_stereo_candidates.py");link.association(root);associated=True
-+    uniform_summary=bindings.analyze_directory(root)
++    uniform_summary=bindings.analyze_directory(root,max_programs)
 +    records=[json.loads(line) for line in (root/"program-bindings.jsonl").read_text(encoding="utf-8-sig").splitlines() if line.strip()]
 +    modules={};queries={};total_bytes=0;missing=0;reports=[]
 +    def module(digest):
@@ -18754,9 +19101,10 @@ index 0000000000000000000000000000000000000000..f7595d33610b9f25c0b11853ba8f7819
 +    parser.add_argument("--view-color-selection",action="store_true")
 +    parser.add_argument("--native-eye-selection",action="store_true",help="Isolated native-eye draw; resolved prefix-only reads and a separate protocol")
 +    parser.add_argument("--native-eye-color-selection",action="store_true",help="Isolated native color with checked preserved depth/viewport scalars")
++    parser.add_argument("--max-programs",type=int,choices=(64,128,256),default=64)
 +    args=parser.parse_args()
 +    if args.grammar.stat().st_size>8*1024*1024:parser.error("Grammar size exceeds bound")
-+    try:report=analyze_directory(args.directory,json.loads(args.grammar.read_text(encoding="utf-8")),args.require_associated_lineage)
++    try:report=analyze_directory(args.directory,json.loads(args.grammar.read_text(encoding="utf-8")),args.require_associated_lineage,args.max_programs)
 +    except (ValueError,KeyError,TypeError,OSError) as error:parser.error(str(error))
 +    args.output.write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
 +    if args.baseline_selection:
@@ -18767,10 +19115,10 @@ index 0000000000000000000000000000000000000000..f7595d33610b9f25c0b11853ba8f7819
 +if __name__=="__main__":main()
 diff --git a/vr/audit_mesh_transport.py b/vr/audit_mesh_transport.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..16998a3b0c88699502aa483f0f4def3a59b6902c
+index 0000000000000000000000000000000000000000..f0451d717b1a0cc5601aee830f23b45432c498b6
 --- /dev/null
 +++ b/vr/audit_mesh_transport.py
-@@ -0,0 +1,94 @@
+@@ -0,0 +1,95 @@
 +# SPDX-License-Identifier: GPL-3.0-or-later
 +"""Review an isolated direct task/mesh attachment transport experiment; never a scene replay authorization."""
 +import argparse
@@ -18786,8 +19134,8 @@ index 0000000000000000000000000000000000000000..16998a3b0c88699502aa483f0f4def3a
 +WRITE_FLAGS=("stores_global_memory","writes_storage_buffers","writes_storage_images","writes_texel_buffers")
 +
 +
-+def analyze_directory(directory,grammar):
-+    root=Path(directory).resolve();original=base.analyze_directory(root,grammar)
++def analyze_directory(directory,grammar,max_programs=64):
++    root=Path(directory).resolve();original=base.analyze_directory(root,grammar,max_programs=max_programs)
 +    raw={p["program"]:p for p in [json.loads(line) for line in (root/"program-bindings.jsonl").read_text(encoding="utf-8-sig").splitlines() if line.strip()]}
 +    reviewed={};programs=[];total_bytes=0
 +    for program in original["programs"]:
@@ -18852,10 +19200,11 @@ index 0000000000000000000000000000000000000000..16998a3b0c88699502aa483f0f4def3a
 +    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument("directory",type=Path)
 +    parser.add_argument("--grammar",type=Path,required=True);parser.add_argument("--output",type=Path,required=True)
 +    parser.add_argument("--baseline-selection",type=Path);parser.add_argument("--nonce");parser.add_argument("--source-fingerprint")
++    parser.add_argument("--max-programs",type=int,choices=(64,128,256),default=64)
 +    args=parser.parse_args()
 +    if args.grammar.stat().st_size>8*1024*1024:parser.error("Grammar budget exceeded")
 +    try:
-+        report=analyze_directory(args.directory,json.loads(args.grammar.read_text(encoding="utf-8")))
++        report=analyze_directory(args.directory,json.loads(args.grammar.read_text(encoding="utf-8")),args.max_programs)
 +        args.output.write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
 +        if args.baseline_selection:
 +            text=selection_text(report,args.nonce,args.source_fingerprint)
@@ -18938,10 +19287,10 @@ index 0000000000000000000000000000000000000000..9f116b3084765d45639b31ac0f2d2a84
 +if __name__=='__main__':main()
 diff --git a/vr/audit_shader_bindings.py b/vr/audit_shader_bindings.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..34a0c8ca30a324ddca94b75e9de404eecf9761ee
+index 0000000000000000000000000000000000000000..151f8fb78424898d3fc0605e5b65a414d3aa0351
 --- /dev/null
 +++ b/vr/audit_shader_bindings.py
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,127 @@
 +# SPDX-License-Identifier: GPL-3.0-or-later
 +"""Summarize private native module/binding observations without exposing shader code."""
 +import argparse
@@ -18954,14 +19303,16 @@ index 0000000000000000000000000000000000000000..34a0c8ca30a324ddca94b75e9de404ee
 +reader = importlib.util.module_from_spec(spec); spec.loader.exec_module(reader)
 +
 +
-+def analyze_directory(directory):
++def analyze_directory(directory, max_programs=64):
++    if type(max_programs) is not int or max_programs not in (64, 128, 256):
++        raise ValueError("Choose an explicit inventory capacity of 64, 128 or 256")
 +    root = Path(directory).resolve()
 +    metadata = root / 'program-bindings.jsonl'
 +    if metadata.stat().st_size > 4 * 1024 * 1024:
 +        raise ValueError('Binding metadata exceeds its limit')
 +    records = [json.loads(line) for line in metadata.read_text(encoding='utf-8-sig').splitlines() if line.strip()]
-+    if not records or len(records) > 64:
-+        raise ValueError('Expected one to 64 observed programs')
++    if not records or len(records) > max_programs:
++        raise ValueError('Observed programs exceed the explicitly selected inventory capacity')
 +    programs, queries = set(), {}
 +    stage_regions = {}
 +    observed_stages = set()
@@ -19040,7 +19391,7 @@ index 0000000000000000000000000000000000000000..34a0c8ca30a324ddca94b75e9de404ee
 +        if result.get('static_subset_resolved'): resolved += 1
 +        else: unresolved += 1
 +        outside += result.get('outside_captured_camera_block', 0)
-+    return {'schema': 1, 'observed_programs': len(programs), 'primary_camera_bindings': primary_bindings,
++    return {'schema': 1, 'inventory_program_limit': max_programs, 'observed_programs': len(programs), 'primary_camera_bindings': primary_bindings,
 +            'eligible_candidate_scans': eligible_scans, 'ambiguous_or_truncated_candidate_scans': incomplete_scans,
 +            'candidate_camera_bindings': candidate_bindings, 'candidate_bindings_with_static_reads': candidate_reads,
 +            'candidate_camera_semantics_confirmed': False,
@@ -19057,9 +19408,10 @@ index 0000000000000000000000000000000000000000..34a0c8ca30a324ddca94b75e9de404ee
 +def main():
 +    parser = argparse.ArgumentParser(description=__doc__)
 +    parser.add_argument('directory', type=Path)
++    parser.add_argument('--max-programs', type=int, choices=(64, 128, 256), default=64)
 +    args = parser.parse_args()
 +    try:
-+        result = analyze_directory(args.directory)
++        result = analyze_directory(args.directory, args.max_programs)
 +    except (OSError, ValueError, IndexError, TypeError, KeyError) as error:
 +        parser.exit(2, str(error) + '\n')
 +    print(json.dumps(result, indent=2))
@@ -20325,10 +20677,10 @@ index 0000000000000000000000000000000000000000..e77f4ef9ef973c958d4754c67da46935
 +if($process.ExitCode -ne 0){throw "El visor devolvió $($process.ExitCode). Registro: $log.stderr.txt"}
 diff --git a/vr/run-game.ps1 b/vr/run-game.ps1
 new file mode 100644
-index 0000000000000000000000000000000000000000..914a7c839be31f049ca94b3b4c977d2c3f6a0e27
+index 0000000000000000000000000000000000000000..55d65b7349af3d28155188153bea5f5d77f7f837
 --- /dev/null
 +++ b/vr/run-game.ps1
-@@ -0,0 +1,781 @@
+@@ -0,0 +1,783 @@
 +param(
 +    [string]$InstallationRoot = (Join-Path $env:USERPROFILE 'Games/Hookshot'),
 +    [ValidateRange(5, 300)][int]$Seconds = 60,
@@ -20367,6 +20719,7 @@ index 0000000000000000000000000000000000000000..914a7c839be31f049ca94b3b4c977d2c
 +    [switch]$ImageLineage,
 +    [switch]$CameraUniformAudit,
 +    [switch]$ShaderUniformAudit,
++    [ValidateSet(64,128,256)][int]$ShaderAuditProgramLimit=64,
 +    [switch]$ComputeShaderUniformAudit,
 +    [switch]$EyeImageProbe,
 +    [switch]$EyeUniformProbe,
@@ -20709,6 +21062,7 @@ index 0000000000000000000000000000000000000000..914a7c839be31f049ca94b3b4c977d2c
 +else { Remove-Item Env:HOOKSHOT_VR_EYE_UNIFORM_PROBE_FILE -ErrorAction SilentlyContinue }
 +if ($ComputeShaderUniformAudit) { $env:HOOKSHOT_VR_SHADER_UNIFORM_COMPUTE_ONLY = '1' }
 +else { Remove-Item Env:HOOKSHOT_VR_SHADER_UNIFORM_COMPUTE_ONLY -ErrorAction SilentlyContinue }
++$env:HOOKSHOT_VR_SHADER_UNIFORM_MAX_PROGRAMS=$ShaderAuditProgramLimit.ToString()
 +if ($ShaderUniformAudit) {
 +    $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR = Join-Path $runRoot ('shader-uniform-audit-' + [Guid]::NewGuid().ToString('N'))
 +    New-Item -ItemType Directory -Path $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR | Out-Null
@@ -20864,7 +21218,7 @@ index 0000000000000000000000000000000000000000..914a7c839be31f049ca94b3b4c977d2c
 +            # Atomic, nonce-scoped selection from this process's newly created capture directory.
 +            try {
 +            $selectionOutput=if($ProbeCameraTurn -eq 'None'){$env:HOOKSHOT_VR_BASELINE_SELECTION_FILE}else{$env:HOOKSHOT_VR_BASELINE_SELECTION_FILE+'.pending'}
-+            & $python -I -B (Join-Path $PSScriptRoot $selectionAuditScript) $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR --grammar $SpirvGrammar --output (Join-Path $runRoot 'baseline-live-programs.json') --baseline-selection $selectionOutput --nonce $env:HOOKSHOT_VR_BASELINE_NONCE --source-fingerprint $fingerprint @shiftSelectionArgs 2> (Join-Path $runRoot 'baseline-selection-errors.txt')
++            & $python -I -B (Join-Path $PSScriptRoot $selectionAuditScript) $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR --max-programs $ShaderAuditProgramLimit --grammar $SpirvGrammar --output (Join-Path $runRoot 'baseline-live-programs.json') --baseline-selection $selectionOutput --nonce $env:HOOKSHOT_VR_BASELINE_NONCE --source-fingerprint $fingerprint @shiftSelectionArgs 2> (Join-Path $runRoot 'baseline-selection-errors.txt')
 +
 +            if($ProbeCameraTurn -ne 'None' -and (Test-Path -LiteralPath $selectionOutput -PathType Leaf)){
 +                # Keep the native selection unavailable until game-local input has
@@ -20971,7 +21325,7 @@ index 0000000000000000000000000000000000000000..914a7c839be31f049ca94b3b4c977d2c
 +$shaderAuditObserved = $false
 +if ($ShaderUniformAudit -and (Test-Path -LiteralPath (Join-Path $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR 'program-bindings.jsonl'))) {
 +    $shaderSummary = Join-Path $runRoot 'shader-uniform-audit-summary.json'
-+    & $python -I -B (Join-Path $PSScriptRoot 'audit_shader_bindings.py') $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR > $shaderSummary
++    & $python -I -B (Join-Path $PSScriptRoot 'audit_shader_bindings.py') $env:HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR --max-programs $ShaderAuditProgramLimit > $shaderSummary
 +    if ($LASTEXITCODE -eq 0) {
 +        $audit = Get-Content -LiteralPath $shaderSummary -Raw | ConvertFrom-Json
 +        $shaderAuditObserved = $audit.primary_camera_bindings -gt 0 -and $audit.queries_with_static_reads -gt 0 -and $audit.missing_primary_modules -eq 0 -and !$audit.safe_to_patch
@@ -25017,13 +25371,14 @@ index 0000000000000000000000000000000000000000..72a6efb4e0cf9c6ef338e39a88b90a34
 +}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
 diff --git a/vr/tests/baseline_recorder_test.cpp b/vr/tests/baseline_recorder_test.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b878c1c20f0
+index 0000000000000000000000000000000000000000..c3c0e11756dd7be01de78f5b848846aa7fbe73f5
 --- /dev/null
 +++ b/vr/tests/baseline_recorder_test.cpp
-@@ -0,0 +1,353 @@
+@@ -0,0 +1,374 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#define VK_NO_PROTOTYPES
 +#include "xr_baseline_recorder.h"
++#include "xr_source_coverage.h"
 +#include "xr_uniform_copy_source.h"
 +#include "xr_matrix_patch_check.h"
 +#include "xr_shifted_draw_check.h"
@@ -25049,6 +25404,7 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +    VkCompareOp depth_compare=VK_COMPARE_OP_EQUAL;std::vector<VkCompareOp> depth_changes,draw_depth_values;
 +    VkBool32 depth_write=VK_FALSE;std::vector<VkBool32> depth_write_changes;
 +    std::set<VkDescriptorPool> descriptor_pools;std::map<VkDescriptorSet,VkBuffer> descriptor_sets;VkDescriptorSet last_set=VK_NULL_HANDLE;
++    bool coverage_active=false;int coverage_reads=0,coverage_begins=0,coverage_ends=0;std::set<VkQueryPool> coverage_pools;
 +    int direct_boundaries=0,native_prefix_updates=0;bool native_root=false;bool depth_block_native=false;
 +    int matrix_dispatches=0;bool matrix_corrupt=false,matrix_touch_source=false,large_scene=false,wrong_shift=false;
 +    struct MatrixParameters {VkDeviceAddress source=0,destination=0;uint32_t bytes=0;float shift=0;uint32_t mode=0,reserved=0;} matrix;
@@ -25063,7 +25419,7 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +namespace rec {enum Boundary {B_DIRECT};void boundary(Boundary){++fake.direct_boundaries;}}
 +uint64_t vk_timeline_completed(){return fake.completed;}
 +void note_work(){++fake.work;}
-+void end_pass(VkCommandBuffer){++fake.ends;}
++void end_pass(VkCommandBuffer){check(!fake.coverage_active,"source query must end inside source pass before private rendering");++fake.ends;}
 +void invalidate_mapped(VmaAllocation,uint64_t){}
 +uint64_t allocation_size(VmaAllocation m){return fake.memory.at(m);}
 +bool fail(){++fake.allocations;if(fake.allocations==fake.throw_at)throw std::bad_alloc();return fake.allocations==fake.fail;}
@@ -25084,7 +25440,10 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +bool xr_root_alias_probe_record(XrRootAliasProbe* p){
 +    if(!p||p->recorded)return false;
 +    const auto& g=p->input;
-+    for(auto b:p->indirect){const VkDrawIndirectCommand command{g.count,g.instances,g.first,g.first_instance};std::memcpy(fake.buffers.at(b).data(),&command,sizeof command);}
++    for(auto b:p->indirect){
++        if(g.indexed){const VkDrawIndexedIndirectCommand command{g.count,g.instances,g.first,g.vertex_offset,g.first_instance};std::memcpy(fake.buffers.at(b).data(),&command,sizeof command);}
++        else {const VkDrawIndirectCommand command{g.count,g.instances,g.first,g.first_instance};std::memcpy(fake.buffers.at(b).data(),&command,sizeof command);}
++    }
 +    p->recorded=true;return true;
 +}
 +bool xr_root_alias_probe_indirect_command(XrRootAliasProbe* p,VkCommandBuffer command,uint64_t recording,unsigned eye,XrRootIndirectCommand& out){
@@ -25103,6 +25462,12 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +}
 +bool memory_xr_uniform_copy_source(VkBuffer b,uint64_t recording,uint64_t offset,uint64_t bytes,XrUniformCopySource& out){if(b!=handle<VkBuffer>(10)||offset>560||bytes>560-offset)return false;out={b,560,VK_BUFFER_USAGE_TRANSFER_SRC_BIT|VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,XrUniformSourceKind::Mirror,{recording,fake.generation,1},0,560,0x5000+offset};return true;}
 +VkDeviceAddress vkGetBufferDeviceAddress(VkDevice,const VkBufferDeviceAddressInfo* info){return uint64_t(reinterpret_cast<uintptr_t>(info->buffer))<<20;}
++VkResult vkCreateQueryPool(VkDevice,const VkQueryPoolCreateInfo*,const VkAllocationCallbacks*,VkQueryPool* out){*out=handle<VkQueryPool>(++fake.next);fake.coverage_pools.insert(*out);return VK_SUCCESS;}
++void vkDestroyQueryPool(VkDevice,VkQueryPool q,const VkAllocationCallbacks*){check(!fake.coverage_active&&fake.coverage_pools.erase(q)==1,"query retired once and inactive");}
++void vkCmdResetQueryPool(VkCommandBuffer,VkQueryPool,uint32_t,uint32_t){}
++void vkCmdBeginQuery(VkCommandBuffer,VkQueryPool,uint32_t,VkQueryControlFlags){check(!fake.coverage_active,"queries cannot overlap");fake.coverage_active=true;++fake.coverage_begins;}
++void vkCmdEndQuery(VkCommandBuffer,VkQueryPool,uint32_t){check(fake.coverage_active,"balanced query");fake.coverage_active=false;++fake.coverage_ends;}
++VkResult vkGetQueryPoolResults(VkDevice,VkQueryPool,uint32_t,uint32_t,size_t,void* data,VkDeviceSize,VkQueryResultFlags flags){check(fake.completed==9&&!(flags&VK_QUERY_RESULT_WAIT_BIT),"query read is completion-gated and never waits");auto* values=(uint64_t*)data;values[0]=123;values[1]=1;++fake.coverage_reads;return VK_SUCCESS;}
 +VkResult vkCreateShaderModule(VkDevice,const VkShaderModuleCreateInfo*,const VkAllocationCallbacks*,VkShaderModule* out){if(fail())return VK_ERROR_OUT_OF_DEVICE_MEMORY;*out=handle<VkShaderModule>(++fake.next);fake.shaders.insert(*out);return VK_SUCCESS;}
 +void vkDestroyShaderModule(VkDevice,VkShaderModule value,const VkAllocationCallbacks*){check(fake.shaders.erase(value)==1,"owned shader released");}
 +VkResult vkCreatePipelineLayout(VkDevice,const VkPipelineLayoutCreateInfo*,const VkAllocationCallbacks*,VkPipelineLayout* out){if(fail())return VK_ERROR_OUT_OF_DEVICE_MEMORY;*out=handle<VkPipelineLayout>(++fake.next);fake.layouts.insert(*out);return VK_SUCCESS;}
@@ -25263,14 +25628,16 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +    }
 +    // Native projections clone GPU tails, bypass the artificial-shift compute
 +    // pipeline, record the original controls, and wait for known completion.
-+    for(int mesh_geometry:{0,1,2})for(bool ordinary:{false,true})for(bool depth_reference:{true,false})for(bool depth_diagnostic:{false,true})for(bool forward:{false,true})for(bool reverse_viewport:{false,true})for(VkCompareOp original_compare:{VK_COMPARE_OP_EQUAL,VK_COMPARE_OP_LESS_OR_EQUAL,VK_COMPARE_OP_MAX_ENUM})for(int fault=0;fault<4;++fault){
-+        if((depth_diagnostic&&(!mesh_geometry||depth_reference))||(!depth_diagnostic&&original_compare!=VK_COMPARE_OP_EQUAL))continue;
++    for(int mesh_geometry:{0,1,2})for(bool classic_indexed:{false,true})for(bool ordinary:{false,true})for(bool depth_reference:{true,false})for(bool depth_diagnostic:{false,true})for(bool forward:{false,true})for(bool reverse_viewport:{false,true})for(VkCompareOp original_compare:{VK_COMPARE_OP_EQUAL,VK_COMPARE_OP_LESS_OR_EQUAL,VK_COMPARE_OP_MAX_ENUM})for(int fault=0;fault<4;++fault){
++        if((depth_diagnostic&&((!mesh_geometry&&!forward)||depth_reference))||(!depth_diagnostic&&original_compare!=VK_COMPARE_OP_EQUAL))continue;
++        if(mesh_geometry&&classic_indexed)continue;
 +        if(original_compare==VK_COMPARE_OP_MAX_ENUM&&fault)continue;
 +        if((forward&&(!depth_diagnostic||fault))||(!forward&&reverse_viewport))continue;
-+        if(ordinary&&!mesh_geometry)continue;
++        if(ordinary&&!mesh_geometry&&!forward)continue;
 +        reset();in=input(buffer);in.native_eye_probe=in.matrix_probe=in.shifted_draw_probe=in.root_alias_probe=true;in.depth_reference=depth_reference;
 +        in.native_color_depth_diagnostic=depth_diagnostic;fake.depth_compare=original_compare;fake.depth_block_native=depth_diagnostic;
-+        in.native_forward_depth_probe=forward;in.fragment_depth_modes.known=true;
++        in.native_forward_depth_probe=forward;in.fragment_depth_modes.known=true;in.source_coverage_probe=!mesh_geometry&&forward;
++        if(classic_indexed){in.geometry.indexed=true;in.geometry.vertex_offset=-2;}
 +        const XrBaselineSourceDepthState source_depth{true,original_compare,VK_TRUE,VK_FALSE,VK_FALSE,reverse_viewport?1.f:0.f,reverse_viewport?0.f:1.f};
 +        in.root_push_stages=VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT;in.root_push_offset=48;in.root_push_range=128;
 +        if(mesh_geometry){in.geometry={};in.geometry.mesh=true;in.geometry.mesh_groups={3,1,1};in.root_push_stages=(mesh_geometry==1?VK_SHADER_STAGE_TASK_BIT_EXT:0)|VK_SHADER_STAGE_MESH_BIT_EXT|VK_SHADER_STAGE_FRAGMENT_BIT;}
@@ -25295,6 +25662,7 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +            bad=in;bad.geometry.mesh_groups[2]=0;check(!xr_baseline_recorder_create(bad)&&!fake.allocations,"zero source mesh groups cannot claim a visible attempt");
 +            bad=in;bad.geometry.mesh_groups={32,32,8};check(!xr_baseline_recorder_create(bad)&&!fake.allocations,"mesh total bounded without multiplication overflow");
 +            bad=in;bad.geometry.count=3;check(!xr_baseline_recorder_create(bad)&&!fake.allocations,"vertex and mesh geometry cannot mix");}
++        if(forward&&ordinary&&!mesh_geometry){auto bad=in;bad.native_forward_depth_probe=false;bad.native_color_depth_diagnostic=false;check(!xr_baseline_recorder_create(bad)&&!fake.allocations,"ordinary classic descriptors remain restricted to the explicit forward experiment");}
 +        if(forward){auto bad=in;bad.fragment_depth_modes.early_tests=true;check(!xr_baseline_recorder_create(bad)&&!fake.allocations,"forced early fragment tests cannot write private opaque depth");
 +            bad=in;bad.fragment_depth_modes.replaces_depth=true;check(!xr_baseline_recorder_create(bad)&&!fake.allocations,"explicit fragment depth needs separate review");
 +            bad=in;bad.fragment_depth_modes.known=false;check(!xr_baseline_recorder_create(bad)&&!fake.allocations,"unknown fragment metadata cannot enter forward depth");}
@@ -25303,6 +25671,11 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +        if(fault==1)fake.buffers.at(p->matrix_buffers[1])[0x100]^=1;
 +        if(fault==2)fake.buffers.at(handle<VkBuffer>(10)).back()^=1;
 +        if(fault==3)fake.buffers.at(p->matrix_buffers[0])[0x70]^=1;
++        if(in.source_coverage_probe){
++            xr_baseline_recorder_source_begin(p,2,9,3,in.command,false);check(!fake.coverage_active,"wrong serial cannot start query");
++            xr_baseline_recorder_source_begin(p,1,9,3,in.command,true);check(!fake.coverage_active,"existing game query preserved");
++            xr_baseline_recorder_source_begin(p,1,9,3,in.command,false);check(fake.coverage_active,"exact source query begins inside pass");
++        }
 +        large_draw(handle<VkImage>(11),0);large_draw(handle<VkImage>(12),0);
 +        if(depth_diagnostic&&(original_compare==VK_COMPARE_OP_MAX_ENUM||(forward&&original_compare!=VK_COMPARE_OP_EQUAL))){
 +            check(!xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes,source_depth)&&!fake.draws&&fake.depth_changes.empty(),"unknown source compare cannot enter diagnostic draws");
@@ -25311,6 +25684,7 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +        check(xr_baseline_recorder_finish(p,1,9,3,in.command,in.writes,source_depth)&&fake.draws==(forward?8:(depth_diagnostic?6:4))&&fake.last_ubo==handle<VkBuffer>(10),"two controls plus two native draws, source restored");
 +        check(!xr_baseline_recorder_retire(p,comparison),"native private allocations cannot retire in flight");fake.completed=9;
 +        check(xr_baseline_recorder_retire(p,comparison)&&!p&&comparison.native_eye_requested&&comparison.result==XrBaselineComparison::Result::Match,"strict original controls remain intact");
++        if(in.source_coverage_probe)check(comparison.source_coverage_requested&&comparison.source_coverage_available&&comparison.source_coverage_samples==123&&fake.coverage_reads==1&&fake.coverage_pools.empty()&&fake.coverage_begins==1&&fake.coverage_ends==1,"actual recorder reports source coverage separately from strict image success");
 +        std::vector<uint64_t> expected_roots{0x10000000000ull,0x10000000000ull,0x20000000000ull,0x30000000000ull};
 +        if(depth_diagnostic){expected_roots.push_back(0x20000000000ull);expected_roots.push_back(0x30000000000ull);}
 +        if(forward){expected_roots.push_back(0x20000000000ull);expected_roots.push_back(0x30000000000ull);}expected_roots.push_back(0x10000000000ull);
@@ -25322,6 +25696,7 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +            const auto compare=reverse_viewport?VK_COMPARE_OP_GREATER_OR_EQUAL:VK_COMPARE_OP_LESS_OR_EQUAL;
 +            check(fake.depth_changes==std::vector<VkCompareOp>{VK_COMPARE_OP_ALWAYS,VK_COMPARE_OP_ALWAYS,compare,compare,original_compare},"forward depth ordered then exact source restored");
 +            check(fake.depth_write_changes==std::vector<VkBool32>{VK_TRUE,VK_TRUE,VK_FALSE}&&!fake.depth_write,"private writes enabled only for forward eyes, source write policy restored");
++            check(comparison.native_forward_geometry_mesh==bool(mesh_geometry),"classic and mesh forward results retain their actual geometry path");
 +            check(comparison.native_forward_depth_probe&&comparison.native_forward_depth_observed&&comparison.native_forward_depth_written[0]>=16&&comparison.native_forward_depth_written[1]>=16,"actual recorder reads back native colour and written D32 depth");
 +            check(comparison.native_forward_colour_with_depth[0]>=16&&comparison.native_forward_colour_with_depth[1]>=16&&comparison.native_forward_pair_differences>0,"visible pixels have private depth in each eye");
 +            check(comparison.native_forward_clear==(reverse_viewport?0.f:1.f)&&comparison.native_forward_compare==uint32_t(compare),"actual viewport inversion controls far clear and comparison");
@@ -25376,7 +25751,7 @@ index 0000000000000000000000000000000000000000..bb9b3662451b3131aeffe3c7bf090b87
 +}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
 diff --git a/vr/tests/baseline_selection_test.cpp b/vr/tests/baseline_selection_test.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..cb9c0bf4976caf6646996fa65ff4a30e4abf7f47
+index 0000000000000000000000000000000000000000..0c7d5bf0d45b8a0106ef97bdea2b040ad0a57a4d
 --- /dev/null
 +++ b/vr/tests/baseline_selection_test.cpp
 @@ -0,0 +1,70 @@
@@ -25387,9 +25762,9 @@ index 0000000000000000000000000000000000000000..cb9c0bf4976caf6646996fa65ff4a30e
 +using namespace mkwvk;
 +void check(bool ok,const char* why){if(!ok)throw std::runtime_error(why);}
 +int main(int argc,char** argv){try{
-+    if(argc==4&&(std::string(argv[1])=="--check"||std::string(argv[1])=="--check-mesh")){
++    if(argc==4&&(std::string(argv[1])=="--check"||std::string(argv[1])=="--check-mesh"||std::string(argv[1])=="--check-classic"||std::string(argv[1])=="--check-color")){
 +        std::string text;char c;while(std::cin.get(c)){if(text.size()>=8192)throw std::runtime_error("selection size bound");text+=c;}
-+        XrBaselineSelection parsed;check(parse_xr_baseline_selection(text,argv[2],argv[3],parsed,false,false,false,std::string(argv[1])=="--check-mesh",false,std::string(argv[1])=="--check-mesh"),"invalid generated baseline selection");
++        XrBaselineSelection parsed;check(parse_xr_baseline_selection(text,argv[2],argv[3],parsed,false,false,false,std::string(argv[1])!="--check",std::string(argv[1])=="--check-classic"||std::string(argv[1])=="--check-color",std::string(argv[1])=="--check-mesh",std::string(argv[1])=="--check-classic"),"invalid generated baseline selection");
 +    std::cout<<"Baseline protocol verified; programs="<<parsed.programs.size()<<'\n';return 0;
 +    }
 +    check(argc==1,"unsupported protocol checker arguments");
@@ -29047,10 +29422,10 @@ index 0000000000000000000000000000000000000000..61fe02c7cdc7c3069134433afd238784
 +}
 diff --git a/vr/tests/shader_uniform_export_test.cpp b/vr/tests/shader_uniform_export_test.cpp
 new file mode 100644
-index 0000000000000000000000000000000000000000..2898cb72d639487e19f524c5ab9d9b9e6cccaea7
+index 0000000000000000000000000000000000000000..6694f17bf9ea3dca4b89053e13490c6f4bd8d935
 --- /dev/null
 +++ b/vr/tests/shader_uniform_export_test.cpp
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,93 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "xr_shader_uniform_audit.h"
 +#include <filesystem>
@@ -29069,6 +29444,20 @@ index 0000000000000000000000000000000000000000..2898cb72d639487e19f524c5ab9d9b9e
 +    const uint32_t compute[]={0x07230203,0x00010500,0,16,0,0x0005000f,5,1,0x6e69616d,0};
 +    if(mode=="off"){
 +        check(!xr_shader_uniform_audit_enabled()&&!xr_shader_uniform_audit_module(1,words,6)&&!xr_shader_uniform_audit_wants_program(7),"disabled audit is inactive");return 0;
++    }
++    if(mode=="limit64"||mode=="limit128"||mode=="limit256"||mode=="limitinvalid"){
++        const unsigned expected=mode=="limit128"?128:mode=="limit256"?256:64;
++        check(xr_shader_uniform_audit_enabled(),"count test explicitly enabled");
++        const auto path=std::filesystem::u8path(std::getenv("HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR"));
++        check(path.filename()==("shader-audit-"+mode)&&!std::filesystem::is_symlink(path),"count output is a named private build child");
++        check(std::filesystem::weakly_canonical(path.parent_path())==std::filesystem::canonical(std::filesystem::current_path()),"count output stays in test build");
++        std::filesystem::create_directories(path);
++        check(xr_shader_uniform_audit_module(1,words,10),"authored vertex module exported");
++        ShaderUniformAuditStage stage{};stage.module=1;stage.vk_stage=1;
++        for(unsigned i=1;i<=expected;++i){check(xr_shader_uniform_audit_wants_program(i),"capacity available before exact bound");check(xr_shader_uniform_audit_program(i,{}, {stage}),"program fits retained byte caps");}
++        check(!xr_shader_uniform_audit_wants_program(expected+1)&&!xr_shader_uniform_audit_program(expected+1,{}, {stage}),"exact configured program bound enforced");
++        check(!xr_shader_uniform_audit_wants_program(1),"duplicate program never re-exported");
++        std::cout<<"Bounded authored program inventory: "<<expected<<"\n";return 0;
 +    }
 +    check((mode=="enabled"||mode=="compute")&&xr_shader_uniform_audit_enabled(),"audit explicitly enabled");
 +    auto path=std::filesystem::u8path(std::getenv("HOOKSHOT_VR_SHADER_UNIFORM_AUDIT_DIR"));
@@ -29164,6 +29553,65 @@ index 0000000000000000000000000000000000000000..7ca9d1391c2b75ea884d81021684d2df
 +    check(!compare_xr_shifted_draw(pixels.data(),pixels.size(),160,32,true).verified,"unbalanced translated corruption rejected");
 +    std::cout<<"Shifted raster masks require exact baselines, visible output and opposite bounded displacement\n";return 0;
 +}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+diff --git a/vr/tests/source_coverage_selection_test.cpp b/vr/tests/source_coverage_selection_test.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..d5900df5f52da68652ab928bf7a60340436135cf
+--- /dev/null
++++ b/vr/tests/source_coverage_selection_test.cpp
+@@ -0,0 +1,20 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#include "xr_source_coverage_selection.h"
++#include <stdexcept>
++using namespace mkwvk;
++void check(bool ok){if(!ok)throw std::runtime_error("coverage selection");}
++int main(){
++ XrSourceCoverageSelection s;check(!s.selectable(0,0,1));check(s.selectable(10,0,3));
++ check(s.observe(10,0,true,0));check(!s.qualified()&&!s.selectable(10,0,3)&&s.selectable(10,1,3));
++ check(s.observe(10,1,false,123));check(!s.qualified()&&s.selectable(10,2,3));
++ check(s.observe(10,2,true,1));check(s.qualified()&&s.selectable(10,2,3)&&!s.selectable(11,2,3)&&!s.selectable(10,1,3));
++ check(!s.observe(11,0,true,999));s.reject(11);check(s.qualified());s.reject(10);check(!s.qualified()&&s.selectable(10,0,3));
++ XrSourceCoverageSelection bounded;
++ for(unsigned p=1;p<=32;++p)for(unsigned n=0;n<8;++n){check(bounded.selectable(p,n,99));check(bounded.observe(p,n,true,0));}
++ check(!bounded.selectable(33,0,1)&&!bounded.observe(33,0,true,1));check(!bounded.selectable(1,0,1)&&!bounded.observe(1,0,true,1));
++ XrSourceCoverageSelection expiring;check(expiring.observe(8,1,true,99,100));
++ expiring.advance_frame(99);check(expiring.qualified());expiring.advance_frame(107);check(expiring.qualified());
++ expiring.advance_frame(108);check(!expiring.qualified()&&expiring.selectable(9,0,1));
++ check(expiring.observe(8,2,true,9,200));expiring.reject(8);check(!expiring.qualified());
++ XrSourceCoverageSelection clamp;check(clamp.selectable(1,0,0));check(clamp.observe(1,0,true,0));check(clamp.selectable(1,0,0));
++}
+diff --git a/vr/tests/source_coverage_test.cpp b/vr/tests/source_coverage_test.cpp
+new file mode 100644
+index 0000000000000000000000000000000000000000..8ef77c04ddf3a98ca28a946002c0b407f8a810e5
+--- /dev/null
++++ b/vr/tests/source_coverage_test.cpp
+@@ -0,0 +1,27 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#define VK_NO_PROTOTYPES
++#include "xr_source_coverage.h"
++#include <stdexcept>
++using namespace mkwvk;
++void check(bool ok){if(!ok)throw std::runtime_error("source coverage contract");}
++int creates=0,resets=0,begins=0,ends=0,reads=0,destroys=0;uint64_t samples=0,available=1;VkResult status=VK_SUCCESS;
++VKAPI_ATTR VkResult VKAPI_CALL create(VkDevice,const VkQueryPoolCreateInfo* i,const VkAllocationCallbacks*,VkQueryPool* p){check(i->queryType==VK_QUERY_TYPE_OCCLUSION&&i->queryCount==1);++creates;*p=(VkQueryPool)1;return VK_SUCCESS;}
++VKAPI_ATTR void VKAPI_CALL destroy(VkDevice,VkQueryPool,const VkAllocationCallbacks*){++destroys;}
++VKAPI_ATTR void VKAPI_CALL reset(VkCommandBuffer,VkQueryPool,uint32_t a,uint32_t n){check(a==0&&n==1);++resets;}
++VKAPI_ATTR void VKAPI_CALL begin(VkCommandBuffer,VkQueryPool,uint32_t i,VkQueryControlFlags f){check(i==0&&f==0);++begins;}
++VKAPI_ATTR void VKAPI_CALL end(VkCommandBuffer,VkQueryPool,uint32_t i){check(i==0);++ends;}
++VKAPI_ATTR VkResult VKAPI_CALL read(VkDevice,VkQueryPool,uint32_t,uint32_t,size_t n,void* p,VkDeviceSize stride,VkQueryResultFlags f){check(n==16&&stride==16&&f==(VK_QUERY_RESULT_64_BIT|VK_QUERY_RESULT_WITH_AVAILABILITY_BIT));++reads;auto* v=(uint64_t*)p;v[0]=samples;v[1]=available;return status;}
++int main(){
++ XrSourceCoverage::Api api{create,destroy,reset,begin,end,read};XrSourceCoverage p;
++ check(!p.begin({},false,api));check(!p.read({},true,api).available);
++ auto bad=api;bad.end=nullptr;check(!p.create({},bad));check(creates==0);
++ check(p.create({},api));check(!p.create({},api));check(!p.begin({},false,api));
++ p.reset({},api);p.reset({},api);check(resets==1);
++ check(!p.begin({},true,api));check(begins==0);check(p.begin({},false,api));check(!p.begin({},false,api));
++ check(!p.read({},true,api).available&&reads==0);p.end({},api);p.end({},api);check(ends==1);
++ check(!p.read({},false,api).available&&reads==0);check(!p.begin({},false,api));
++ auto zero=p.read({},true,api);check(zero.available&&zero.samples==0);
++ samples=123;auto visible=p.read({},true,api);check(visible.available&&visible.samples==123);
++ available=0;check(!p.read({},true,api).available);available=1;status=VK_NOT_READY;check(!p.read({},true,api).available);
++ p.release({},api);p.release({},api);check(destroys==1);check(!p.read({},true,api).available);
++}
 diff --git a/vr/tests/stereo_plan_test.cpp b/vr/tests/stereo_plan_test.cpp
 new file mode 100644
 index 0000000000000000000000000000000000000000..6b5cf8052d132143aeb9e30c12b267c38640795d
@@ -29894,10 +30342,10 @@ index 0000000000000000000000000000000000000000..40a85b7a5ea2ba642c624c1c591a3db9
 +if __name__=="__main__":unittest.main()
 diff --git a/vr/tests/test_audit_shader_bindings.py b/vr/tests/test_audit_shader_bindings.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..ca16fb3f904ff36252d3eea23125f3defaf3e36c
+index 0000000000000000000000000000000000000000..5f1a94152c01fbe828360b28505c0009e0da0597
 --- /dev/null
 +++ b/vr/tests/test_audit_shader_bindings.py
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,83 @@
 +"""Authored SPIR-V and binding JSON only, stored temporarily under ignored work/."""
 +import importlib.util
 +import json
@@ -29963,6 +30411,22 @@ index 0000000000000000000000000000000000000000..ca16fb3f904ff36252d3eea23125f3de
 +        self.write(self.binding);result=batch.analyze_directory(self.root)
 +        self.assertEqual(result['unresolved_queries'],1)
 +        self.assertEqual(result['queries_with_static_reads'],0)
++
++    def test_expanded_inventory_requires_explicit_bounded_capacity(self):
++        for size,limit in ((65,128),(129,256),(256,256)):
++            records=[dict(schema=1,program=i+1,bindings=[self.binding]) for i in range(size)]
++            (self.root/'program-bindings.jsonl').write_text(''.join(json.dumps(x)+'\n' for x in records),encoding='utf-8')
++            with self.assertRaises(ValueError):batch.analyze_directory(self.root)
++            result=batch.analyze_directory(self.root,limit)
++            self.assertEqual(result['observed_programs'],size)
++            self.assertEqual(result['inventory_program_limit'],limit)
++            self.assertFalse(result['safe_to_patch'])
++        for invalid in (True,64.0,0,512):
++            with self.assertRaises(ValueError):batch.analyze_directory(self.root,invalid)
++    def test_expanded_inventory_rejects_overflow(self):
++        records=[dict(schema=1,program=i+1,bindings=[self.binding]) for i in range(257)]
++        (self.root/'program-bindings.jsonl').write_text(''.join(json.dumps(x)+'\n' for x in records),encoding='utf-8')
++        with self.assertRaises(ValueError):batch.analyze_directory(self.root,256)
 +
 +if __name__=='__main__':unittest.main()
 diff --git a/vr/tests/test_audit_spirv_uniforms.py b/vr/tests/test_audit_spirv_uniforms.py
@@ -30483,12 +30947,77 @@ index 0000000000000000000000000000000000000000..46e62a9b88e10961e58b25ecb74122cb
 +    def test_capture_not_mutated(self):
 +        samples=[sample(.1,2)];before=copy.deepcopy(samples);audit.audit(samples);self.assertEqual(samples,before)
 +if __name__=='__main__':unittest.main()
+diff --git a/vr/tests/test_classic_transport_selection.py b/vr/tests/test_classic_transport_selection.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c606ff6dd44e4de0bcb28a03772db41ed13dd0c9
+--- /dev/null
++++ b/vr/tests/test_classic_transport_selection.py
+@@ -0,0 +1,59 @@
++# SPDX-License-Identifier: GPL-3.0-or-later
++"""Authored classic transport reports and the production packet decoder; no game data."""
++import copy
++import importlib.util
++from pathlib import Path
++import subprocess
++import sys
++import unittest
++spec=importlib.util.spec_from_file_location('classic_transport',Path(__file__).resolve().parents[1]/'audit_classic_transport.py')
++audit=importlib.util.module_from_spec(spec);spec.loader.exec_module(audit)
++DECODER=Path(sys.argv.pop(1)) if len(sys.argv)>1 else None
++def report():
++    stages=[]
++    for vk,ns,model,digest in ((1,0,0,'1'*16),(16,1,4,'2'*16)):
++        effect=dict(entry_models=[model],module_words=100,private_root_read_inventory_subset=True,rejections={},safe_to_replay=False)
++        stages.append(dict(vk_stage=vk,nvn_stage=ns,module_fingerprint=digest,effects=effect,transport_effects_reviewed=True))
++    program=dict(program=7,transport_candidate=True,stages=stages,primary_camera_stages=[1],vertex_transform_reads_observed=True,preserved_tail_policy='source_verbatim_gpu_verified',camera_semantics_verified=False,safe_to_replay=False)
++    return dict(experiment='isolated_classic_attachment_transport',programs=[program],safe_to_replay=False,full_scene_stereo=False,headset_ready=False)
++class ClassicSelectionTests(unittest.TestCase):
++    def emit(self,data):return audit.selection_text(data,'a'*32,'1234abcd')
++    def test_production_decoder_requires_own_explicit_mode(self):
++        data=report();before=copy.deepcopy(data);text=self.emit(data);self.assertEqual(data,before)
++        self.assertTrue(text.startswith('HSVR_NATIVE_CLASSIC_TRANSPORT_V1\n'));self.assertIn('0000000000000007 2\n',text)
++        if DECODER:
++            for mode in ('--check','--check-mesh','--check-color','--check-classic'):
++                result=subprocess.run([str(DECODER),mode,'a'*32,'1234abcd'],input=text,capture_output=True,text=True)
++                self.assertEqual(result.returncode==0,mode=='--check-classic',result.stderr)
++    def test_missing_or_writing_stage_never_emits_packet(self):
++        for index in (0,1):
++            for key,value in (('private_root_read_inventory_subset',False),('rejections',{'shared_write':1}),('safe_to_replay',True),('entry_models',[5])):
++                data=report();data['programs'][0]['stages'][index]['effects'][key]=value
++                with self.assertRaises(ValueError):self.emit(data)
++            data=report();data['programs'][0]['stages'][index]['transport_effects_reviewed']=False
++            with self.assertRaises(ValueError):self.emit(data)
++    def test_camera_and_unknown_tail_policy_required(self):
++        for key,value in (('vertex_transform_reads_observed',False),('primary_camera_stages',[16]),('preserved_tail_policy','unchecked'),('camera_semantics_verified',True)):
++            data=report();data['programs'][0][key]=value
++            with self.assertRaises(ValueError):self.emit(data)
++    def test_no_scene_or_headset_claim(self):
++        for key in ('safe_to_replay','full_scene_stereo','headset_ready'):
++            data=report();data[key]=True
++            with self.assertRaises(ValueError):self.emit(data)
++    def test_wrong_stage_mapping_and_duplicate_program_rejected(self):
++        data=report();data['programs'][0]['stages'][0]['nvn_stage']=1
++        with self.assertRaises(ValueError):self.emit(data)
++        data=report();data['programs'].append(copy.deepcopy(data['programs'][0]))
++        with self.assertRaises(ValueError):self.emit(data)
++    def test_packet_stays_within_existing_program_and_byte_caps(self):
++        data=report();template=copy.deepcopy(data['programs'][0]);data['programs']=[]
++        for i in range(40):
++            item=copy.deepcopy(template);item['program']=i+1;data['programs'].append(item)
++        text=self.emit(data);self.assertLessEqual(len(text.encode('ascii')),8192);self.assertEqual(text.splitlines()[1],'a'*32+' 1234abcd 32')
++    def test_stale_nonce_and_legacy_header_rejected(self):
++        if not DECODER:self.skipTest('decoder not provided')
++        text=self.emit(report())
++        for invalid in (text.replace('HSVR_NATIVE_CLASSIC_TRANSPORT_V1','HSVR_NATIVE_EYE_COLOR_DRAW_V1'),text.replace('1234abcd','deadbeef'),text.replace('a'*32,'b'*32),text+'trailing\n'):
++            result=subprocess.run([str(DECODER),'--check-classic','a'*32,'1234abcd'],input=invalid,capture_output=True,text=True)
++            self.assertNotEqual(result.returncode,0)
++if __name__=='__main__':unittest.main()
 diff --git a/vr/tests/test_color_retry_policy.py b/vr/tests/test_color_retry_policy.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..6196373a47cecb38a3d6a9dfae1676c2ac7781fe
+index 0000000000000000000000000000000000000000..97662498efe2db53664634840df97f47a15a8cc1
 --- /dev/null
 +++ b/vr/tests/test_color_retry_policy.py
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,81 @@
 +"""Compile actual native color-retry selection/gate with authored state only."""
 +import argparse
 +from pathlib import Path
@@ -30510,6 +31039,7 @@ index 0000000000000000000000000000000000000000..6196373a47cecb38a3d6a9dfae1676c2
 +    helper=block(source,'bool retryable_invisible_color(')
 +    fixture=r'''
 +#include "xr_baseline_attempt.h"
++#include "xr_source_coverage_selection.h"
 +#include <map>
 +#include <set>
 +#include <mutex>
@@ -30517,8 +31047,9 @@ index 0000000000000000000000000000000000000000..6196373a47cecb38a3d6a9dfae1676c2
 +#include <iostream>
 +using namespace mkwvk;
 +struct Program {uint64_t key;bool reviewed=true;};
-+struct State {std::mutex mutex;std::map<uint64_t,unsigned> visits,previous_visits,invisible_retries;std::set<uint64_t> attempted;bool stopped=false;void* current=nullptr;unsigned started=0;uint64_t current_program=7;} shared;
-+State& state(){return shared;}bool enabled=true;bool xr_baseline_draw_enabled(){return enabled;}
++struct State {struct {bool pending=false;} coverage;XrSourceCoverageSelection coverage_selection;std::mutex mutex;std::map<uint64_t,unsigned> visits,previous_visits,invisible_retries;std::set<uint64_t> attempted;bool stopped=false;void* current=nullptr;unsigned started=0;uint64_t current_program=7;} shared;
++State& state(){return shared;}bool qualifying=false;bool qualify_source(){return qualifying;}
++bool enabled=true;bool xr_baseline_draw_enabled(){return enabled;}
 +bool selected(const State&,const Program& program){return program.reviewed;}
 +void check(bool value,const char* why){if(!value)throw std::runtime_error(why);}
 +HELPER
@@ -30552,6 +31083,12 @@ index 0000000000000000000000000000000000000000..6196373a47cecb38a3d6a9dfae1676c2
 +    p.stopped=true;check(!xr_baseline_draw_selected(program),"stopped probe cannot restart");p.stopped=false;
 +    check(!xr_baseline_draw_selected({8,false}),"unreviewed shaders still rejected");
 +    p.current=&p;p.visits.clear();for(unsigned i=1;i<=256;++i)xr_baseline_draw_selected({i});check(p.visits.size()==64,"observation map remains bounded");
++    qualifying=true;p.current=nullptr;p.visits.clear();p.invisible_retries.clear();p.previous_visits[7]=3;
++    p.coverage.pending=true;check(!xr_baseline_draw_selected(program),"in-flight source query blocks allocation");p.coverage.pending=false;p.visits.clear();
++    check(xr_baseline_draw_selected(program),"unqualified diagnostic can sample an exact candidate");
++    check(p.coverage_selection.observe(7,1,true,2),"positive source observation retained");p.visits.clear();
++    check(!xr_baseline_draw_selected(program)&&xr_baseline_draw_selected(program),"positive hint targets the observed ordinal only");
++    p.visits.clear();check(!xr_baseline_draw_selected({8}),"other programs cannot replace a qualified candidate");
 +    enabled=false;check(!xr_baseline_draw_selected(program),"disabled mode cannot select");
 +    std::cout<<"Native invisible-color retry requires intact controls and a bounded total budget\n";return 0;
 +}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
